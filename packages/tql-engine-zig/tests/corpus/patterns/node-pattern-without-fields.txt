@@ -17,3 +17,4 @@ function f() { class B {} }
 
 --- simplified ---
 main = \x -> bind[List] (%descendants_of_kind :class_declaration x) (\y -> Cons "class" Nil)
+entry = main

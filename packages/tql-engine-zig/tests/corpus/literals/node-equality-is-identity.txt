@@ -23,4 +23,5 @@ class A {}
 [true, false, false, true]
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List Node Bool
+entry :: Node -> [Bool]

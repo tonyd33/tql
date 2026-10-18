@@ -15,7 +15,7 @@ label xs = case (
   True -> "big";
   False -> "small";
 };
-main = Filter (\_ -> [label [1], label [1, 2], label [20]]);
+main = Kleisli $ \_ -> [label [1], label [1, 2], label [20]];
 
 --- source ---
 class A {}
@@ -39,3 +39,4 @@ label = \xs ->
         True -> jump j'
       Cons _ _ -> jump alternative xs
 main = \_ -> Cons (label (Cons 1 Nil)) (Cons (label (Cons 1 (Cons 2 Nil))) (Cons (label (Cons 20 Nil)) Nil))
+entry = main

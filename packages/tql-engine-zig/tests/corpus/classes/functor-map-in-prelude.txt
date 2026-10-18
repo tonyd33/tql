@@ -3,7 +3,7 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-main = Filter (\_ -> map (+ 1) [1, 2]);
+main = Kleisli $ \_ -> map (+ 1) [1, 2];
 
 --- source ---
 class A {}

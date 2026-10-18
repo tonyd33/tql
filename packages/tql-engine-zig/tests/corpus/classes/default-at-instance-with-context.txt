@@ -1,0 +1,29 @@
+title: a default at an instance with a context uses that instance's dictionary
+grammar: typescript
+asserts: values
+
+`label` at `[a]` is the default, and its `describe` is the list instance's,
+which needs `Describe a`.
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+  label :: a -> [String];
+  label x = [describe x, "label"];
+};
+instance Describe Int where {
+  describe n = "int";
+};
+instance Describe a => Describe [a] where {
+  describe xs = case xs of {
+    [] -> "nil";
+    Cons y _ -> describe y;
+  };
+};
+main = pure $ label [1];
+
+--- source ---
+class A {}
+
+--- values ---
+[["int","label"]]

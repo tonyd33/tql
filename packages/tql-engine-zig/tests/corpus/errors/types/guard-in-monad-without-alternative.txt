@@ -5,7 +5,7 @@ asserts: error
 `guard` fails by `empty`, which `Done` has no instance for.
 
 --- tql ---
-data Done a = Done a;
+data Done a = Done a deriving (Serial);
 
 instance Functor Done where {
   map f d = case d of {
@@ -32,7 +32,7 @@ positive = do {
   return x;
 };
 
-main root = [positive];
+main = Kleisli $ \root -> [positive];
 
 --- error ---
 error[unsatisfied-constraint]: `Alternative Done` is not satisfied.

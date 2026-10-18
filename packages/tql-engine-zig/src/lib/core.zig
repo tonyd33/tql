@@ -435,6 +435,8 @@ pub const Definition = struct {
     symbol: SymbolId,
     body: Term,
     span: diagnostic.Span,
+    /// Written `x = e`, with no parameters.
+    simple: bool = false,
 };
 
 /// Builds the compound terms into an arena. Every term outlives the builder.

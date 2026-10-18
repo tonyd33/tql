@@ -8,7 +8,7 @@ the parameter prints primed.
 
 --- tql ---
 f eq = if eq == 1 then 10 else 20;
-main = Filter (\_ -> [f 1, f 2]);
+main = Kleisli $ \_ -> [f 1, f 2];
 
 --- source ---
 class A {}
@@ -20,4 +20,5 @@ class A {}
 f = \eq' -> case eq eq' 1 of
   False -> 20
   True -> 10
-main = Filter (\_ -> Cons (f 1) (Cons (f 2) Nil))
+main = Kleisli (\_ -> Cons (f 1) (Cons (f 2) Nil))
+entry = run_main main

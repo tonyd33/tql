@@ -10,11 +10,11 @@ unname n = case n of {
   Name s -> s;
 };
 
-main root = [unname "a"];
+main = Kleisli $ \root -> [unname "a"];
 
 --- error ---
 error[type-mismatch]: Expected `Name`, found `String`.
- --> 8:21
+ --> 8:35
   |
-8 | main root = [unname "a"];
-  |                     ^^^
+8 | main = Kleisli $ \root -> [unname "a"];
+  |                                   ^^^

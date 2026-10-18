@@ -1,0 +1,20 @@
+title: a local signature generalizes a binding that mentions a parameter
+grammar: typescript
+asserts: values
+
+`pair` mentions `x`, so without a signature it would not be generalized.
+Its signature makes it polymorphic in its own argument (Declarations:
+Generalisation).
+
+--- tql ---
+f x = let {
+  pair :: b -> { a: Int, b: b };
+  pair y = { a = x, b = y };
+} in [(pair 1).b, length (pair "st").b];
+main = Kleisli $ \_ -> f 0;
+
+--- source ---
+f(x);
+
+--- values ---
+[1, 2]

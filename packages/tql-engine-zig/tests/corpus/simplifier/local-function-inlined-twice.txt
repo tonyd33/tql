@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-main = let { inc x = x + 1 } in Filter (\_ -> [inc 1, inc 2]);
+main = let { inc x = x + 1 } in Kleisli $ \_ -> [inc 1, inc 2];
 
 --- source ---
 class A {}
@@ -13,8 +13,10 @@ class A {}
 
 --- simplified ---
 main = \_ -> Cons (op[+] 1 1) (Cons (op[+] 2 1) Nil)
+entry = main
 
 --- core ---
 main =
   let inc = \x -> op[+] x 1 in
-  Filter (\_ -> Cons (inc 1) (Cons (inc 2) Nil))
+  Kleisli (\_ -> Cons (inc 1) (Cons (inc 2) Nil))
+entry = run_main main

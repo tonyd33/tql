@@ -13,4 +13,4 @@ error[orphan-signature]: `kind` has a signature but no definition
  --> 1:1
   |
 1 | kind :: Node -> Kind;
-  | ^^^^^^^^^^^^^^^^^^^^^
+  | ^^^^^^^^^^^^^^^^^^^^

@@ -26,4 +26,5 @@ try { console.error("d"); } catch (e) { console.error("e"); }
 --- types ---
 $mMemberCall :: Node -> (Node -> Node -> a) -> a -> a
 $mText :: Node -> (String -> a) -> a -> a
-main :: Filter Node String
+main :: Kleisli List Node String
+entry :: Node -> [String]

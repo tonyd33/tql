@@ -8,7 +8,7 @@ schemes carry the constraint.
 --- tql ---
 f x = if x == x then 1 else g x;
 g x = f x;
-main = Filter (\_ -> [g 1, f "s"]);
+main = Kleisli $ \_ -> [g 1, f "s"];
 
 --- source ---
 class A {}
@@ -19,4 +19,5 @@ class A {}
 --- types ---
 f :: Eq a => a -> Int
 g :: Eq a => a -> Int
-main :: Filter Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

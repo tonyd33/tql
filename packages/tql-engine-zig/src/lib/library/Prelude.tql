@@ -41,4 +41,4 @@ import Control.Arrow;
 import Data.Maybe (Maybe(..));
 import Data.List (Sized(..), foldl', head, last);
 import Data.Node;
-import Data.Filter (Filter(..), run, collect, keep, has, or_else);
+import Data.Filter (Filter, run, collect, keep, has, or_else);

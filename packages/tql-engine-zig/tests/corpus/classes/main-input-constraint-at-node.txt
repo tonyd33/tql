@@ -20,4 +20,5 @@ class A {}
 ["program"]
 
 --- types ---
-main :: Filter Node String
+main :: Kleisli List Node String
+entry :: Node -> [String]

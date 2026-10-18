@@ -14,7 +14,7 @@ main =
     is_odd n = if n == 0 then False else is_even (n - 1);
     four = 4;
   }
-  in Filter (\_ -> answer);
+  in Kleisli $ \_ -> answer;
 
 --- source ---
 class A {}
@@ -34,4 +34,5 @@ main =
   in
   let four = 4 in
   let answer = Cons (is_even four) (Cons (is_odd four) Nil) in
-  Filter (\_ -> answer)
+  Kleisli (\_ -> answer)
+entry = run_main main

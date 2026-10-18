@@ -14,7 +14,7 @@ composed = run_kleisli (compose (arr kind_name) (compose (Kleisli (run named_chi
 dotted :: Node -> [String];
 dotted = run_kleisli (arr kind_name . Kleisli (run named_children) . Kleisli (run named_children));
 
-main = Filter (\root -> [run piped root == composed root, run piped root == dotted root]);
+main = Kleisli $ \root -> [run piped root == composed root, run piped root == dotted root];
 
 --- source ---
 class A { b() {} }
@@ -26,10 +26,12 @@ class A { b() {} }
 piped = \x -> bind[List] (bind[List] (%named_children x) %named_children) (\x -> Cons (%kind_name x) Nil)
 composed = \x -> bind[List] (bind[List] (%named_children x) %named_children) (\x -> Cons (%kind_name x) Nil)
 dotted = \x -> bind[List] (bind[List] (%named_children x) %named_children) (\x -> Cons (%kind_name x) Nil)
-main = \root -> Cons (eq[List] (piped root) (composed root)) (Cons (eq[List] (piped root) (dotted root)) Nil)
+main = \root -> Cons (eq[List] instance[Eq,String] (piped root) (composed root)) (Cons (eq[List] instance[Eq,String] (piped root) (dotted root)) Nil)
+entry = main
 
 --- types ---
 piped :: Filter Node String
 composed :: Node -> [String]
 dotted :: Node -> [String]
-main :: Filter Node Bool
+main :: Kleisli List Node Bool
+entry :: Node -> [Bool]

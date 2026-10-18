@@ -30,11 +30,11 @@ large s = case s of { Large v -> [v]; _ -> []; };
 
 called = descendants_of_kind :call_expression | #function | of_kind :identifier | arr text;
 
-numbers = descendants_of_kind :number_literal | Filter (to_list . toint . text);
+numbers = descendants_of_kind :number_literal | Kleisli (to_list . toint . text);
 
 main = do {
   f <- descendants_of_kind :function_definition;
-  name <- pure f | Filter (take 1 . run (#declarator | descendants_of_kind :identifier));
+  name <- pure f | Kleisli (take 1 . run (#declarator | descendants_of_kind :identifier));
   body <- pure f | #body;
   let callees = sort_into [] (run called body);
   let larges = concat_map large (map classify (run numbers body));

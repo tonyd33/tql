@@ -74,6 +74,34 @@ pub fn appliedInstance(
     return instance;
 }
 
+/// Whether `t` builds a dictionary from dictionaries alone: a symbol, an
+/// instance applied to such terms, or a superclass selected from one.
+pub fn buildsDictionary(
+    interner: *const core.Interner,
+    classes: *const core.classes.Registry,
+    t: core.Term,
+) bool {
+    switch (t.kind) {
+        .symbol => return true,
+        .apply => |apply| {
+            const head = t.head();
+            if (head.kind != .symbol) return false;
+            switch (interner.details(head.kind.symbol)) {
+                .instance => if (appliedInstance(interner, classes, t) == null) return false,
+                .selector => if (t.spineLength() != 1) return false,
+                else => return false,
+            }
+            var current = apply;
+            while (true) {
+                if (!buildsDictionary(interner, classes, current.argument)) return false;
+                if (current.function.kind != .apply) return true;
+                current = current.function.kind.apply;
+            }
+        },
+        else => return false,
+    }
+}
+
 /// The methods a law may select from `symbol`, each then applied to what
 /// `symbol` is applied to: an instance's methods, or none.
 pub fn selectable(
@@ -94,6 +122,10 @@ pub const Laws = struct {
     primitives: *const std.EnumArray(core.PrimOp, ?core.SymbolId),
     /// A key is null when the library has none.
     known: *const std.EnumArray(core.Known, ?core.SymbolId),
+    /// Bindings, local or global, to a term that builds a dictionary. A law
+    /// that matches a dictionary sees through them, so a dictionary bound by
+    /// a `let` is built once and still matched.
+    dictionaries: core.SymbolTable(core.Term),
     list: core.datatypes.TypeId,
     nil: core.SymbolId,
     cons: core.SymbolId,
@@ -101,6 +133,22 @@ pub const Laws = struct {
     true_: core.SymbolId,
     /// `LT`, `EQ` and `GT`.
     ordering: [3]core.SymbolId,
+
+    /// Record `name` as bound to `value` when `value` builds a dictionary
+    /// other than `name` itself.
+    pub fn record(self: *Laws, name: core.SymbolId, value: core.Term) Allocator.Error!void {
+        if (value.kind == .symbol) return;
+        if (!buildsDictionary(self.interner, self.classes, value)) return;
+        try self.dictionaries.put(name, value);
+    }
+
+    /// The dictionary `t` is bound to, through every binding recorded by
+    /// `record`, or `t`.
+    pub fn dictionaryOf(self: *const Laws, t: core.Term) core.Term {
+        var current = t;
+        while (current.kind == .symbol) current = self.dictionaries.get(current.kind.symbol) orelse break;
+        return current;
+    }
 
     /// The term a law rewrites `function argument` to, when one matches.
     ///
@@ -166,10 +214,11 @@ pub const Laws = struct {
         if (class.constructor == head.kind.symbol) {
             return spineArgument(argument, class.selectors.len + class.methods.len, class.selectors.len + method.index);
         }
-        const instance = appliedInstance(self.interner, self.classes, argument) orelse return null;
+        const dictionary = self.dictionaryOf(argument);
+        const instance = appliedInstance(self.interner, self.classes, dictionary) orelse return null;
         if (instance.class != method.class) return null;
         var result = self.builder.symbol(instance.methods[method.index], span);
-        try self.spine(argument, &result, span);
+        try self.spine(dictionary, &result, span);
         return result;
     }
 
@@ -282,7 +331,7 @@ pub const Laws = struct {
             else => return null,
         };
         const dictionary = operandOf(self.known.get(.kleisli) orelse return null, a.function) orelse return null;
-        const instance = appliedInstance(self.interner, self.classes, dictionary) orelse return null;
+        const instance = appliedInstance(self.interner, self.classes, self.dictionaryOf(dictionary)) orelse return null;
         const bind = self.known.get(.bind) orelse return null;
         if (instance.head() != self.list or instance.class != self.interner.details(bind).method.class) return null;
         return a.argument;

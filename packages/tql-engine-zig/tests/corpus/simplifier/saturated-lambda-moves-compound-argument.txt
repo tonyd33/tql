@@ -15,6 +15,8 @@ class A {}
 main =
   let y = op[+] (op[*] 2 3) 1 in
   \_ -> Cons y Nil
+entry = main
 
 --- core ---
 main = pure ((\x -> \y -> op[+] x y) (op[*] 2 3) 1)
+entry = run_main main

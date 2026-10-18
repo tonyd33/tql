@@ -6,7 +6,7 @@ asserts: simplified, values
 differ :: Int -> Int -> Bool;
 differ x y = not $ x == y;
 
-main = Filter (\_ -> [differ 1 2, differ 2 2]);
+main = Kleisli $ \_ -> [differ 1 2, differ 2 2];
 
 --- source ---
 class A {}
@@ -16,3 +16,4 @@ class A {}
 
 --- simplified ---
 main = \_ -> Cons (%ne_int 1 2) (Cons (%ne_int 2 2) Nil)
+entry = main

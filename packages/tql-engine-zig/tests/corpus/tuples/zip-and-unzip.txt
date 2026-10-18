@@ -19,4 +19,5 @@ class A {}
 [[[[1,"a"],[2,"b"]],[[1,2],["a","b"]],[0,1]]]
 --- types ---
 nats :: Int -> [Int]
-main :: Filter Node ([(Int, String)], ([Int], [String]), [Int])
+main :: Kleisli List Node ([(Int, String)], ([Int], [String]), [Int])
+entry :: Node -> [([(Int, String)], ([Int], [String]), [Int])]

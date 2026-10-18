@@ -4,7 +4,7 @@ asserts: core, simplified, values
 
 --- tql ---
 f b = let { a = 2 * 3 } in if b then a else a + 1;
-main = Filter (\_ -> map f [True, False]);
+main = Kleisli $ \_ -> map f [True, False];
 
 --- source ---
 class A {}
@@ -19,6 +19,7 @@ f = \b ->
     False -> op[+] a 1
     True -> a
 main = \_ -> map[List] f (Cons True (Cons False Nil))
+entry = main
 
 --- core ---
 f = \b ->
@@ -26,4 +27,5 @@ f = \b ->
   case b of
     False -> op[+] a 1
     True -> a
-main = Filter (\_ -> map f (Cons True (Cons False Nil)))
+main = Kleisli (\_ -> map f (Cons True (Cons False Nil)))
+entry = run_main main

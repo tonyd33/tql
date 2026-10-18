@@ -27,4 +27,5 @@ class B {}
 ]
 
 --- types ---
-main :: Filter Node Node
+main :: Kleisli List Node Node
+entry :: Node -> [Node]

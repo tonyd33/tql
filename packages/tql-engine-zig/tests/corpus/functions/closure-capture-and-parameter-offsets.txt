@@ -32,3 +32,4 @@ main = {} \u {} ->
       Cons y@0 c0@2
   in
   t1@1
+entry = {} \u {} -> main

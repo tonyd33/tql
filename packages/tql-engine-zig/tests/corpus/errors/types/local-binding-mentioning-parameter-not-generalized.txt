@@ -1,0 +1,23 @@
+title: a local function that mentions a parameter is not generalized
+grammar: typescript
+asserts: error
+
+`pair` mentions `x`, bound by the enclosing lambda, so it is not
+generalized and cannot be used at two types (Declarations:
+Generalisation).
+
+--- tql ---
+f x = let {
+  pair y = { a = x, b = y };
+} in { first = pair 1, second = pair "s" };
+main = pure (f 0);
+
+--- source ---
+f(x);
+
+--- error ---
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 3:38
+  |
+3 | } in { first = pair 1, second = pair "s" };
+  |                                      ^^^

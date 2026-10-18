@@ -3,11 +3,11 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-main = Filter (\root -> do {
+main = Kleisli $ \root -> do {
   c <- run (children_of_kind :class_declaration) root;
   n <- c#name;
   return [text n, kind_name n];
-});
+};
 
 --- source ---
 class A {}

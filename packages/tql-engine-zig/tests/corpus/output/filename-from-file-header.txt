@@ -16,4 +16,5 @@ class A {}
 [{"tag":"Just","fields":["src/service.ts"]}]
 
 --- types ---
-main :: Filter Node (Maybe String)
+main :: Kleisli List Node (Maybe String)
+entry :: Node -> [Maybe String]

@@ -15,7 +15,7 @@ is_jump_target n = is_breakable n or is_one_of function_kinds n;
 
 unlabeled = keep (not . has #label);
 
-jump_target = Filter (take 1 . run (ancestors | keep is_jump_target));
+jump_target = Kleisli $ take 1 . run (ancestors | keep is_jump_target);
 
 exited_by k n = has (descendants_of_kind k | unlabeled | jump_target | keep (== n)) n;
 
@@ -89,7 +89,7 @@ unreachable_fields = do {
   body <- #body;
   ctor <- pure body | named_children | of_kind :method_definition | keep is_constructor;
   guard $ not $ calls_super ctor;
-  pure body | Filter (run_starts skips_field False . run statements);
+  pure body | Kleisli (run_starts skips_field False . run statements);
 };
 
 statement_lists =
@@ -98,5 +98,5 @@ statement_lists =
   <|> collect statements;
 
 main =
-  (statement_lists | Filter unreachable_after)
+  (statement_lists | Kleisli unreachable_after)
   <|> ((descendants_of_kind :class_declaration <|> descendants_of_kind :class) | unreachable_fields);

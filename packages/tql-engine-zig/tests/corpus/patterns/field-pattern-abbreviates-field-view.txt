@@ -3,15 +3,15 @@ grammar: typescript
 asserts: simplified
 
 --- tql ---
-sugar = Filter (\n -> case n of {
+sugar = Kleisli $ \n -> case n of {
   { #function = f } -> [f];
   _ -> [];
-});
+};
 
-written = Filter (\n -> case n of {
+written = Kleisli $ \n -> case n of {
   (run #function -> [f]) -> [f];
   _ -> [];
-});
+};
 
 main = descendants | (sugar <|> written);
 
@@ -30,3 +30,4 @@ written = \n -> case field[function] n of
     Nil -> Cons f Nil
     Cons _ _ -> Nil
 main = \x -> bind[List] (%descendants x) (\x -> append[List] (sugar x) (written x))
+entry = main

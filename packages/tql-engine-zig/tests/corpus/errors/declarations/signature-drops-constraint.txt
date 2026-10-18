@@ -12,8 +12,8 @@ same x y = x == y;
 main = pure (same 1 1);
 
 --- error ---
-error[signature-mismatch]: `Eq a` is not satisfied.
- --> 1:1
+error[signature-mismatch]: `Eq a` is needed, but the signature of `same` does not give it.
+ --> 2:12
   |
-1 | same :: a -> a -> Bool;
-  | ^^^^^^^^^^^^^^^^^^^^^^^
+2 | same x y = x == y;
+  |            ^^^^^^

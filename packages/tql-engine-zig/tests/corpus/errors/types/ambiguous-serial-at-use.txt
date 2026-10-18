@@ -14,7 +14,7 @@ main = pure 1;
 class A {}
 
 --- error ---
-error[ambiguous-constraint]: `Serial [a]` is ambiguous: nothing determines its type.
+error[ambiguous-constraint]: `Serial a` is ambiguous: nothing determines its type.
  --> 4:5
   |
 4 | g = f [];

@@ -56,4 +56,4 @@ dupes seen ms = case ms of {
 
 object_dupes o = dupes [] (concat_map (run member) (run named_children o));
 
-main = descendants_of_kind :object | Filter object_dupes;
+main = descendants_of_kind :object | Kleisli object_dupes;

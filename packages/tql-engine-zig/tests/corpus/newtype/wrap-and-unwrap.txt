@@ -22,6 +22,7 @@ class A {}
 main =
   let y = "a" in
   \_ -> Cons y Nil
+entry = main
 
 --- stg ---
 main = {} \u {} ->
@@ -32,7 +33,9 @@ main = {} \u {} ->
       Cons y@0 c0@2
   in
   t1@1
+entry = {} \u {} -> main
 
 --- types ---
 unname :: Name -> String
-main :: Filter Node String
+main :: Kleisli List Node String
+entry :: Node -> [String]

@@ -1,5 +1,9 @@
 # Declarations and bindings
 
+Every type, class and synonym of a module is in scope in every
+declaration of the module, so declarations may refer to each other in
+any order.
+
 ## Grammar
 
 ```
@@ -44,10 +48,6 @@ different types. Its parameters' kinds are inferred
 A constructor field may have any type of kind `Type`, records included.
 A field may mention only the declaration's own parameters.
 
-Every type, class and synonym of a module is in scope in every
-declaration of the module, so declarations may refer to each other in
-any order.
-
 ## Newtypes
 
 ```tql
@@ -85,19 +85,23 @@ class Eq a where {
   (!=) :: a -> a -> Bool;
   x == y = not (x != y);
   x != y = not (x == y);
+  minimal (==) | (!=);
 };
 ```
 
 declares a class `Eq` with methods `==` and `!=`, each of type
-`∀a. Eq a => a -> a -> Bool`. A class has one parameter. A context before
-`=>` names the superclasses: `class Eq a => Ord a`.
+`∀a. Eq a => a -> a -> Bool`. A class has one parameter, and a method
+type that does not mention it is an error. A context before `=>` names
+the superclasses: `class Eq a => Ord a`. A cycle of superclasses is an
+error.
 
 A method with a definition in the class has a default, used by every
 instance that does not define it. Each class states which methods an
-instance must define; for `Eq` it is `==` or `!=`. An instance that defines too few is an error.
-
-A method type that does not mention the class parameter is an error, and
-so is a cycle of superclasses.
+instance must define; for `Eq` it is `==` or `!=`. `minimal` joins methods
+with `,`, all of them, and `|`, either side, `,` binding tighter; without
+it, an instance must define every method without a default. A `minimal`
+that an instance could satisfy while leaving a method without a default
+undefined is an error, as is an instance that defines too few.
 
 A class translates to a dictionary type and selectors:
 
@@ -134,6 +138,10 @@ its type. An instance anywhere else is an orphan, and an error.
 Each method is checked against the class's method type at the head, with
 the instance context and the head's superclass instances as givens.
 
+Each superclass `S` of `C` is a wanted `S (T ā)`, solved with the context
+as givens. Its evidence is the dictionary's superclass field. An insoluble
+one is an error, `invalid-instance`.
+
 An instance translates to a dictionary, a function of the context's
 dictionaries:
 
@@ -146,9 +154,11 @@ inst_C_T :: ∀ā. Dict_C1 a1 -> ... -> Dict_Cj aj -> Dict_C (T ā)
 ## Deriving
 
 `deriving (C1, ..., Cn)` on a `data` or `newtype` declaration generates an
-instance of each class. The instance's context is inferred from the
-fields: `data P a = P` derives `Eq (P a)` with
-no context.
+instance of each class. Its context is the least under which every
+field's wanted `C τ` is solved: starting from no context, each residual
+on a type variable is added until none is. `data P a = P` derives
+`Eq (P a)` with no context. A residual on any type but a variable is an
+error, `invalid-deriving`.
 
 | Class | Derived instance |
 |---|---|
@@ -238,10 +248,8 @@ declaration is `infixl 9`. The standard library's fixities are in
 
 The bindings of one module, or of one `let`, are split into strongly
 connected components of their reference graph and typed in dependency
-order. A reference to a binding with a
-signature is not an edge, since its type is known.
-
-One component is typed together. Its members share one context.
+order. A reference to a binding with a signature is not an edge. One
+component is typed together ([T-Group](06-static-semantics.md#bindings)).
 
 ## Generalisation
 
@@ -261,8 +269,8 @@ computed once. A binding whose type is not constrained still generalises:
 `calls = descendants_of_kind :call_expression;` is unaffected.
 
 A local binding that mentions a variable bound by an enclosing lambda,
-case alternative or `do` bind is not generalised. A closed local binding is generalised. A local
-signature generalises any binding.
+case alternative or `do` bind is not generalised. A closed local binding
+is generalised. A local signature generalises any binding.
 
-TQL has no defaulting. A constrained type variable that nothing fixes is
-an error, `ambiguous-constraint`.
+A constrained type variable that nothing fixes is an error,
+`ambiguous-constraint` ([Ambiguity](06-static-semantics.md#ambiguity)).

@@ -8,7 +8,7 @@ area p = case p of {
   (w, h) -> w * h;
 };
 
-main = Filter (\_ -> [area (2, 3), area (4, 5)]);
+main = Kleisli $ \_ -> [area (2, 3), area (4, 5)];
 
 --- source ---
 class A {}
@@ -17,4 +17,5 @@ class A {}
 [6,20]
 --- types ---
 area :: (Int, Int) -> Int
-main :: Filter Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

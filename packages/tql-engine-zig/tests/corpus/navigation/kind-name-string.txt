@@ -14,4 +14,5 @@ x = a && b;
 [{"matches":false,"name":"identifier"},{"matches":true,"name":"&&"},{"matches":false,"name":"identifier"}]
 
 --- types ---
-main :: Filter Node {matches: Bool, name: String}
+main :: Kleisli List Node {matches: Bool, name: String}
+entry :: Node -> [{matches: Bool, name: String}]

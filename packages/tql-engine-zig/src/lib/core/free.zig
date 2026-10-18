@@ -69,6 +69,29 @@ fn isUseOf(symbol: core.SymbolId, mention: core.SymbolId, role: Role) error{}!bo
     return role == .use and mention == symbol;
 }
 
+/// The reference graph of `bindings`: `edges[i]` lists the index of each
+/// binding that `bindings[i]`'s value reads, in first-mention order. Every
+/// slice is allocated with `allocator`.
+pub fn references(allocator: Allocator, bindings: []const core.Letrec.Binding) Allocator.Error![][]const u32 {
+    const names = try allocator.alloc(core.SymbolId, bindings.len);
+    defer allocator.free(names);
+    for (bindings, names) |b, *name| name.* = b.name;
+
+    const edges = try allocator.alloc([]const u32, bindings.len);
+    for (bindings, edges) |b, *edge| {
+        var collector: Collector = .{ .gpa = allocator, .locals = .{ .list = names } };
+        defer collector.deinit();
+        try collector.walk(b.value);
+
+        const targets = try allocator.alloc(u32, collector.out.items.len);
+        for (collector.out.items, targets) |symbol, *target| {
+            target.* = @intCast(std.mem.indexOfScalar(core.SymbolId, names, symbol).?);
+        }
+        edge.* = targets;
+    }
+    return edges;
+}
+
 /// Collect the free variables of `term` into `out`, in first-mention order.
 ///
 /// Globals, constructors and primitives are symbols too, and only a symbol in

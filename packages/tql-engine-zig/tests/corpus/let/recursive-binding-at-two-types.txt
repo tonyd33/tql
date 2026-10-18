@@ -6,7 +6,7 @@ asserts: types, values
 main =
   let {
     len xs = case xs of { [] -> 0; h : t -> 1 + len t; };
-  } in Filter (\_ -> [len [1], len ["a", "b"]]);
+  } in Kleisli $ \_ -> [len [1], len ["a", "b"]];
 
 --- source ---
 class A {}
@@ -15,4 +15,5 @@ class A {}
 [1, 2]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

@@ -15,7 +15,9 @@ class A {}
 [true]
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List Node Bool
+entry :: Node -> [Bool]
 
 --- core ---
 main = pure (or True (and True False))
+entry = run_main main

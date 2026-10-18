@@ -6,7 +6,7 @@ Every constructor encodes as one shape, a nullary one with no fields.
 
 --- tql ---
 data Maybe a = Nothing | Just a deriving (Serial);
-main = Filter (\_ -> [Just [1], Nothing, Just []]);
+main = Kleisli $ \_ -> [Just [1], Nothing, Just []];
 
 --- source ---
 class A {}

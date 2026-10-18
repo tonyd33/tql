@@ -13,7 +13,7 @@ main =
     ab = ["a", "b"];
     a = ["a"];
   }
-  in Filter $ const [ab == ab, a == ab, [1, 2] == [2, 1]];
+  in Kleisli $ const [ab == ab, a == ab, [1, 2] == [2, 1]];
 
 --- source ---
 class A {}
@@ -22,4 +22,5 @@ class A {}
 [true, false, false]
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List a Bool
+entry :: Node -> [Bool]

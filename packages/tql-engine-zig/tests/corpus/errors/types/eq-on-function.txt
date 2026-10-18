@@ -3,12 +3,13 @@ grammar: typescript
 asserts: error
 
 --- tql ---
-main =
+same =
   let {
     f = \x -> x + 1;
     g = \x -> x + 1;
   }
   in f == g;
+main = pure same;
 
 --- error ---
 error[unsatisfied-constraint]: `Eq (Int -> Int)` is not satisfied.

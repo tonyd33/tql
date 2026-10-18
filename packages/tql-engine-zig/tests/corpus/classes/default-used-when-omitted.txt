@@ -1,0 +1,23 @@
+title: an instance that omits a method takes the class's default
+grammar: typescript
+asserts: values
+
+`Int`'s instance writes only `describe`, so `label` is the default, which
+calls `describe` at `Int`.
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+  label :: a -> [String];
+  label x = [describe x, "label"];
+};
+instance Describe Int where {
+  describe n = "int";
+};
+main = pure $ label 1;
+
+--- source ---
+class A {}
+
+--- values ---
+[["int","label"]]

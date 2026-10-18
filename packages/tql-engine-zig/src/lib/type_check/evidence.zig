@@ -1,11 +1,12 @@
-//! Dictionary passing: the evidence inference leaves behind, and the Core it
-//! becomes.
+//! Dictionary passing: the wanteds inference raises, the scopes that solve
+//! them, and the Core their evidence becomes.
 //!
-//! Inference applies each use of a constrained name to one placeholder per
-//! dictionary constraint, and wraps each generalized body in one dictionary
-//! lambda per constraint it quantifies. Once every type is known, each
-//! placeholder resolves to a dictionary in scope, a superclass selected from
-//! one, or an instance applied to the evidence for its context.
+//! Inference applies each use of a constrained name to one evidence variable
+//! per dictionary constraint, and raises a wanted for each in the frame it is
+//! in. A frame is one generalized body: its givens are the dictionaries it
+//! binds, and solving a wanted there binds its evidence variable with a
+//! `let` around the body, to a dictionary in scope, a superclass selected
+//! from one, or an instance applied to the evidence for its context.
 
 const std = @import("std");
 const core = @import("../core.zig");
@@ -16,277 +17,267 @@ const types = core.types;
 const primitives = @import("../primitives.zig");
 
 const Allocator = std.mem.Allocator;
-const Substitution = @import("substitution.zig").Substitution;
+
+/// The frame enclosing every other. What is solved here is bound by
+/// top-level definitions.
+pub const top: u32 = 0;
 
 /// A dictionary in scope: a parameter of an enclosing generalized body, or of
-/// an instance's dictionary.
-pub const Given = struct {
+/// an instance's dictionary. Its evidence is null for a class the machine
+/// handles.
+pub const Given = classes.Given(?core.SymbolId);
+
+/// `class type`, owed by the frame it is in.
+pub const Wanted = struct {
     class: classes.ClassId,
-    /// A metavariable or a bound variable.
+    type: types.Type,
+    /// Null for a class the machine handles.
+    evidence: ?core.SymbolId,
+    origin: diagnostic.Span,
+};
+
+/// A constraint solved in a frame, and the variable its evidence is bound to.
+pub const Solved = struct {
+    class: classes.ClassId,
     type: types.Type,
     evidence: core.SymbolId,
 };
 
-/// One generalized body, and the dictionaries it binds.
+/// One generalized body: an implication, whose givens hold where its
+/// wanteds are solved.
 pub const Frame = struct {
     parent: ?u32,
+    /// Its level. A skolem at this level or deeper is one of its own.
+    level: u32,
     givens: std.ArrayList(Given) = .empty,
-};
-
-/// A symbol standing for evidence inference cannot build yet.
-pub const Placeholder = struct {
-    symbol: core.SymbolId,
-    /// The innermost generalized body it was raised in.
-    frame: ?u32,
-    span: diagnostic.Span,
-    wanted: Wanted,
-
-    pub const Wanted = union(enum) {
-        /// Evidence for `class type`.
-        constraint: types.TypeClassConstraint,
-        /// A use of a member of the recursive group being inferred, which
-        /// becomes the member applied to evidence for each of its group's
-        /// dictionary constraints.
-        member: core.SymbolId,
-    };
+    /// Raised here or floated in from a frame inside, and not yet solved.
+    wanteds: std.ArrayList(Wanted) = .empty,
+    /// Evidence solved here, in the order it was solved.
+    bindings: std.ArrayList(core.Letrec.Binding) = .empty,
+    /// Each constraint solved here with dictionary evidence, its type
+    /// settled, and its evidence variable.
+    solved: std.ArrayList(Solved) = .empty,
+    /// The definition whose signature the body is checked against, if any.
+    signature: ?core.SymbolId = null,
+    /// The instance whose superclasses are solved here, if any.
+    instance: ?classes.InstanceId = null,
 };
 
 pub const Table = struct {
     gpa: Allocator,
     frames: std.ArrayList(Frame) = .empty,
-    placeholders: std.ArrayList(Placeholder) = .empty,
-    /// The dictionary constraints each member of an inferred group takes, in
-    /// parameter order.
-    parameters: core.SymbolTable([]const types.TypeClassConstraint),
 
-    pub fn init(gpa: Allocator) Table {
-        return .{ .gpa = gpa, .parameters = .init(gpa) };
+    pub fn init(gpa: Allocator) Allocator.Error!Table {
+        var table: Table = .{ .gpa = gpa };
+        _ = try table.frame(null, 0);
+        return table;
     }
 
     pub fn deinit(self: *Table) void {
-        for (self.frames.items) |*f| f.givens.deinit(self.gpa);
+        for (self.frames.items) |*f| {
+            f.givens.deinit(self.gpa);
+            f.wanteds.deinit(self.gpa);
+            f.bindings.deinit(self.gpa);
+            f.solved.deinit(self.gpa);
+        }
         self.frames.deinit(self.gpa);
-        self.placeholders.deinit(self.gpa);
-        self.parameters.deinit();
     }
 
-    pub fn frame(self: *Table, parent: ?u32) Allocator.Error!u32 {
-        try self.frames.append(self.gpa, .{ .parent = parent });
+    pub fn frame(self: *Table, parent: ?u32, level: u32) Allocator.Error!u32 {
+        try self.frames.append(self.gpa, .{ .parent = parent, .level = level });
         return @intCast(self.frames.items.len - 1);
+    }
+
+    pub fn get(self: *Table, at: u32) *Frame {
+        return &self.frames.items[at];
     }
 
     pub fn give(self: *Table, at: u32, given: Given) Allocator.Error!void {
         try self.frames.items[at].givens.append(self.gpa, given);
     }
 
-    pub fn want(self: *Table, placeholder: Placeholder) Allocator.Error!void {
-        try self.placeholders.append(self.gpa, placeholder);
-    }
-};
-
-/// Why a placeholder has no evidence.
-pub const Unresolved = struct {
-    reason: enum {
-        /// Its type was never determined.
-        ambiguous,
-        /// No instance or dictionary in scope provides it.
-        unsatisfied,
-    },
-    constraint: types.TypeClassConstraint,
-    span: diagnostic.Span,
-};
-
-/// Builds evidence once inference is done.
-pub const Resolver = struct {
-    table: *Table,
-    subst: *Substitution,
-    registry: *const classes.Registry,
-    /// Where `select[l]` symbols are interned.
-    env: *core.env.Env,
-    builder: core.Builder,
-    gpa: Allocator,
-    /// Set when `resolve` fails.
-    unresolved: ?Unresolved = null,
-
-    pub const Error = Allocator.Error || error{Unresolved};
-
-    /// Evidence for `class t`, seen from inside frame `at`.
-    pub fn resolve(
-        self: *Resolver,
-        class: classes.ClassId,
-        t: types.Type,
-        at: ?u32,
-        span: diagnostic.Span,
-    ) Error!core.Term {
-        const target = try self.subst.normalize(t);
-        if (target == .record and !classes.coversRecords(class)) return self.fail(.unsatisfied, class, t, span);
-        const leaf = switch (target) {
-            .meta, .variable, .application => true,
-            .record => |r| r.rest != null,
-            else => false,
-        };
-        if (leaf) {
-            if (try self.given(class, target, at, span)) |found| return found;
-            return self.fail(.ambiguous, class, t, span);
-        }
-        switch (target) {
-            .constructor, .function => {},
-            // `Eq`, the one dictionary class records have.
-            .record => |r| return try self.recordDictionary(r.fields, at, span),
-            else => return self.fail(.unsatisfied, class, t, span),
-        }
-
-        const head = types.asApplied(target).?;
-        const id = self.registry.instanceFor(class, head.name()) orelse
-            return self.fail(.unsatisfied, class, t, span);
-        const instance = self.registry.instance(id);
-        var result = self.builder.symbol(instance.dictionary.?, span);
-        for (instance.context) |c| {
-            if (self.registry.evidenceOf(c.class) != .dictionary) continue;
-            const argument = head.argument(c.variable);
-            result = try self.builder.apply(result, try self.resolve(c.class, argument, at, span), span);
-        }
-        return result;
+    pub fn want(self: *Table, at: u32, wanted: Wanted) Allocator.Error!void {
+        try self.frames.items[at].wanteds.append(self.gpa, wanted);
     }
 
-    /// `dict[Eq] (\x y -> ...)`, comparing a closed record's `fields` through
-    /// their own dictionaries.
-    fn recordDictionary(self: *Resolver, fields: []const types.Type.Field, at: ?u32, span: diagnostic.Span) Error!core.Term {
-        const b = self.builder;
-        const eq = self.registry.get(.eq);
-        const declared = &self.env.datatypes;
-        const x = try self.env.interner.fresh("x");
-        const y = try self.env.interner.fresh("y");
-
-        var result: ?core.Term = null;
-        var i = fields.len;
-        while (i > 0) {
-            i -= 1;
-            const f = fields[i];
-            const select = try primitives.selectSymbol(self.env, f.label);
-            const pair = try self.compared(
-                eq.methods[0],
-                try self.resolve(.eq, f.type.*, at, span),
-                try b.apply(b.symbol(select, span), b.symbol(x, span), span),
-                try b.apply(b.symbol(select, span), b.symbol(y, span), span),
-                span,
-            );
-            result = if (result) |rest|
-                try b.choose(declared, pair, b.symbol(declared.boolConstructor(false).symbol, span), rest, span)
-            else
-                pair;
-        }
-        const method = try b.abstract(&.{ x, y }, result orelse b.symbol(declared.boolConstructor(true).symbol, span));
-        return try b.apply(b.symbol(eq.constructor.?, span), method, span);
-    }
-
-    /// `method dictionary left right`.
-    fn compared(self: *Resolver, method: core.SymbolId, dictionary: core.Term, left: core.Term, right: core.Term, span: diagnostic.Span) Error!core.Term {
-        return try self.builder.applyMany(self.builder.symbol(method, span), &.{ dictionary, left, right }, span);
-    }
-
-    /// A dictionary in scope for `class` at `target`, directly or through
-    /// superclass selectors.
-    fn given(
-        self: *Resolver,
-        class: classes.ClassId,
-        target: types.Type,
-        at: ?u32,
-        span: diagnostic.Span,
-    ) Error!?core.Term {
-        var path: std.ArrayList(core.SymbolId) = .empty;
-        defer path.deinit(self.gpa);
-        const wanted = try self.subst.resolveDeep(target);
-        var current = at;
-        while (current) |f| : (current = self.table.frames.items[f].parent) {
-            for (self.table.frames.items[f].givens.items) |g| {
-                if (!types.eql(try self.subst.resolveDeep(g.type), wanted)) continue;
-                path.clearRetainingCapacity();
-                if (!try self.registry.superclassPath(g.class, class, &path, self.gpa)) continue;
-                var result = self.builder.symbol(g.evidence, span);
-                for (path.items) |selector| {
-                    result = try self.builder.apply(self.builder.symbol(selector, span), result, span);
-                }
-                return result;
+    /// The evidence variable of `class t`, `t` settled, when frame `at` or one
+    /// enclosing it has solved it.
+    pub fn solvedIn(self: *Table, at: u32, class: classes.ClassId, t: types.Type) ?core.SymbolId {
+        var current: ?u32 = at;
+        while (current) |f| : (current = self.frames.items[f].parent) {
+            for (self.frames.items[f].solved.items) |s| {
+                if (s.class == class and types.eql(s.type, t)) return s.evidence;
             }
         }
         return null;
     }
 
-    fn fail(
-        self: *Resolver,
-        reason: @FieldType(Unresolved, "reason"),
-        class: classes.ClassId,
-        t: types.Type,
+    pub fn solve(self: *Table, at: u32, solved: Solved) Allocator.Error!void {
+        try self.frames.items[at].solved.append(self.gpa, solved);
+    }
+
+    /// Removes every wanted of frame `at`. The caller owns the result.
+    pub fn takeAll(self: *Table, at: u32) std.ArrayList(Wanted) {
+        const wanteds = self.frames.items[at].wanteds;
+        self.frames.items[at].wanteds = .empty;
+        return wanteds;
+    }
+
+    pub fn bind(self: *Table, at: u32, symbol: core.SymbolId, term: core.Term) Allocator.Error!void {
+        try self.frames.items[at].bindings.append(self.gpa, .{ .name = symbol, .value = term });
+    }
+
+    /// `body` inside a `let` for each binding of frame `at`.
+    pub fn wrap(self: *Table, builder: core.Builder, at: u32, body: core.Term) Allocator.Error!core.Term {
+        return try builder.lets(self.frames.items[at].bindings.items, body, body.span);
+    }
+
+    /// The givens in scope inside frame `at`, innermost first, as evidence
+    /// terms at `span`.
+    pub fn scope(
+        self: *Table,
+        builder: core.Builder,
+        at: u32,
         span: diagnostic.Span,
-    ) Error {
-        self.unresolved = .{ .reason = reason, .constraint = .{ .class = class, .type = t }, .span = span };
-        return error.Unresolved;
-    }
-
-    /// Every placeholder's evidence, by its symbol.
-    pub fn resolveAll(self: *Resolver, out: *Replacements) Error!void {
-        for (self.table.placeholders.items) |p| {
-            const result = switch (p.wanted) {
-                .constraint => |c| try self.resolve(c.class, c.type, p.frame, p.span),
-                .member => |member| blk: {
-                    var term = self.builder.symbol(member, p.span);
-                    for (self.table.parameters.get(member) orelse &.{}) |c| {
-                        term = try self.builder.apply(term, try self.resolve(c.class, c.type, p.frame, p.span), p.span);
-                    }
-                    break :blk term;
-                },
-            };
-            try out.put(self.gpa, p.symbol, result);
-        }
-    }
-
-    /// Appends the definitions dictionary passing needs beside the program's
-    /// own: each class's selectors, and each instance's dictionary.
-    pub fn dictionaries(self: *Resolver, env: *core.env.Env, out: *std.ArrayList(core.Definition)) Error!void {
-        const builder = self.builder;
-        const registry = self.registry;
-
-        for (registry.classes.items) |class| {
-            const constructor = class.constructor orelse continue;
-            const fields = class.selectors.len + class.methods.len;
-            for (class.selectors, 0..) |selector, i| try out.append(self.gpa, try field(builder, env, selector.symbol, constructor, fields, i, class.span));
-            for (class.methods, class.selectors.len..) |method, i| try out.append(self.gpa, try field(builder, env, method, constructor, fields, i, class.span));
-        }
-
-        for (registry.instances.items) |instance| {
-            const dictionary = instance.dictionary orelse continue;
-            const class = registry.get(instance.class);
-            const span = instance.span;
-            const at = try self.table.frame(null);
-            const parameters = try builder.slice(core.SymbolId, registry.dictionaryCount(instance.context));
-            const arguments = try builder.slice(core.Term, parameters.len);
-            var i: usize = 0;
-            for (instance.context) |c| {
-                if (registry.evidenceOf(c.class) != .dictionary) continue;
-                parameters[i] = try env.interner.fresh("d");
-                arguments[i] = builder.symbol(parameters[i], span);
-                try self.table.give(at, .{ .class = c.class, .type = types.variable_type(c.variable), .evidence = parameters[i] });
-                i += 1;
+        out: *std.ArrayList(classes.Given(?core.Term)),
+    ) Allocator.Error!void {
+        out.clearRetainingCapacity();
+        var current: ?u32 = at;
+        while (current) |f| : (current = self.frames.items[f].parent) {
+            for (self.frames.items[f].givens.items) |g| {
+                const evidence = if (g.evidence) |e| builder.symbol(e, span) else null;
+                try out.append(self.gpa, .{ .class = g.class, .type = g.type, .evidence = evidence });
             }
-
-            var body = builder.symbol(class.constructor.?, span);
-            for (class.selectors) |selector| {
-                body = try builder.apply(body, try self.resolve(selector.superclass, instance.type, at, span), span);
-            }
-            for (instance.methods) |implementation| {
-                body = try builder.apply(body, try builder.applyMany(builder.symbol(implementation, span), arguments, span), span);
-            }
-            try out.append(self.gpa, .{
-                .symbol = dictionary,
-                .body = try builder.abstract(parameters, body),
-                .span = span,
-            });
         }
     }
 };
 
-/// Each placeholder's evidence, by its symbol.
+/// A `solve` sink building Core evidence terms at `span`. Null evidence is a
+/// class the machine handles.
+pub fn Sink(comptime Leaf: type) type {
+    return struct {
+        builder: core.Builder,
+        /// Where `select[l]` symbols are interned.
+        env: *core.env.Env,
+        span: diagnostic.Span,
+        leaves: Leaf,
+
+        const Self = @This();
+        pub const Evidence = ?core.Term;
+        pub const Error = Allocator.Error;
+
+        pub fn select(self: Self, selector: core.SymbolId, of: ?core.Term) Error!?core.Term {
+            return try self.builder.apply(self.builder.symbol(selector, self.span), of.?, self.span);
+        }
+
+        pub fn instance(self: Self, id: classes.InstanceId, context: []const ?core.Term) Error!?core.Term {
+            const declared = self.env.classes.instance(id);
+            const dictionary = declared.dictionary orelse return null;
+            var result = self.builder.symbol(dictionary, self.span);
+            for (context) |e| {
+                if (e) |argument| result = try self.builder.apply(result, argument, self.span);
+            }
+            return result;
+        }
+
+        pub fn record(self: Self, _: classes.ClassId, fields: []const types.Type.Field, evidence: []const ?core.Term) Error!?core.Term {
+            return try recordDictionary(self.builder, self.env, fields, evidence, self.span);
+        }
+
+        pub fn builtin(_: Self, _: classes.ClassId) ?core.Term {
+            return null;
+        }
+
+        pub fn leaf(self: Self, class: classes.ClassId, t: types.Type) Error!??core.Term {
+            return try self.leaves.leaf(class, t, self.span);
+        }
+    };
+}
+
+/// `dict[Eq] (\x y -> ...)`, comparing a closed record's `fields` through
+/// `evidence`, each field's dictionary.
+fn recordDictionary(
+    b: core.Builder,
+    env: *core.env.Env,
+    fields: []const types.Type.Field,
+    evidence: []const ?core.Term,
+    span: diagnostic.Span,
+) Allocator.Error!core.Term {
+    const eq = env.classes.get(.eq);
+    const declared = &env.datatypes;
+    const x = try env.interner.fresh("x");
+    const y = try env.interner.fresh("y");
+
+    var result: ?core.Term = null;
+    var i = fields.len;
+    while (i > 0) {
+        i -= 1;
+        const select = try primitives.selectSymbol(env, fields[i].label);
+        const pair = try b.applyMany(b.symbol(eq.methods[0], span), &.{
+            evidence[i].?,
+            try b.apply(b.symbol(select, span), b.symbol(x, span), span),
+            try b.apply(b.symbol(select, span), b.symbol(y, span), span),
+        }, span);
+        result = if (result) |rest|
+            try b.choose(declared, pair, b.symbol(declared.boolConstructor(false).symbol, span), rest, span)
+        else
+            pair;
+    }
+    const method = try b.abstract(&.{ x, y }, result orelse b.symbol(declared.boolConstructor(true).symbol, span));
+    return try b.apply(b.symbol(eq.constructor.?, span), method, span);
+}
+
+/// Each class's selectors, and each of `instances`' dictionary: a function
+/// of its parameters, with its frame's bindings around its class's
+/// constructor applied to its superclasses' evidence and its methods.
+pub fn dictionaries(
+    builder: core.Builder,
+    registry: *const classes.Registry,
+    env: *core.env.Env,
+    table: *Table,
+    instances: []const Instance,
+    out: *std.ArrayList(core.Definition),
+    gpa: Allocator,
+) Allocator.Error!void {
+    for (registry.classes.items) |class| {
+        const constructor = class.constructor orelse continue;
+        const fields = class.selectors.len + class.methods.len;
+        for (class.selectors, 0..) |selector, i| try out.append(gpa, try field(builder, env, selector.symbol, constructor, fields, i, class.span));
+        for (class.methods, class.selectors.len..) |method, i| try out.append(gpa, try field(builder, env, method, constructor, fields, i, class.span));
+    }
+
+    for (instances) |built| {
+        const instance = registry.instance(built.id);
+        const class = registry.get(instance.class);
+        const span = instance.span;
+        const arguments = try builder.slice(core.Term, built.parameters.len);
+        for (built.parameters, arguments) |p, *argument| argument.* = builder.symbol(p, span);
+
+        var body = builder.symbol(class.constructor.?, span);
+        for (built.superclasses) |s| body = try builder.apply(body, builder.symbol(s, span), span);
+        for (instance.methods) |implementation| {
+            body = try builder.apply(body, try builder.applyMany(builder.symbol(implementation, span), arguments, span), span);
+        }
+        try out.append(gpa, .{
+            .symbol = instance.dictionary.?,
+            .body = try builder.abstract(built.parameters, try table.wrap(builder, built.frame, body)),
+            .span = span,
+        });
+    }
+}
+
+/// An instance with a dictionary, and the frame its superclasses are solved
+/// in.
+pub const Instance = struct {
+    id: classes.InstanceId,
+    frame: u32,
+    /// One per dictionary requirement of its context, in order.
+    parameters: []const core.SymbolId,
+    /// One per selector of its class, in order.
+    superclasses: []const core.SymbolId,
+};
+
+/// Each symbol to replace, by its replacement.
 pub const Replacements = std.AutoHashMapUnmanaged(core.SymbolId, core.Term);
 
 /// `t` with each symbol `replacements` has an entry for replaced by it.

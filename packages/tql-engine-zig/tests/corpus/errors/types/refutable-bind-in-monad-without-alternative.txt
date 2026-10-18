@@ -6,7 +6,7 @@ A pattern that may not match falls through to `empty`, which `Done` has no
 instance for.
 
 --- tql ---
-data Done a = Done a;
+data Done a = Done a deriving (Serial);
 
 instance Functor Done where {
   map f d = case d of {
@@ -32,7 +32,7 @@ first_of = do {
   return x;
 };
 
-main root = [first_of];
+main = Kleisli $ \root -> [first_of];
 
 --- error ---
 error[unsatisfied-constraint]: `Alternative Done` is not satisfied.

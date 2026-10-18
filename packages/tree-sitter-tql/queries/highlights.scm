@@ -20,6 +20,7 @@
   "class"
   "instance"
   "where"
+  "minimal"
   "deriving"
 ] @keyword
 

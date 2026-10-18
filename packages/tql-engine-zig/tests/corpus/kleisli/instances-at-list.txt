@@ -43,4 +43,5 @@ lengths :: Kleisli List Node Int
 paired :: Kleisli List Node (String, Int)
 both :: Kleisli List Node String
 nothing :: Kleisli List Node String
-main :: Filter Node ([Int], [(String, Int)], [String], [String])
+main :: Kleisli List Node ([Int], [(String, Int)], [String], [String])
+entry :: Node -> [([Int], [(String, Int)], [String], [String])]

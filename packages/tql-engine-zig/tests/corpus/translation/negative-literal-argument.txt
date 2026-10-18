@@ -3,7 +3,7 @@ grammar: typescript
 asserts: stg, values
 
 --- tql ---
-main = Filter (\_ -> [-7, 0 - 7]);
+main = Kleisli $ \_ -> [-7, 0 - 7];
 
 --- source ---
 class A {}
@@ -26,3 +26,4 @@ main = {} \u {} ->
       Cons (-7) t2@1
   in
   t3@0
+entry = {} \u {} -> main

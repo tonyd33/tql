@@ -35,9 +35,10 @@ pub const Known = enum {
     compose_flipped,
     kleisli,
     alt,
-    run,
-    Filter,
+    run_kleisli,
+    Kleisli,
     of_kind,
+    run_main,
 };
 
 pub const InsertError = error{Collision} || Allocator.Error;
@@ -234,6 +235,12 @@ pub const Interner = struct {
         const id = try self.append(.{ .spelling = owned, .details = what, .module = module });
         try self.by_name.put(self.allocator, .{ .module = module, .name = owned }, id);
         return id;
+    }
+
+    /// Makes the local binder `id` a global of `module` that no lookup finds.
+    /// For a binder that ends up bound by a top-level definition.
+    pub fn globalize(self: *Interner, id: SymbolId, module: ModuleId) void {
+        self.entries.items[@intFromEnum(id)].module = module;
     }
 
     /// A local binder.

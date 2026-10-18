@@ -9,6 +9,7 @@ const primitives = @import("../primitives.zig");
 const resolve = @import("resolve.zig");
 const ModuleScope = @import("scope.zig").ModuleScope;
 const match = @import("match.zig");
+const annotation = @import("annotation.zig");
 const pcre2 = @import("../regex.zig");
 const kinds = @import("../lang/kinds.zig");
 const datatypes = core.datatypes;
@@ -300,10 +301,10 @@ pub const Lowerer = struct {
 
             .kind_test => |name| return try self.kindLiteral(name, e.span),
 
-            // A leading `#f` is `Filter field[f]`, and `x#f` is `field[f] x`.
+            // A leading `#f` is `Kleisli field[f]`, and `x#f` is `field[f] x`.
             .navigation => |n| {
                 const field = try self.fieldFunction(n.field, e.span);
-                const subject = n.node orelse return try self.builder.apply(try self.known(.Filter, e.span), field, e.span);
+                const subject = n.node orelse return try self.builder.apply(try self.known(.Kleisli, e.span), field, e.span);
                 return try self.builder.apply(field, try self.expression(subject, scope), e.span);
             },
 
@@ -352,8 +353,15 @@ pub const Lowerer = struct {
             .lambda => |l| return try self.parameterized(l.parameters, l.body, scope, e.span),
 
             .let => |l| {
-                const group = try self.bindingGroup(l.bindings, scope, e.span);
+                const group = try self.bindingGroup(l.group, scope, e.span);
                 return try self.nest(group, try self.expression(l.body, &group.scope), e.span);
+            },
+
+            // `(e :: t)` is `let { v :: t; v = e } in v`.
+            .annotated => |a| {
+                const v = try self.env.interner.fresh("annotated");
+                try self.annotate(v, &a.signature);
+                return try self.builder.let(v, try self.expression(a.expression, scope), self.builder.symbol(v, e.span), e.span);
             },
 
             .do => |d| return try self.doBlock(d.statements, d.result, scope, e.span),
@@ -596,10 +604,11 @@ pub const Lowerer = struct {
     /// every value.
     fn bindingGroup(
         self: *Lowerer,
-        bindings: []const cst.Binding,
+        group: cst.BindingGroup,
         scope: ?*const resolve.Scope,
         span: diagnostic.Span,
     ) Error!Group {
+        const bindings = group.bindings;
         const entries = try self.builder.slice(resolve.Scope.Entry, bindings.len);
         for (bindings, 0..) |b, i| {
             if (repeats(entries[0..i], b.name)) {
@@ -613,6 +622,20 @@ pub const Lowerer = struct {
         }
         const inner: resolve.Scope = .{ .parent = scope, .names = entries };
 
+        const own: resolve.Scope = .{ .parent = null, .names = entries };
+        for (group.signatures, 0..) |sig, i| {
+            for (group.signatures[0..i]) |earlier| {
+                if (!std.mem.eql(u8, earlier.name, sig.name)) continue;
+                try self.sink.report(.duplicate_signature, sig.span, "`{s}` has more than one signature", .{sig.name});
+                return error.DesugarFailed;
+            }
+            const symbol = own.lookup(sig.name) orelse {
+                try self.sink.report(.orphan_signature, sig.span, "`{s}` has a signature but no definition", .{sig.name});
+                return error.DesugarFailed;
+            };
+            try self.annotate(symbol, &sig);
+        }
+
         const resolved = try self.builder.slice(core.Letrec.Binding, bindings.len);
         for (bindings, 0..) |b, i| {
             resolved[i] = .{
@@ -621,21 +644,7 @@ pub const Lowerer = struct {
             };
         }
 
-        const symbols = try self.builder.slice(core.SymbolId, bindings.len);
-        for (entries, symbols) |entry, *symbol| symbol.* = entry.symbol;
-
-        const edges = try self.builder.slice([]const u32, bindings.len);
-        for (resolved, edges) |binding, *edge| {
-            var collector: core.free.Collector = .{ .gpa = self.builder.allocator, .locals = .{ .list = symbols } };
-            defer collector.deinit();
-            try collector.walk(binding.value);
-
-            const targets = try self.builder.slice(u32, collector.out.items.len);
-            for (collector.out.items, targets) |symbol, *target| {
-                target.* = @intCast(std.mem.indexOfScalar(core.SymbolId, symbols, symbol).?);
-            }
-            edge.* = targets;
-        }
+        const edges = try core.free.references(self.builder.allocator, resolved);
 
         var found = try core.components.stronglyConnectedComponents(self.builder.allocator, edges);
         defer found.deinit();
@@ -651,6 +660,15 @@ pub const Lowerer = struct {
         }
 
         return .{ .components = components, .scope = inner };
+    }
+
+    /// Gives `symbol` the type `signature` declares.
+    fn annotate(self: *Lowerer, symbol: core.SymbolId, signature: *const cst.Signature) Error!void {
+        const translated = annotation.translate(self.builder.allocator, self.builder.allocator, signature, self.scope, self.sink) catch |err| switch (err) {
+            error.BadAnnotation => return error.DesugarFailed,
+            else => |e| return e,
+        };
+        try self.env.annotate(symbol, .{ .scheme = translated.scheme, .span = signature.span, .names = translated.names });
     }
 
     /// Wrap `body` in every component of `group`, the first outermost.
@@ -688,7 +706,7 @@ pub const Lowerer = struct {
                 try self.doBlock(statements[1..], result, scope, span),
             ),
             .let => |l| {
-                const group = try self.bindingGroup(l.bindings, scope, l.span);
+                const group = try self.bindingGroup(l.group, scope, l.span);
                 return try self.nest(
                     group,
                     try self.doBlock(statements[1..], result, &group.scope, span),

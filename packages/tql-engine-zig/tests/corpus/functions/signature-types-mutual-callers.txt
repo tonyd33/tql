@@ -9,7 +9,7 @@ referenced, so `b`, inferred before `a`, is `Node -> [String]`.
 a :: Node -> [String];
 a x = if True then [] else b x;
 b x = a x;
-main = Filter b;
+main = Kleisli b;
 
 --- source ---
 class A {}
@@ -20,4 +20,5 @@ class A {}
 --- types ---
 a :: Node -> [String]
 b :: Node -> [String]
-main :: Filter Node String
+main :: Kleisli List Node String
+entry :: Node -> [String]

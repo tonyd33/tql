@@ -25,6 +25,13 @@ const Allocator = std.mem.Allocator;
 
 pub const Error = error{BadAnnotation} || Allocator.Error;
 
+/// A signature's scheme, and the spelling of each of its variables in
+/// `forall` order.
+pub const Translated = struct {
+    scheme: types.Scheme,
+    names: []const []const u8,
+};
+
 /// Translates a signature's written type into a scheme.
 ///
 /// Type variables are collected in order of first appearance and become the
@@ -35,12 +42,12 @@ pub fn translate(
     signature: *const cst.Signature,
     scope: *const ModuleScope,
     sink: *diagnostic.Sink,
-) Error!types.Scheme {
+) Error!Translated {
     var group = kinds.Group.init(arena, gpa);
     defer group.deinit();
-    var scheme = try translateSignature(arena, gpa, signature, null, &group, scope, sink);
-    scheme.variables = try group.inference.zonkAll(scheme.variables);
-    return scheme;
+    var translated = try translateSignature(arena, gpa, signature, null, &group, scope, sink);
+    translated.scheme.variables = try group.inference.zonkAll(translated.scheme.variables);
+    return translated;
 }
 
 /// The class `written` names in `scope`. Reports a name that is not one.
@@ -85,7 +92,7 @@ pub fn translateMethod(
     scope: *const ModuleScope,
     sink: *diagnostic.Sink,
 ) Error!types.Scheme {
-    return translateSignature(arena, gpa, signature, class, group, scope, sink);
+    return (try translateSignature(arena, gpa, signature, class, group, scope, sink)).scheme;
 }
 
 fn translateSignature(
@@ -96,7 +103,7 @@ fn translateSignature(
     group: *kinds.Group,
     scope: *const ModuleScope,
     sink: *diagnostic.Sink,
-) Error!types.Scheme {
+) Error!Translated {
     var vars: std.ArrayList(Translator.Variable) = .empty;
     defer vars.deinit(gpa);
 
@@ -146,7 +153,9 @@ fn translateSignature(
         } else try reportUndetermined(sink, signature.context[found.constraint - leading].span, vars.items[found.variable].name);
         return error.BadAnnotation;
     }
-    return scheme;
+    const names = try arena.alloc([]const u8, vars.items.len);
+    for (vars.items, names) |v, *name| name.* = v.name;
+    return .{ .scheme = scheme, .names = names };
 }
 
 fn reportUndetermined(sink: *diagnostic.Sink, span: diagnostic.Span, variable: []const u8) Error!void {
@@ -222,7 +231,7 @@ pub fn translateInstance(
         .variable, .application => return badHead(sink, written.span, "a type variable"),
         .record => return badHead(sink, written.span, "a record type"),
         .alias => return badHead(sink, written.span, "an alias"),
-        .meta => unreachable,
+        .meta, .skolem => unreachable,
     }
 
     const constraints = try arena.alloc(types.TypeClassConstraint, declared.context.len);
@@ -275,9 +284,10 @@ pub fn translateSynonym(
     arity: u32,
     scope: *const ModuleScope,
     sink: *diagnostic.Sink,
-) Error!types.Scheme {
+) Error!Translated {
     const written: cst.Signature = .{ .name = signature.name, .type = signature.type, .span = signature.span };
-    const scheme = try translate(arena, gpa, &written, scope, sink);
+    const declared = try translate(arena, gpa, &written, scope, sink);
+    const scheme = declared.scheme;
     if (scheme.variables.len == std.math.maxInt(types.TypeVar)) {
         try sink.report(
             .limit,
@@ -306,8 +316,11 @@ pub fn translateSynonym(
     }
 
     return .{
-        .variables = try std.mem.concat(arena, types.Kind, &.{ scheme.variables, &.{.type} }),
-        .type = try types.matcher(arena, matched, holes, types.variable_type(@intCast(scheme.variables.len))),
+        .scheme = .{
+            .variables = try std.mem.concat(arena, types.Kind, &.{ scheme.variables, &.{.type} }),
+            .type = try types.matcher(arena, matched, holes, types.variable_type(@intCast(scheme.variables.len))),
+        },
+        .names = declared.names,
     };
 }
 
@@ -401,7 +414,7 @@ pub fn translateField(
 /// Whether a record appears anywhere in `t`.
 fn hasRecord(t: types.Type) bool {
     return switch (t) {
-        .variable, .meta => false,
+        .variable, .meta, .skolem => false,
         .record => true,
         .constructor => |c| for (c.arguments) |argument| {
             if (hasRecord(argument)) break true;
@@ -670,7 +683,9 @@ const Translator = struct {
         const parameter = self.classKind(class);
         const t = try self.type(c.type, parameter);
         const env = self.scope.env;
-        if (try classes.reduce(&env.classes, class, t, classes.Bound{}, classes.Discard(error{}){})) |culprit| {
+        const solution = try classes.solve(self.gpa, &env.classes, class, t, classes.Bound{}, &.{}, classes.Check{ .assume = {} });
+        if (solution == .refuted) {
+            const culprit = solution.refuted;
             var names = try env.messageNames(self.gpa, &.{culprit}, &.{class});
             defer names.deinit(self.gpa);
             try self.sink.report(.unsatisfied_constraint, c.span, "`{f} {f}` is never satisfied", .{

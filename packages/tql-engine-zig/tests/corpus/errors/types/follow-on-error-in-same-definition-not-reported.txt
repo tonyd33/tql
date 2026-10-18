@@ -1,0 +1,22 @@
+title: an error that follows from one in the same definition is not reported
+grammar: typescript
+asserts: error
+
+The branches of `k`'s `if` disagree, so `k`'s result type is made up, and
+`not` taking it is not a second error (Static semantics: Errors).
+
+--- tql ---
+g = let {
+  k x = if x then 1 else "a";
+} in not (k True);
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 2:26
+  |
+2 |   k x = if x then 1 else "a";
+  |                          ^^^

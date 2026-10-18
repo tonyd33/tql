@@ -17,4 +17,5 @@ let x = 1;
 ["lexical_declaration"]
 --- types ---
 $mId :: a -> (a -> b) -> b -> b
-main :: Filter Node String
+main :: Kleisli List Node String
+entry :: Node -> [String]

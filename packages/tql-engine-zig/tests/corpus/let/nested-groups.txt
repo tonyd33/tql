@@ -17,10 +17,12 @@ class A {}
 [15]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List Node Int
+entry :: Node -> [Int]
 
 --- core ---
 main =
   let outer = 10 in
   let inner = op[+] outer 5 in
   pure inner
+entry = run_main main

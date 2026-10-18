@@ -41,3 +41,4 @@ main = {} \u {} ->
       bind[List] t2@2 t6@3
   in
   t7@1
+entry = {} \u {} -> main

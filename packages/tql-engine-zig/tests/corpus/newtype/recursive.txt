@@ -20,4 +20,5 @@ class A {}
 
 --- types ---
 apply_self :: Self -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int
+entry :: Node -> [Int]

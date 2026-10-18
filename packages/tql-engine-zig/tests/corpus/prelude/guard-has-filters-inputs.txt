@@ -26,5 +26,6 @@ class Store { getA() {} }
 ["Service", "Store"]
 
 --- types ---
-getters :: Filter Node Node
-main :: Filter Node String
+getters :: Kleisli List Node Node
+main :: Kleisli List Node String
+entry :: Node -> [String]

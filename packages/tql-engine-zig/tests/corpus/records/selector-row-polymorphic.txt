@@ -7,7 +7,7 @@ asserts: types, values
 --- tql ---
 
 name r = r.name;
-main = Filter (\_ -> [name {name = "a"}, name {name = "b", n = 1}]);
+main = Kleisli $ \_ -> [name {name = "a"}, name {name = "b", n = 1}];
 
 --- source ---
 class A {}
@@ -17,4 +17,5 @@ class A {}
 
 --- types ---
 name :: {name: a | b} -> a
-main :: Filter Node String
+main :: Kleisli List a String
+entry :: Node -> [String]

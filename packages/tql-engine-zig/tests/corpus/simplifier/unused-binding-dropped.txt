@@ -12,9 +12,10 @@ class A {}
 [1]
 
 --- simplified ---
-main = \_ -> Cons 1 Nil
+entry = \_ -> Cons 1 Nil
 
 --- core ---
 main =
   let unused = op[*] 2 3 in
   pure 1
+entry = run_main main

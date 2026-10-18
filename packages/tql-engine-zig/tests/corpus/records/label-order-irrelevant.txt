@@ -20,10 +20,12 @@ class A {}
 [true]
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List Node Bool
+entry :: Node -> [Bool]
 
 --- core ---
 main =
   let x = record[a,b] 1 2 in
   let y = record[a,b] 1 2 in
   pure (eq x y)
+entry = run_main main

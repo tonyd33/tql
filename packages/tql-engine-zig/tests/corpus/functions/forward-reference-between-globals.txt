@@ -16,9 +16,11 @@ class A {}
 [6]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List Node Int
 helper :: Int -> Int
+entry :: Node -> [Int]
 
 --- core ---
 main = pure (helper 3)
 helper = \n -> op[*] n 2
+entry = run_main main

@@ -17,7 +17,8 @@ class A {}
 [[1,2],[]]
 --- types ---
 pair :: [a] -> [a]
-main :: Filter Node [Int]
+main :: Kleisli List Node [Int]
+entry :: Node -> [[Int]]
 
 --- core ---
 pair = \xs ->
@@ -30,3 +31,4 @@ pair = \xs ->
         Nil -> Cons a (Cons b Nil)
         Cons _ _ -> jump alternative
 main = alt (pure (pair (Cons 1 (Cons 2 Nil)))) (pure (pair (Cons 1 (Cons 2 (Cons 3 Nil)))))
+entry = run_main main

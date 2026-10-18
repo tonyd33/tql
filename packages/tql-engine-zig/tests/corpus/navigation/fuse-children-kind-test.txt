@@ -31,6 +31,8 @@ class B {}
 
 --- simplified ---
 main = %children_of_kind :class_declaration
+entry = main
 
 --- core ---
 main = compose_flipped children (of_kind :class_declaration)
+entry = run_main main

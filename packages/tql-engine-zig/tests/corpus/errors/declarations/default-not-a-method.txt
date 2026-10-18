@@ -1,0 +1,23 @@
+title: a class default for a name that is not one of its methods
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+  label x = describe x;
+};
+instance Describe Int where {
+  describe n = "int";
+};
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[invalid-class]: `label` is not a method of `Describe`
+ --> 3:3
+  |
+3 |   label x = describe x;
+  |   ^^^^^^^^^^^^^^^^^^^^^

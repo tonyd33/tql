@@ -3,10 +3,10 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-main = Filter (\_ -> do {
+main = Kleisli $ \_ -> do {
   n & ((* n) -> 9) <- [1, 2, 3, 4];
   return n;
-});
+};
 
 --- source ---
 class A {}
@@ -15,7 +15,7 @@ class A {}
 [3]
 
 --- core ---
-main = Filter (
+main = Kleisli (
   \_ -> bind (Cons 1 (Cons 2 (Cons 3 (Cons 4 Nil)))) (
     \n ->
       let view = (\x -> op[*] x n) n in
@@ -24,3 +24,4 @@ main = Filter (
         True -> return n
   )
 )
+entry = run_main main

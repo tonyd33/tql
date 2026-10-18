@@ -44,6 +44,9 @@ pub const Env = struct {
     pub const Annotation = struct {
         scheme: types.Scheme,
         span: diagnostic.Span,
+        /// The spelling of each of the scheme's variables as written, when it
+        /// was written.
+        names: []const []const u8 = &.{},
     };
 
     /// Declares `Prim` as `ModuleId.prim`, and reserves the classes the

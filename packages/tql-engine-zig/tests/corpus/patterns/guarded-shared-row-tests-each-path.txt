@@ -15,7 +15,7 @@ f xs = case xs of {
   _ -> 0;
 };
 
-main = Filter (\_ -> [f [5], f [], f [1, 2], f [1, 2, 3]]);
+main = Kleisli $ \_ -> [f [5], f [], f [1, 2], f [1, 2, 3]];
 
 --- source ---
 class A {}
@@ -36,4 +36,5 @@ f = \xs ->
       Cons _ _ -> case not (null (drop 2 xs)) of
         False -> jump alternative'
         True -> jump alternative xs
-main = Filter (\_ -> Cons (f (Cons 5 Nil)) (Cons (f Nil) (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 1 (Cons 2 (Cons 3 Nil)))) Nil))))
+main = Kleisli (\_ -> Cons (f (Cons 5 Nil)) (Cons (f Nil) (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 1 (Cons 2 (Cons 3 Nil)))) Nil))))
+entry = run_main main

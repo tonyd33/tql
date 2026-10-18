@@ -12,7 +12,7 @@ has a single element type. The polymorphism is in `ident`, not in the list.
 --- tql ---
 main =
   let { ident x = x; }
-  in Filter (\_ -> [ident 1, length (ident "ab")]);
+  in Kleisli $ \_ -> [ident 1, length (ident "ab")];
 
 --- source ---
 class A {}
@@ -21,4 +21,5 @@ class A {}
 [1, 2]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

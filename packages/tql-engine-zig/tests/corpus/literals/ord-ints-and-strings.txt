@@ -6,7 +6,7 @@ asserts: values
 
 --- tql ---
 
-main = Filter (\_ -> [1 < 2, 2 <= 2, 2 >= 2, 2 > 1, 1 >= 2, "a" < "b", "a" <= "a", "a" >= "a", "b" <= "a"]);
+main = Kleisli $ \_ -> [1 < 2, 2 <= 2, 2 >= 2, 2 > 1, 1 >= 2, "a" < "b", "a" <= "a", "a" >= "a", "b" <= "a"];
 
 --- source ---
 class A {}

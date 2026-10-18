@@ -11,7 +11,7 @@ main =
     is_even n = if n == 0 then True else is_odd (n - 1);
     is_odd n = if n == 0 then False else is_even (n - 1);
   }
-  in Filter (\_ -> [is_even 4, is_even 7]);
+  in Kleisli $ \_ -> [is_even 4, is_even 7];
 
 --- source ---
 class A {}
@@ -29,10 +29,12 @@ main =
       False -> is_even (op[-] n 1)
       True -> False
   in
-  Filter (\_ -> Cons (is_even 4) (Cons (is_even 7) Nil))
+  Kleisli (\_ -> Cons (is_even 4) (Cons (is_even 7) Nil))
+entry = run_main main
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List a Bool
+entry :: Node -> [Bool]
 
 --- stg ---
 main = {} \u {} ->
@@ -66,3 +68,4 @@ main = {} \u {} ->
       Cons t4@2 t7@3
   in
   t8@2
+entry = {} \u {} -> main

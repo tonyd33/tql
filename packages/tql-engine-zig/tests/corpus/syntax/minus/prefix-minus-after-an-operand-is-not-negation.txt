@@ -8,14 +8,14 @@ and is rejected, not read as `f - x`.
 --- tql ---
 f y = y;
 x = 1;
-main = Filter (\_ -> [f -x]);
+main = Kleisli $ \_ -> [f -x];
 
 --- source ---
 class A {}
 
 --- error ---
 error[parse]: TQL has no negation; write `0 - x`
- --> 3:25
+ --> 3:27
   |
-3 | main = Filter (\_ -> [f -x]);
-  |                         ^^
+3 | main = Kleisli $ \_ -> [f -x];
+  |                           ^^

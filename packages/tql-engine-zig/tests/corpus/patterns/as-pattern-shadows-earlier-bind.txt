@@ -3,11 +3,11 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-main = Filter (\_ -> do {
+main = Kleisli $ \_ -> do {
   x <- [[1]];
   x@[y] <- [[2], [3, 4]];
   return [x, [y]];
-});
+};
 
 --- source ---
 class A {}
@@ -16,7 +16,7 @@ class A {}
 [[[2], [2]]]
 
 --- core ---
-main = Filter (
+main = Kleisli (
   \_ -> bind (Cons (Cons 1 Nil) Nil) (
     \x -> bind (Cons (Cons 2 Nil) (Cons (Cons 3 (Cons 4 Nil)) Nil)) (
       \x -> case x of
@@ -27,3 +27,4 @@ main = Filter (
     )
   )
 )
+entry = run_main main

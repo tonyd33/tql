@@ -18,4 +18,5 @@ f(1);
 ["f"]
 --- types ---
 $mCallee :: Node -> (Node -> a) -> a -> a
-main :: Filter Node String
+main :: Kleisli List Node String
+entry :: Node -> [String]

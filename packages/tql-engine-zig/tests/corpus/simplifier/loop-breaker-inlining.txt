@@ -6,7 +6,7 @@ asserts: core, simplified, values
 main = let {
   is_even n = if n == 0 then True else is_odd (n - 1);
   is_odd n = not (is_even n);
-} in Filter (\_ -> [is_even 4, is_odd 7]);
+} in Kleisli $ \_ -> [is_even 4, is_odd 7];
 
 --- source ---
 class A {}
@@ -30,6 +30,7 @@ main =
         True -> False
     ) Nil
   )
+entry = main
 
 --- core ---
 main =
@@ -39,4 +40,5 @@ main =
       True -> True
     is_odd = \n -> not (is_even n)
   in
-  Filter (\_ -> Cons (is_even 4) (Cons (is_odd 7) Nil))
+  Kleisli (\_ -> Cons (is_even 4) (Cons (is_odd 7) Nil))
+entry = run_main main

@@ -23,7 +23,7 @@ instance Describe Shape where {
   };
 };
 
-main = Filter (\_ -> describe (Group [Circle 1, Square 2]));
+main = Kleisli $ \_ -> describe (Group [Circle 1, Square 2]);
 
 --- source ---
 class A {}
@@ -33,3 +33,4 @@ class A {}
 
 --- simplified ---
 main = \_ -> describe[Shape] (Group (Cons (Circle 1) (Cons (Square 2) Nil)))
+entry = main

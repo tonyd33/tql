@@ -5,7 +5,7 @@ asserts: core, values
 --- tql ---
 import Data.Int (mod);
 
-main = Filter (\_ -> append (map (`mod` 3) [7, 8]) (append (map (10 `mod`) [3, 4]) [(`mod`) 7 3]));
+main = Kleisli $ \_ -> append (map (`mod` 3) [7, 8]) (append (map (10 `mod`) [3, 4]) [(`mod`) 7 3]);
 
 --- source ---
 class A {}
@@ -14,4 +14,5 @@ class A {}
 [1, 2, 1, 2, 1]
 
 --- core ---
-main = Filter (\_ -> append (map (\x -> mod x 3) (Cons 7 (Cons 8 Nil))) (append (map (\y -> mod 10 y) (Cons 3 (Cons 4 Nil))) (Cons (mod 7 3) Nil)))
+main = Kleisli (\_ -> append (map (\x -> mod x 3) (Cons 7 (Cons 8 Nil))) (append (map (\y -> mod 10 y) (Cons 3 (Cons 4 Nil))) (Cons (mod 7 3) Nil)))
+entry = run_main main

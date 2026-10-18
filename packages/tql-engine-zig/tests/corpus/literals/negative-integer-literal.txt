@@ -4,7 +4,7 @@ asserts: core, types, values
 
 --- tql ---
 
-main = Filter (\_ -> [-7, 0 - 7]);
+main = Kleisli $ \_ -> [-7, 0 - 7];
 
 --- source ---
 class A {}
@@ -13,7 +13,9 @@ class A {}
 [-7, -7]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]
 
 --- core ---
-main = Filter (\_ -> Cons (-7) (Cons (op[-] 0 7) Nil))
+main = Kleisli (\_ -> Cons (-7) (Cons (op[-] 0 7) Nil))
+entry = run_main main

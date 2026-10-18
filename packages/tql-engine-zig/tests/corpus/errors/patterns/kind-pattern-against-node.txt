@@ -1,0 +1,26 @@
+title: a kind literal pattern against a node is reported at the pattern
+grammar: typescript
+asserts: error
+
+`f`'s signature makes the scrutinee a `Node`, and a kind literal matches a
+`Kind`, so the error is at `:identifier`, not at a use of `f` (Patterns:
+Typing).
+
+--- tql ---
+f :: Node -> Int;
+f n = case n of {
+  :identifier -> 1;
+  _ -> 0;
+};
+
+main = descendants | arr f;
+
+--- source ---
+f(x);
+
+--- error ---
+error[type-mismatch]: Expected `Node`, found `Kind`.
+ --> 3:3
+  |
+3 |   :identifier -> 1;
+  |   ^^^^^^^^^^^

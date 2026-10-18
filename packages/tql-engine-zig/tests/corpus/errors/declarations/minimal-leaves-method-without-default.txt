@@ -1,0 +1,24 @@
+title: `minimal` admitting an instance that leaves a method without a default undefined
+grammar: typescript
+asserts: error
+
+`label` has no default, and an instance defining only `describe` satisfies
+`minimal`.
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+  label :: a -> String;
+  minimal describe;
+};
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[invalid-class]: an instance of `Describe` satisfying `minimal` may leave `label` undefined, which has no default
+ --> 4:3
+  |
+4 |   minimal describe;
+  |   ^^^^^^^^^^^^^^^^^

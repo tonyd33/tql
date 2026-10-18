@@ -12,7 +12,7 @@ f xs = case xs of {
   _ -> "other";
 };
 
-main = Filter (\_ -> [f [1, 1], f [1, 2], f [1]]);
+main = Kleisli $ \_ -> [f [1, 1], f [1, 2], f [1]];
 
 --- source ---
 class A {}
@@ -32,4 +32,5 @@ f = \xs ->
           False -> "two"
           True -> "pair"
         Cons _ _ -> jump alternative
-main = Filter (\_ -> Cons (f (Cons 1 (Cons 1 Nil))) (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 1 Nil)) Nil)))
+main = Kleisli (\_ -> Cons (f (Cons 1 (Cons 1 Nil))) (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 1 Nil)) Nil)))
+entry = run_main main

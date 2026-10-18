@@ -1,0 +1,18 @@
+title: a closed local binding is generalized
+grammar: typescript
+asserts: values
+
+`twice` mentions no variable of the enclosing lambda, so it is generalized
+and used at two types (Declarations: Generalisation).
+
+--- tql ---
+f x = let {
+  twice g y = g (g y);
+} in [{ n = twice (\n -> n + x) 1, b = twice not True }];
+main = Kleisli $ \_ -> f 1;
+
+--- source ---
+f(x);
+
+--- values ---
+[{"b":true,"n":3}]

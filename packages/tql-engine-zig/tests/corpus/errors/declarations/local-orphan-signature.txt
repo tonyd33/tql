@@ -1,0 +1,18 @@
+title: a local signature needs a binding beside it
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = let {
+  g :: Int;
+} in pure 1;
+
+--- source ---
+f(x);
+
+--- error ---
+error[orphan-signature]: `g` has a signature but no definition
+ --> 2:3
+  |
+2 |   g :: Int;
+  |   ^^^^^^^^

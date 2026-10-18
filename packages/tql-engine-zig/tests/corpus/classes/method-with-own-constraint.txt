@@ -33,7 +33,7 @@ instance Labelled String where {
 
 check p = holds p "a" "a";
 
-main = Filter (\_ -> [label_with 1 "s", label_with "s" 1, [if check (Pair 1 2) then "yes" else "no"]]);
+main = Kleisli $ \_ -> [label_with 1 "s", label_with "s" 1, [if check (Pair 1 2) then "yes" else "no"]];
 
 --- source ---
 class A {}
@@ -43,4 +43,5 @@ class A {}
 
 --- types ---
 check :: Container a => a -> Bool
-main :: Filter Node [String]
+main :: Kleisli List a [String]
+entry :: Node -> [[String]]

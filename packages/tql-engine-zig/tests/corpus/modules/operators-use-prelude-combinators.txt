@@ -5,7 +5,7 @@ asserts: values
 --- tql ---
 compose f g x = [];
 alt f g x = [];
-main = Filter (\x -> [1, 2]) | Filter (\n -> [n * 10]) <|> Filter (\x -> [3]);
+main = Kleisli (\x -> [1, 2]) | Kleisli (\n -> [n * 10]) <|> Kleisli (\x -> [3]);
 
 --- source ---
 let x = 1;

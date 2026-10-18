@@ -11,11 +11,11 @@ instance Describe a => Describe [a] where {
   describe xs = "list";
 };
 
-main root = [describe [1]];
+main = Kleisli $ \root -> [describe [1]];
 
 --- error ---
 error[unsatisfied-constraint]: `Describe Int` is not satisfied.
- --> 9:14
+ --> 9:28
   |
-9 | main root = [describe [1]];
-  |              ^^^^^^^^
+9 | main = Kleisli $ \root -> [describe [1]];
+  |                            ^^^^^^^^

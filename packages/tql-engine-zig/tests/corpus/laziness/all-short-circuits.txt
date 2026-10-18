@@ -22,4 +22,5 @@ class A {}
 --- types ---
 from :: Int -> [Int]
 negative :: Int -> Bool
-main :: Filter Node Bool
+main :: Kleisli List Node Bool
+entry :: Node -> [Bool]

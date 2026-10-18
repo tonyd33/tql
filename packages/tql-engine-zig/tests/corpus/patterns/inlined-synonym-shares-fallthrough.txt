@@ -37,5 +37,6 @@ describe = \xs ->
             True -> "xy"
         Cons _ _ -> jump alternative
 main =
-  let p = %descendants_of_kind :arguments in
-  \x -> bind[List] (p x) (\y -> Cons (describe (%children_of_kind :identifier y)) Nil)
+  let k = %descendants_of_kind :arguments in
+  \x -> bind[List] (k x) (\y -> Cons (describe (%children_of_kind :identifier y)) Nil)
+entry = main

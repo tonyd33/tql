@@ -132,10 +132,15 @@ pub const Signature = struct {
 
     pub fn sexpr(self: Signature, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.print("(signature {s}", .{self.name});
+        try self.sexprType(w);
+        try w.writeByte(')');
+    }
+
+    /// Writes the context, then a space and the type.
+    pub fn sexprType(self: Signature, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try sexprContext(w, self.context);
         try w.writeByte(' ');
         try self.type.sexpr(w);
-        try w.writeByte(')');
     }
 };
 
@@ -145,6 +150,8 @@ pub const ClassDeclaration = struct {
     parameter: Identifier,
     superclasses: []const ClassConstraint = &.{},
     methods: []const Signature,
+    defaults: []const Definition = &.{},
+    minimal: []const Minimal = &.{},
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: ClassDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
@@ -154,8 +161,43 @@ pub const ClassDeclaration = struct {
             try w.writeByte(' ');
             try m.sexpr(w);
         }
+        for (self.defaults) |d| {
+            try w.writeByte(' ');
+            try d.sexpr(w);
+        }
+        for (self.minimal) |m| {
+            try w.writeAll(" (minimal ");
+            try m.formula.sexpr(w);
+            try w.writeByte(')');
+        }
         try w.writeByte(')');
     }
+};
+
+/// `minimal describe | label, tags;`
+pub const Minimal = struct {
+    formula: Formula,
+    span: diagnostic.Span = .unknown,
+
+    pub const Formula = union(enum) {
+        method: struct { name: Identifier, span: diagnostic.Span = .unknown },
+        all: []const Formula,
+        any: []const Formula,
+
+        pub fn sexpr(self: Formula, w: *std.Io.Writer) std.Io.Writer.Error!void {
+            switch (self) {
+                .method => |m| try w.writeAll(m.name),
+                inline .all, .any => |operands, tag| {
+                    try w.print("({s}", .{@tagName(tag)});
+                    for (operands) |o| {
+                        try w.writeByte(' ');
+                        try o.sexpr(w);
+                    }
+                    try w.writeByte(')');
+                },
+            }
+        }
+    };
 };
 
 /// `instance Describe a => Describe [a] where { describe xs = ...; };`
@@ -449,8 +491,26 @@ pub const Lambda = struct {
 };
 
 pub const Let = struct {
-    bindings: []const Binding,
+    group: BindingGroup,
     body: Expression,
+};
+
+/// The bindings of one `let`, and the signatures beside them.
+pub const BindingGroup = struct {
+    bindings: []const Binding,
+    signatures: []const Signature = &.{},
+
+    /// Writes each signature, then each binding, separated by spaces.
+    pub fn sexpr(self: BindingGroup, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        for (self.signatures, 0..) |sig, i| {
+            if (i > 0) try w.writeByte(' ');
+            try sig.sexpr(w);
+        }
+        for (self.bindings, 0..) |b, i| {
+            if (i > 0 or self.signatures.len > 0) try w.writeByte(' ');
+            try b.sexpr(w);
+        }
+    }
 };
 
 pub const Do = struct {
@@ -480,11 +540,8 @@ pub const Statement = union(enum) {
                 try w.writeByte(')');
             },
             .let => |l| {
-                try w.writeAll("(let");
-                for (l.bindings) |b| {
-                    try w.writeByte(' ');
-                    try b.sexpr(w);
-                }
+                try w.writeAll("(let ");
+                try l.group.sexpr(w);
                 try w.writeByte(')');
             },
         }
@@ -498,8 +555,15 @@ pub const BindStatement = struct {
 };
 
 pub const LetStatement = struct {
-    bindings: []const Binding,
+    group: BindingGroup,
     span: diagnostic.Span = .unknown,
+};
+
+/// `(e :: t)`.
+pub const Annotated = struct {
+    expression: Expression,
+    /// Its name is empty.
+    signature: Signature,
 };
 
 pub const RecordField = struct {
@@ -547,6 +611,7 @@ pub const Expression = struct {
         tuple_constructor: u8,
         record: Record,
         parenthesized: *Expression,
+        annotated: *Annotated,
     };
 
     pub fn sexpr(self: Expression, w: *std.Io.Writer) std.Io.Writer.Error!void {
@@ -641,10 +706,7 @@ pub const Expression = struct {
             },
             .let => |l| {
                 try w.writeAll("(let (");
-                for (l.bindings, 0..) |b, i| {
-                    if (i > 0) try w.writeByte(' ');
-                    try b.sexpr(w);
-                }
+                try l.group.sexpr(w);
                 try w.writeAll(") ");
                 try l.body.sexpr(w);
                 try w.writeByte(')');
@@ -680,6 +742,12 @@ pub const Expression = struct {
             .parenthesized => |e| {
                 try w.writeAll("(paren ");
                 try e.sexpr(w);
+                try w.writeByte(')');
+            },
+            .annotated => |a| {
+                try w.writeAll("(annotated ");
+                try a.expression.sexpr(w);
+                try a.signature.sexprType(w);
                 try w.writeByte(')');
             },
         }

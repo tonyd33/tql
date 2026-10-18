@@ -10,7 +10,7 @@ unname n = case n of {
   Name s -> s;
 };
 
-main = Filter (\_ -> map unname (map Name ["a", "b"]));
+main = Kleisli $ \_ -> map unname (map Name ["a", "b"]);
 
 --- source ---
 class A {}
@@ -21,7 +21,9 @@ class A {}
 --- simplified ---
 unname = \n -> n
 main = \_ -> map[List] unname (map[List] (\x -> x) (Cons "a" (Cons "b" Nil)))
+entry = main
 
 --- types ---
 unname :: Name -> String
-main :: Filter Node String
+main :: Kleisli List a String
+entry :: Node -> [String]

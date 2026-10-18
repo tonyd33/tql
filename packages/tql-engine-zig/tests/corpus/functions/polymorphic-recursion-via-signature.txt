@@ -19,4 +19,5 @@ class A {}
 
 --- types ---
 nest :: Int -> a -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int
+entry :: Node -> [Int]

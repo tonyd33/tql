@@ -9,7 +9,7 @@ main = if True then pure 1 else pure "two";
 
 --- error ---
 error[type-mismatch]: Expected `Int`, found `String`.
- --> 1:33
+ --> 1:38
   |
 1 | main = if True then pure 1 else pure "two";
-  |                                 ^^^^^^^^^^
+  |                                      ^^^^^

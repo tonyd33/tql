@@ -17,4 +17,5 @@ let x: string = "a";
 [{"literal":false,"text":"string"},{"literal":true,"text":"\"a\""}]
 
 --- types ---
-main :: Filter Node {literal: Bool, text: String}
+main :: Kleisli List Node {literal: Bool, text: String}
+entry :: Node -> [{literal: Bool, text: String}]

@@ -8,7 +8,7 @@ import Data.Function (const);
 class Labelled a where { label :: a -> String; };
 class Labelled a => Describe a where { describe :: a -> String; };
 instance Describe Int where { describe n = "int"; };
-main = const [];
+main = pure 1;
 
 --- error ---
 error[invalid-instance]: `Describe Int` needs `Labelled Int`

@@ -17,4 +17,5 @@ class A {}
 
 --- types ---
 from :: Alternative a => Int -> a Int
-main :: Filter Node Int
+main :: Filter a Int
+entry :: Node -> [Int]

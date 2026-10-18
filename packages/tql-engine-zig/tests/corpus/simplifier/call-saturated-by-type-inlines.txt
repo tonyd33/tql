@@ -22,3 +22,4 @@ main = \x -> bind[List] (
       True -> Cons x Nil
   )
 ) (\x -> Cons (%kind_name x) Nil)
+entry = main

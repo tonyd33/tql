@@ -17,9 +17,11 @@ class B {}
 ["A", "B", "I"]
 
 --- core ---
-names_of = \k -> compose_flipped (compose_flipped (descendants_of_kind k) (Filter field[name])) (arr text)
+names_of = \k -> compose_flipped (compose_flipped (descendants_of_kind k) (Kleisli field[name])) (arr text)
 main = alt (names_of :class_declaration) (names_of :interface_declaration)
+entry = run_main main
 
 --- types ---
 names_of :: Kind -> Filter Node String
-main :: Filter Node String
+main :: Kleisli List Node String
+entry :: Node -> [String]

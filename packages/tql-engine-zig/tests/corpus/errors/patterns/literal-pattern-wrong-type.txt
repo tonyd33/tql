@@ -10,7 +10,7 @@ f n = case n + 1 of {
   _ -> 0;
 };
 
-main = const [f 1];
+main = Kleisli $ const [f 1];
 
 --- error ---
 error[type-mismatch]: Expected `Int`, found `String`.

@@ -23,3 +23,4 @@ main =
   let a = me 1 in
   let b = me "s" in
   pure (op[+] a (length b))
+entry = run_main main

@@ -23,7 +23,8 @@ class A {}
 --- types ---
 fst :: P -> Int
 pick :: P -> P -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int
+entry :: Node -> [Int]
 
 --- stg ---
 pick = {} \u {} ->
@@ -59,3 +60,4 @@ main = {} \u {} ->
       Cons y@0 c2@2
   in
   t3@1
+entry = {} \u {} -> main

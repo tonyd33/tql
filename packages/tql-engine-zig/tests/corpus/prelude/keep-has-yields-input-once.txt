@@ -18,5 +18,6 @@ class B {}
 ["A"]
 
 --- types ---
-methods :: Filter Node Node
-main :: Filter Node String
+methods :: Kleisli List Node Node
+main :: Kleisli List Node String
+entry :: Node -> [String]

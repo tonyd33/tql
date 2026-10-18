@@ -40,10 +40,11 @@ const Argument = struct { parameter: core.SymbolId, term: core.Term };
 /// lambda. Its parameter is substituted when every call passes one closed
 /// dictionary there, counting a parameter passed on as the dictionary it is
 /// substituted by, and an instance applied to parameters as that instance
-/// applied to theirs. A function a law matches on, a join point, and one
-/// named anywhere but at the head of a call keep every parameter. An
-/// instance applied to dictionaries is a call of each method a law may
-/// select from it.
+/// applied to theirs. A function a law matches on, a join point, an
+/// instance's method, and one named anywhere but at the head of a call keep
+/// every parameter. A law selecting a method from an instance applied to
+/// dictionaries passes them to the method, so a method's parameters are
+/// fixed by its instance's context.
 ///
 /// Binders are unique, so one walk sees every call of every function.
 pub const Substituter = struct {
@@ -54,6 +55,9 @@ pub const Substituter = struct {
     functions: core.SymbolTable([]const core.SymbolId),
     /// What every call passes, by parameter.
     passed: core.SymbolTable(Passed),
+    /// Bindings, local or global, to a term that builds a dictionary. Passing
+    /// one passes that dictionary.
+    bound_dictionaries: core.SymbolTable(core.Term),
     /// Every argument a call passes at a function's parameter.
     arguments: std.ArrayList(Argument) = .empty,
 
@@ -64,6 +68,7 @@ pub const Substituter = struct {
             .env = env,
             .functions = .init(scratch),
             .passed = .init(scratch),
+            .bound_dictionaries = .init(scratch),
         };
     }
 
@@ -92,10 +97,18 @@ pub const Substituter = struct {
     }
 
     /// Record `name` as a function when `value` is a lambda and `name` may
-    /// lose a parameter.
+    /// lose a parameter, and as a dictionary when `value` builds one.
     fn declare(self: *Substituter, name: core.SymbolId, value: core.Term) Error!void {
-        if (value.kind != .lambda) return;
-        if (self.env.interner.details(name) == .join) return;
+        if (value.kind != .lambda) {
+            if (value.kind != .symbol and laws.buildsDictionary(&self.env.interner, &self.env.classes, value)) {
+                try self.bound_dictionaries.put(name, value);
+            }
+            return;
+        }
+        switch (self.env.interner.details(name)) {
+            .join, .instance_method => return,
+            else => {},
+        }
         if (laws.named(&self.env.interner, &self.env.classes, &self.env.known, name)) return;
         const parameters = try self.scratch.alloc(core.SymbolId, value.arity());
         _ = value.peel(parameters);
@@ -139,7 +152,6 @@ pub const Substituter = struct {
 
     /// Record what `id`, applied by each of `applications`, is passed.
     fn call(self: *Substituter, id: core.SymbolId, applications: []const core.Term) Error!void {
-        for (laws.selectable(&self.env.interner, &self.env.classes, id)) |method| try self.call(method, applications);
         const parameters = self.functions.get(id) orelse return;
         const applied = @min(parameters.len, applications.len);
         for (parameters[applied..]) |parameter| self.passed.getPtr(parameter).?.* = .varies;
@@ -168,6 +180,7 @@ pub const Substituter = struct {
     fn passing(self: *Substituter, t: core.Term) Error!Passed {
         if (t.kind == .symbol) {
             if (self.passed.get(t.kind.symbol)) |passed| return passed;
+            if (self.bound_dictionaries.get(t.kind.symbol)) |value| return try self.passing(value);
         }
         if (laws.appliedInstance(&self.env.interner, &self.env.classes, t) == null) return .varies;
         const applications = try self.scratch.alloc(core.Term, t.spineLength());

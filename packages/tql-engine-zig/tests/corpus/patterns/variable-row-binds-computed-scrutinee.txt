@@ -26,3 +26,4 @@ count = \n ->
       Nil -> x
       Cons _ _ -> jump alternative scrutinee
 main = pure (count 5)
+entry = run_main main

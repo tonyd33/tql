@@ -5,12 +5,12 @@ asserts: core, values
 `x`, `x@_` and `_` match every value, so each lowers to a bare `bind`.
 
 --- tql ---
-main = Filter (\_ -> do {
+main = Kleisli $ \_ -> do {
   x <- [1, 2];
   y@_ <- [x];
   _ <- [y];
   return y;
-});
+};
 
 --- source ---
 class A {}
@@ -19,4 +19,5 @@ class A {}
 [1, 2]
 
 --- core ---
-main = Filter (\_ -> bind (Cons 1 (Cons 2 Nil)) (\x -> bind (Cons x Nil) (\y -> bind (Cons y Nil) (\_ -> return y))))
+main = Kleisli (\_ -> bind (Cons 1 (Cons 2 Nil)) (\x -> bind (Cons x Nil) (\y -> bind (Cons y Nil) (\_ -> return y))))
+entry = run_main main

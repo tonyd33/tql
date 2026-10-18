@@ -11,7 +11,7 @@ main =
     a = \x y -> x + y;
     b = \x -> \y -> x + y;
   }
-  in Filter (\_ -> [a 1 2, b 1 2]);
+  in Kleisli $ \_ -> [a 1 2, b 1 2];
 
 --- source ---
 class A {}
@@ -20,10 +20,12 @@ class A {}
 [3, 3]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]
 
 --- core ---
 main =
   let a = \x -> \y -> op[+] x y in
   let b = \x -> \y -> op[+] x y in
-  Filter (\_ -> Cons (a 1 2) (Cons (b 1 2) Nil))
+  Kleisli (\_ -> Cons (a 1 2) (Cons (b 1 2) Nil))
+entry = run_main main

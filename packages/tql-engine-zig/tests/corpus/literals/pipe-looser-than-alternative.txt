@@ -22,7 +22,9 @@ class B {}
 [true, false, false, false]
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List Node Bool
+entry :: Node -> [Bool]
 
 --- core ---
-main = compose_flipped (compose_flipped (compose_flipped children (of_kind :class_declaration)) (Filter field[name])) (alt (arr (\n -> eq (text n) "A")) (pure False))
+main = compose_flipped (compose_flipped (compose_flipped children (of_kind :class_declaration)) (Kleisli field[name])) (alt (arr (\n -> eq (text n) "A")) (pure False))
+entry = run_main main

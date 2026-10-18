@@ -10,7 +10,7 @@ import Data.Foldable (any);
 
 positive xs = any (\x -> x > 0) xs;
 
-main = Filter (\_ -> [positive [0, 1], positive [0]]);
+main = Kleisli $ \_ -> [positive [0, 1], positive [0]];
 
 --- source ---
 class A {}
@@ -20,3 +20,4 @@ class A {}
 
 --- simplified ---
 main = \_ -> Cons (any (\x -> %gt_int x 0) (Cons 0 (Cons 1 Nil))) (Cons (any (\x -> %gt_int x 0) (Cons 0 Nil)) Nil)
+entry = main

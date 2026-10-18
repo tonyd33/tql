@@ -16,7 +16,9 @@ class A {}
 ["class A {}"]
 
 --- types ---
-main :: Filter Node String
+main :: Kleisli List Node String
+entry :: Node -> [String]
 
 --- core ---
 main = compose_flipped (children_of_kind :class_declaration) (arr text)
+entry = run_main main

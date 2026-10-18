@@ -19,3 +19,4 @@ is_class = \n -> case eq (kind n) :class_declaration of
   False -> False
   True -> True
 main = compose_flipped named_children (arr is_class)
+entry = run_main main

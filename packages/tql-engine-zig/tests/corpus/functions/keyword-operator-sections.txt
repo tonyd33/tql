@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-main = Filter (\_ -> append (map (True and) [True, False]) (map (or False) [True, False]));
+main = Kleisli $ \_ -> append (map (True and) [True, False]) (map (or False) [True, False]);
 
 --- source ---
 class A {}
@@ -12,4 +12,5 @@ class A {}
 [true, false, true, false]
 
 --- core ---
-main = Filter (\_ -> append (map (\y -> and True y) (Cons True (Cons False Nil))) (map (\x -> or x False) (Cons True (Cons False Nil))))
+main = Kleisli (\_ -> append (map (\y -> and True y) (Cons True (Cons False Nil))) (map (\x -> or x False) (Cons True (Cons False Nil))))
+entry = run_main main

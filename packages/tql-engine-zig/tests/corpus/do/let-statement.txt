@@ -18,13 +18,15 @@ class B {}
 ["A", "B"]
 
 --- types ---
-main :: Filter Node String
+main :: Kleisli List Node String
+entry :: Node -> [String]
 
 --- core ---
 main = bind (children_of_kind :class_declaration) (
-  \c -> bind (compose_flipped (pure c) (Filter field[name])) (
+  \c -> bind (compose_flipped (pure c) (Kleisli field[name])) (
     \n ->
       let name = text n in
       return name
   )
 )
+entry = run_main main

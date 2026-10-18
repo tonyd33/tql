@@ -15,7 +15,9 @@ let p = "xa/by";
 [true]
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List Node Bool
+entry :: Node -> [Bool]
 
 --- core ---
 main = compose_flipped (compose_flipped descendants (of_kind :string)) (arr (\s -> op[~] (text s) r"a/b"))
+entry = run_main main

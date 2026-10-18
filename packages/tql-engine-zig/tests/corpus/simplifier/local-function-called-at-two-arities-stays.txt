@@ -4,9 +4,12 @@ asserts: simplified, values
 
 --- tql ---
 f b n =
-  let { g x = seq (n * 2 + n * 3 + n * 4 + n * 5) x }
+  let {
+    g :: a -> a;
+    g x = seq (n * 2 + n * 3 + n * 4 + n * 5) x;
+  }
   in if b then g (\y -> y + 1) 3 else g 3;
-main = Filter (\_ -> [f True 1, f False 1]);
+main = Kleisli $ \_ -> [f True 1, f False 1];
 
 --- source ---
 class A {}
@@ -24,3 +27,4 @@ f = \b -> \n ->
     False -> g 3
     True -> g (\y -> op[+] y 1) 3
 main = \_ -> Cons (f True 1) (Cons (f False 1) Nil)
+entry = main

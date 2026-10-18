@@ -16,7 +16,9 @@ class A {}
 [{ "meta": { "k": "class_declaration", "n": 1 }, "name": "A" }]
 
 --- types ---
-main :: Filter Node {meta: {k: Kind, n: Int}, name: String}
+main :: Kleisli List Node {meta: {k: Kind, n: Int}, name: String}
+entry :: Node -> [{meta: {k: Kind, n: Int}, name: String}]
 
 --- core ---
-main = bind (children_of_kind :class_declaration) (\c -> bind (compose_flipped (pure c) (Filter field[name])) (\n -> return (record[meta,name] (record[k,n] (kind c) 1) (text n))))
+main = bind (children_of_kind :class_declaration) (\c -> bind (compose_flipped (pure c) (Kleisli field[name])) (\n -> return (record[meta,name] (record[k,n] (kind c) 1) (text n))))
+entry = run_main main

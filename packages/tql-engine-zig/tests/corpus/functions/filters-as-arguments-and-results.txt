@@ -17,4 +17,5 @@ class A {}
 
 --- types ---
 both :: Alternative a => a b -> a b -> a b
-main :: Filter Node String
+main :: Kleisli List Node String
+entry :: Node -> [String]

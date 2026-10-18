@@ -7,7 +7,7 @@ asserts: values
 --- tql ---
 bind p f = [];
 main = do {
-  x <- Filter (\_ -> [1, 2]);
+  x <- Kleisli $ \_ -> [1, 2];
   return $ x + 1;
 };
 

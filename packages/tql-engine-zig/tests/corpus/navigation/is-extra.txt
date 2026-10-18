@@ -14,4 +14,5 @@ f(/* c */ a);
 [{"extra":true,"named":true,"text":"/* c */"},{"extra":false,"named":true,"text":"a"}]
 
 --- types ---
-main :: Filter Node {extra: Bool, named: Bool, text: String}
+main :: Kleisli List Node {extra: Bool, named: Bool, text: String}
+entry :: Node -> [{extra: Bool, named: Bool, text: String}]

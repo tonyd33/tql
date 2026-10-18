@@ -5,7 +5,7 @@ asserts: core, types, values
 --- tql ---
 n = 100;
 shadowed n = n + 1;
-main = Filter (\_ -> [shadowed 1, n]);
+main = Kleisli $ \_ -> [shadowed 1, n];
 
 --- source ---
 class A {}
@@ -16,9 +16,11 @@ class A {}
 --- types ---
 n :: Int
 shadowed :: Int -> Int
-main :: Filter Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]
 
 --- core ---
 n = 100
 shadowed = \n -> op[+] n 1
-main = Filter (\_ -> Cons (shadowed 1) (Cons n Nil))
+main = Kleisli (\_ -> Cons (shadowed 1) (Cons n Nil))
+entry = run_main main

@@ -22,4 +22,5 @@ let s = "héllo";
 ]
 
 --- types ---
-main :: Filter Node Range
+main :: Kleisli List Node Range
+entry :: Node -> [Range]

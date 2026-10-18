@@ -7,7 +7,7 @@ import Data.List (zip);
 
 main = do {
   root <- identity;
-  (n, c) <- Filter (\_ -> zip [1, 2] (run children root));
+  (n, c) <- Kleisli $ \_ -> zip [1, 2] (run children root);
   return (n, text c);
 };
 

@@ -4,7 +4,7 @@ asserts: core, simplified, values
 
 --- tql ---
 add x y = x + y;
-main = Filter (\_ -> map (add 1) [1, 2]);
+main = Kleisli $ \_ -> map (add 1) [1, 2];
 
 --- source ---
 class A {}
@@ -15,7 +15,9 @@ class A {}
 --- simplified ---
 add = \x -> \y -> op[+] x y
 main = \_ -> map[List] (add 1) (Cons 1 (Cons 2 Nil))
+entry = main
 
 --- core ---
 add = \x -> \y -> op[+] x y
-main = Filter (\_ -> map (add 1) (Cons 1 (Cons 2 Nil)))
+main = Kleisli (\_ -> map (add 1) (Cons 1 (Cons 2 Nil)))
+entry = run_main main

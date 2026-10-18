@@ -13,4 +13,4 @@ error[invalid-class]: `describe` does not mention `a`, the parameter of `Describ
  --> 3:26
   |
 3 | class Describe a where { describe :: Int -> String; };
-  |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |                          ^^^^^^^^^^^^^^^^^^^^^^^^^

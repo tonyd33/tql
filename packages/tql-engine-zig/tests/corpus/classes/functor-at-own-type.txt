@@ -15,7 +15,7 @@ both p = case p of {
   Pair x y -> [x, y];
 };
 
-main = Filter (\_ -> both (map (+ 1) (Pair 1 2)));
+main = Kleisli $ \_ -> both (map (+ 1) (Pair 1 2));
 
 --- source ---
 class A {}
@@ -25,4 +25,5 @@ class A {}
 
 --- types ---
 both :: Pair a -> [a]
-main :: Filter Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

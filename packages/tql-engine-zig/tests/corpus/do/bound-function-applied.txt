@@ -19,9 +19,11 @@ class A {}
 ["program"]
 
 --- types ---
-make_predicate :: (Applicative a, Arrow b) => a (b Node Kind)
-main :: Filter Node Kind
+make_predicate :: Kleisli List Node (Kleisli List Node Kind)
+main :: Kleisli List Node Kind
+entry :: Node -> [Kind]
 
 --- core ---
 make_predicate = pure (arr kind)
 main = bind make_predicate (\predicate -> predicate)
+entry = run_main main

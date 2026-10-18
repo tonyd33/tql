@@ -1,0 +1,27 @@
+title: a local group with a signed member types its other members apart
+grammar: typescript
+asserts: values
+
+`evens` and `odds` call each other, but a use of the signed `evens` is no
+dependency, so `odds` is generalized on its own and used at two types
+(Declarations: Binding groups).
+
+--- tql ---
+f x = let {
+  evens :: [a] -> [a];
+  evens ys = case ys of {
+    Nil -> Nil;
+    Cons y rest -> Cons y (odds rest);
+  };
+  odds ys = case ys of {
+    Nil -> Nil;
+    Cons _ rest -> evens rest;
+  };
+} in [length (odds [1, 2, 3]), length (odds ["a", "b"]), x];
+main = Kleisli $ \_ -> f 0;
+
+--- source ---
+f(x);
+
+--- values ---
+[1,1,0]

@@ -6,7 +6,7 @@ asserts: types, values
 
 --- tql ---
 
-main = Filter (\_ -> ["hello", "héllo", "", "日本"]) | arr length;
+main = Kleisli (\_ -> ["hello", "héllo", "", "日本"]) | arr length;
 
 --- source ---
 class A {}
@@ -14,4 +14,5 @@ class A {}
 --- values ---
 [5,5,0,2]
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

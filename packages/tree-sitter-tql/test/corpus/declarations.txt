@@ -586,6 +586,138 @@ class Marker a where {};
     parameter: (type_variable)))
 
 ========================================
+a class with a default method
+========================================
+
+class Foldable t where {
+  foldr :: (a -> b -> b) -> b -> t a -> b;
+  null :: t a -> Bool;
+  null = foldr (\_ _ -> False) True;
+};
+
+---
+
+(source_file
+  (class_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    method: (signature
+      name: (identifier)
+      type: (function_type
+        from: (parenthesized_type
+          (function_type
+            from: (type_variable)
+            to: (function_type
+              from: (type_variable)
+              to: (type_variable))))
+        to: (function_type
+          from: (type_variable)
+          to: (function_type
+            from: (type_application
+              variable: (type_variable)
+              argument: (type_variable))
+            to: (type_variable)))))
+    method: (signature
+      name: (identifier)
+      type: (function_type
+        from: (type_application
+          variable: (type_variable)
+          argument: (type_variable))
+        to: (type_identifier)))
+    default: (definition
+      name: (identifier)
+      body: (application
+        function: (application
+          function: (identifier)
+          argument: (parenthesized
+            (lambda
+              parameter: (wildcard)
+              parameter: (wildcard)
+              body: (type_identifier))))
+        argument: (type_identifier)))))
+
+========================================
+a class with a minimal formula, conjunction tighter than alternatives
+========================================
+
+class Describe a where {
+  describe :: a -> String;
+  label :: a -> String;
+  tags :: a -> [String];
+  minimal describe | label, tags;
+};
+
+---
+
+(source_file
+  (class_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    method: (signature
+      name: (identifier)
+      type: (function_type
+        from: (type_variable)
+        to: (type_identifier)))
+    method: (signature
+      name: (identifier)
+      type: (function_type
+        from: (type_variable)
+        to: (type_identifier)))
+    method: (signature
+      name: (identifier)
+      type: (function_type
+        from: (type_variable)
+        to: (list_type
+          (type_identifier))))
+    minimal: (minimal
+      formula: (minimal_any
+        alternative: (identifier)
+        alternative: (minimal_all
+          conjunct: (identifier)
+          conjunct: (identifier))))))
+
+========================================
+a minimal formula grouped by parentheses
+========================================
+
+class Describe a where {
+  describe :: a -> String;
+  label :: a -> String;
+  tags :: a -> [String];
+  minimal (describe | label), tags;
+};
+
+---
+
+(source_file
+  (class_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    method: (signature
+      name: (identifier)
+      type: (function_type
+        from: (type_variable)
+        to: (type_identifier)))
+    method: (signature
+      name: (identifier)
+      type: (function_type
+        from: (type_variable)
+        to: (type_identifier)))
+    method: (signature
+      name: (identifier)
+      type: (function_type
+        from: (type_variable)
+        to: (list_type
+          (type_identifier))))
+    minimal: (minimal
+      formula: (minimal_all
+        conjunct: (parenthesized_minimal
+          (minimal_any
+            alternative: (identifier)
+            alternative: (identifier)))
+        conjunct: (identifier)))))
+
+========================================
 an instance with a context over a list
 ========================================
 

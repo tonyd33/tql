@@ -24,11 +24,12 @@ class A {}
 [{"tag":"Just","fields":["A"]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]}]
 --- types ---
 name_of :: (Monad a, Alternative a) => a Node -> a String
-main :: Filter Node (Maybe String)
+main :: Kleisli List Node (Maybe String)
+entry :: Node -> [Maybe String]
 --- core ---
 name_of = \m -> bind m (
   \scrutinee ->
-    let view = run (of_kind :class_declaration) scrutinee in
+    let view = run_kleisli (of_kind :class_declaration) scrutinee in
     case view of
       Nil -> empty
       Cons cons0 cons1 ->
@@ -42,6 +43,7 @@ name_of = \m -> bind m (
             Cons _ _ -> empty
 )
 main = alt (compose_flipped (alt children identity) (arr (compose name_of Just))) (pure (name_of Nothing))
+entry = run_main main
 --- simplified ---
 name_of = \m -> case m of
   Nothing -> Nothing
@@ -53,3 +55,4 @@ name_of = \m -> case m of
         Nil -> Just (%text n)
         Cons _ _ -> Nothing
 main = \x -> append[List] (bind[List] (append[List] (%children x) (Cons x Nil)) (\x -> Cons (name_of (Just x)) Nil)) (Cons Nothing Nil)
+entry = main

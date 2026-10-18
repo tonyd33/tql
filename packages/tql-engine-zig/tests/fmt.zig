@@ -39,8 +39,8 @@ pub fn formatStg(
     return w.toOwnedSlice();
 }
 
-/// `name :: scheme` per entry-module definition, in declaration order, less
-/// those generated for instances.
+/// `name :: scheme` per entry-module definition, in declaration order, then
+/// `entry`, less those generated for instances.
 ///
 /// Entry definitions only, like `formatCore`: the library's schemes are
 /// asserted in a `root.zig` test instead, so a library edit does not rewrite

@@ -22,6 +22,7 @@ class A {}
 a :: Filter Node String
 b :: Filter Node String
 main :: Filter Node String
+entry :: Node -> [String]
 
 --- runtime error ---
 error[cyclic-value]: a value depends on itself

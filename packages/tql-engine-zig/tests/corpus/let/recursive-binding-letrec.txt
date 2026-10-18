@@ -17,7 +17,8 @@ class A {}
 [0]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List Node Int
+entry :: Node -> [Int]
 
 --- core ---
 main =
@@ -32,3 +33,4 @@ main =
       True -> 0
   in
   pure (countdown 3)
+entry = run_main main

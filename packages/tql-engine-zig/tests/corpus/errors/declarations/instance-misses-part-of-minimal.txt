@@ -1,0 +1,41 @@
+title: an instance names only what it misses of a nested `minimal`
+grammar: typescript
+asserts: error
+
+`tags` is defined, so only the alternatives are missing. `Bool` defines
+nothing, so the whole formula is.
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+  label :: a -> String;
+  tags :: a -> [String];
+  describe x = label x;
+  label x = describe x;
+  minimal (describe | label), tags;
+};
+instance Describe Int where {
+  tags n = [];
+};
+instance Describe Bool where {};
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[invalid-instance]: `Describe Int` does not define `describe` or `label`
+  --> 9:1
+   |
+ 9 | instance Describe Int where {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+10 |   tags n = [];
+   |   ^^^^^^^^^^^^
+11 | };
+   | ^^
+
+error[invalid-instance]: `Describe Bool` does not define (`describe` or `label`) and `tags`
+  --> 12:1
+   |
+12 | instance Describe Bool where {};
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

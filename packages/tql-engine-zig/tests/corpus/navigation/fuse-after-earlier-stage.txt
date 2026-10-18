@@ -20,6 +20,8 @@ main =
       \x -> bind[List] (%children x) q
   in
   \x -> bind[List] (p x) field[name]
+entry = main
 
 --- core ---
-main = compose_flipped (compose_flipped (compose_flipped children descendants) (of_kind :class_declaration)) (Filter field[name])
+main = compose_flipped (compose_flipped (compose_flipped children descendants) (of_kind :class_declaration)) (Kleisli field[name])
+entry = run_main main

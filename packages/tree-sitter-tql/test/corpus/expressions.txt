@@ -758,3 +758,23 @@ main = a `(f x)` b;
           argument: (identifier))))
     (ERROR
       (identifier))))
+
+========================================
+a type annotation
+========================================
+
+main = (pure 1 :: Filter Node Int);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (annotated
+      expression: (application
+        function: (identifier)
+        argument: (number))
+      type: (type_application
+        constructor: (type_identifier)
+        argument: (type_identifier)
+        argument: (type_identifier)))))

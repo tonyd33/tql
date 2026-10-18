@@ -12,4 +12,5 @@ class A {}
 []
 
 --- types ---
-main :: Filter Node Kind
+main :: Kleisli List Node Kind
+entry :: Node -> [Kind]

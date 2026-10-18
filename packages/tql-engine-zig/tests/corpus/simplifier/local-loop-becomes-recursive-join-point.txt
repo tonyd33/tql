@@ -17,7 +17,7 @@ f xs = case (
   True -> "yes";
   False -> "no";
 };
-main = Filter (\_ -> [f [1, 3], f [4]]);
+main = Kleisli $ \_ -> [f [1, 3], f [4]];
 
 --- source ---
 class A {}
@@ -36,6 +36,7 @@ f = \xs ->
   in
   jump go xs
 main = \_ -> Cons (f (Cons 1 (Cons 3 Nil))) (Cons (f (Cons 4 Nil)) Nil)
+entry = main
 
 --- stg ---
 f = {} \u {} ->
@@ -82,3 +83,4 @@ main = {} \u {} ->
       Cons t3@1 t8@2
   in
   t9@0
+entry = {} \u {} -> main

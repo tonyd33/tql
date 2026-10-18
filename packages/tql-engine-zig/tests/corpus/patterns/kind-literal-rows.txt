@@ -30,3 +30,4 @@ describe = \n ->
       True -> "function"
     True -> "class"
 main = compose_flipped named_children (arr describe)
+entry = run_main main

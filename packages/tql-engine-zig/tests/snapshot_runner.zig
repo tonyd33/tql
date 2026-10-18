@@ -619,15 +619,21 @@ fn testCase(
     name: []const u8,
 ) !CaseResult {
     if (ctx.opts.safe) {
-        var test_gpa: std.heap.DebugAllocator(.{}) = .init;
+        var test_gpa: std.heap.DebugAllocator(.{ .enable_memory_limit = true }) = .init;
+        test_gpa.requested_memory_limit = case_memory_limit;
         return checkCase(ctx, io, tc, updates, group, name, &test_gpa);
     }
     // Reports a leak without its allocation site.
-    var test_gpa: std.heap.DebugAllocator(.{ .stack_trace_frames = 0 }) = .{
+    var test_gpa: std.heap.DebugAllocator(.{ .stack_trace_frames = 0, .enable_memory_limit = true }) = .{
         .backing_allocator = std.heap.c_allocator,
+        .requested_memory_limit = case_memory_limit,
     };
     return checkCase(ctx, io, tc, updates, group, name, &test_gpa);
 }
+
+/// The most one case may hold at once. A case that needs more fails with
+/// `OutOfMemory` and the run continues.
+const case_memory_limit = 1024 * 1024 * 1024;
 
 /// Preconditions:
 /// - `test_gpa` is a fresh `std.heap.DebugAllocator`; its `deinit` reports

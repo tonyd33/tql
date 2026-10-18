@@ -1,0 +1,21 @@
+title: a class stating `minimal` twice
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+  minimal describe;
+  minimal describe;
+};
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[invalid-class]: `Describe` states `minimal` more than once
+ --> 4:3
+  |
+4 |   minimal describe;
+  |   ^^^^^^^^^^^^^^^^^

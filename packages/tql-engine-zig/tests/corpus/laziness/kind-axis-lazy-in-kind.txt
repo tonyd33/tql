@@ -20,5 +20,6 @@ let x = 1;
 --- simplified ---
 bot = bot
 main =
-  let p = %descendants_of_kind :number in
-  \x -> bind[List] (p x) (\y -> bind[List] (%descendants_of_kind bot y) (\y -> Cons (%text y) Nil))
+  let k = %descendants_of_kind :number in
+  \x -> bind[List] (k x) (\y -> bind[List] (%descendants_of_kind bot y) (\y -> Cons (%text y) Nil))
+entry = main

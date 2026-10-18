@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-main = Filter (\_ -> [(+) 1 2, (-) 5 3, foldr (*) 1 [2, 3, 4]]);
+main = Kleisli $ \_ -> [(+) 1 2, (-) 5 3, foldr (*) 1 [2, 3, 4]];
 
 --- source ---
 class A {}
@@ -12,4 +12,5 @@ class A {}
 [3, 2, 24]
 
 --- core ---
-main = Filter (\_ -> Cons ((\x -> \y -> op[+] x y) 1 2) (Cons ((\x -> \y -> op[-] x y) 5 3) (Cons (foldr (\x -> \y -> op[*] x y) 1 (Cons 2 (Cons 3 (Cons 4 Nil)))) Nil)))
+main = Kleisli (\_ -> Cons ((\x -> \y -> op[+] x y) 1 2) (Cons ((\x -> \y -> op[-] x y) 5 3) (Cons (foldr (\x -> \y -> op[*] x y) 1 (Cons 2 (Cons 3 (Cons 4 Nil)))) Nil)))
+entry = run_main main

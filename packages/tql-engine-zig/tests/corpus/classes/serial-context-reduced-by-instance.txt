@@ -28,4 +28,5 @@ class A {}
 s :: Serial a => a -> Int
 f :: Serial a => a -> Int
 g :: Serial a => a -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int
+entry :: Node -> [Int]

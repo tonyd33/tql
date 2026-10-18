@@ -26,7 +26,7 @@ instance Twice List where {
 wrap :: Twice f => a -> f a;
 wrap x = twice (point x);
 
-main = Filter (\_ -> wrap 1);
+main = Kleisli $ \_ -> wrap 1;
 
 --- source ---
 class A {}
@@ -35,4 +35,4 @@ class A {}
 [1]
 
 --- simplified ---
-main = \_ -> Cons 1 Nil
+entry = \_ -> Cons 1 Nil

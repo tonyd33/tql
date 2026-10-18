@@ -26,3 +26,4 @@ class A {}
 
 --- simplified ---
 main = \x -> bind[List] (%children x) (\y -> Cons (Cons (%lt_string "a" "b") (Cons (%lt_string "b" "a") (Cons (%ne_node x y) (Cons (%ne_node y y) (Cons (%ne_kind (%kind x) (%kind y)) (Cons (%ne_kind (%kind y) (%kind y)) Nil)))))) Nil)
+entry = main

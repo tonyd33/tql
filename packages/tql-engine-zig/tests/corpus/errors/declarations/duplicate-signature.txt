@@ -15,4 +15,4 @@ error[duplicate-signature]: `f` has more than one signature
  --> 2:1
   |
 2 | f :: Node -> String;
-  | ^^^^^^^^^^^^^^^^^^^^
+  | ^^^^^^^^^^^^^^^^^^^

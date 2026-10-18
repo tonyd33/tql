@@ -4,7 +4,7 @@ asserts: simplified, values
 
 --- tql ---
 f b x = (if b then \y -> y + 1 else \y -> y * 2) (x * x);
-main = Filter (\_ -> map (\g -> g 3) (map f [True, False]));
+main = Kleisli $ \_ -> map (\g -> g 3) (map f [True, False]);
 
 --- source ---
 class A {}
@@ -18,3 +18,4 @@ f = \b -> \x ->
     False -> op[*] a 2
     True -> op[+] a 1
 main = \_ -> map[List] (\g -> g 3) (map[List] f (Cons True (Cons False Nil)))
+entry = main

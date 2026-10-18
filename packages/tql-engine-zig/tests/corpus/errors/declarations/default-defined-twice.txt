@@ -1,0 +1,21 @@
+title: a class with two defaults for one method
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+  describe x = "a";
+  describe x = "b";
+};
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[duplicate-definition]: `describe` is defined more than once
+ --> 4:3
+  |
+4 |   describe x = "b";
+  |   ^^^^^^^^^^^^^^^^^

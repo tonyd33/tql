@@ -12,7 +12,7 @@ unwrap w = case w of {
   Wrap x -> x;
 };
 
-main = Filter (\_ -> unwrap (Wrap [1, 2]));
+main = Kleisli $ \_ -> unwrap (Wrap [1, 2]);
 
 --- source ---
 class A {}
@@ -21,4 +21,5 @@ class A {}
 [1,2]
 --- types ---
 unwrap :: Wrap a b -> a b
-main :: Filter Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

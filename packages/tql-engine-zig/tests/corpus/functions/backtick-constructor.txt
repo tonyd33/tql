@@ -20,3 +20,4 @@ class A {}
 second = \p -> case p of
   Pair _ b -> b
 main = pure (second (Pair 1 2))
+entry = run_main main

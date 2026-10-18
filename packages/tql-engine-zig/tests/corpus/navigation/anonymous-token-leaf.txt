@@ -20,4 +20,5 @@ y = a === b;
 [{"children":0,"kind":"&&","parent":["binary_expression"]},{"children":0,"kind":"===","parent":["binary_expression"]}]
 
 --- types ---
-main :: Filter Node {children: Int, kind: Kind, parent: [Kind]}
+main :: Kleisli List Node {children: Int, kind: Kind, parent: [Kind]}
+entry :: Node -> [{children: Int, kind: Kind, parent: [Kind]}]

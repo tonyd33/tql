@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-main = Filter (\root -> run (descendants | of_kind :class_declaration | #name) root);
+main = Kleisli $ \root -> run (descendants | of_kind :class_declaration | #name) root;
 
 --- source ---
 class A {}
@@ -21,7 +21,8 @@ class A {}
 ]
 
 --- simplified ---
-main = \root -> bind[List] (%descendants_of_kind :class_declaration root) field[name]
+entry = \root -> bind[List] (%descendants_of_kind :class_declaration root) field[name]
 
 --- core ---
-main = Filter (\root -> run (compose_flipped (compose_flipped descendants (of_kind :class_declaration)) (Filter field[name])) root)
+main = Kleisli (\root -> run (compose_flipped (compose_flipped descendants (of_kind :class_declaration)) (Kleisli field[name])) root)
+entry = run_main main

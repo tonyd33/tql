@@ -9,7 +9,7 @@ to it.
 f b x =
   let { g y = y * 2 + y * 3 + y * 4 + y * 5 }
   in if b then g x else g (x + 1);
-main = Filter (\_ -> [f True 1, f False 1]);
+main = Kleisli $ \_ -> [f True 1, f False 1];
 
 --- source ---
 class A {}
@@ -24,6 +24,7 @@ f = \b -> \x ->
     False -> jump g (op[+] x 1)
     True -> jump g x
 main = \_ -> Cons (f True 1) (Cons (f False 1) Nil)
+entry = main
 
 --- stg ---
 f = {} \u {} ->
@@ -73,3 +74,4 @@ main = {} \u {} ->
       Cons t1@1 t5@2
   in
   t6@0
+entry = {} \u {} -> main

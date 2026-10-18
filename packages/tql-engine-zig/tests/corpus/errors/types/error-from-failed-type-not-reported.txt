@@ -1,0 +1,21 @@
+title: an error that follows from an earlier one is not reported
+grammar: typescript
+asserts: error
+
+The branches of `f`'s `if` disagree, so `f`'s result type is made up, and
+`not (f True)` is not a mismatch of its own (Static semantics: Errors).
+
+--- tql ---
+f x = if x then 1 else "a";
+g = not (f True);
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 1:24
+  |
+1 | f x = if x then 1 else "a";
+  |                        ^^^

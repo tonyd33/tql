@@ -45,7 +45,9 @@ module newtype of then type where
 ```
 
 `as`, `hiding`, `for` and `pattern` are keywords only where the grammar
-expects them, and are ordinary names elsewhere.
+expects them, and are ordinary names elsewhere. `minimal` is a keyword in a
+class body, so no method is named `minimal`, and an ordinary name
+elsewhere.
 
 ## Operators
 

@@ -21,7 +21,9 @@ class B { p() {} }
 ["m", "n", "p"]
 
 --- types ---
-main :: Filter Node String
+main :: Kleisli List Node String
+entry :: Node -> [String]
 
 --- core ---
-main = bind (children_of_kind :class_declaration) (\c -> bind (compose_flipped (compose_flipped (compose_flipped (pure c) (Filter field[body])) children) (of_kind :method_definition)) (\m -> bind (compose_flipped (pure m) (Filter field[name])) (\n -> return (text n))))
+main = bind (children_of_kind :class_declaration) (\c -> bind (compose_flipped (compose_flipped (compose_flipped (pure c) (Kleisli field[body])) children) (of_kind :method_definition)) (\m -> bind (compose_flipped (pure m) (Kleisli field[name])) (\n -> return (text n))))
+entry = run_main main

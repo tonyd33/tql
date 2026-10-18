@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 import Data.Function (const);
 
-main = Filter $ const [
+main = Kleisli $ const [
   and True True, and True False, and False True, and False False,
   or True True, or True False, or False True, or False False,
   not True, not False,
@@ -18,4 +18,5 @@ class A {}
 [true, false, false, false, true, true, true, false, false, true]
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List a Bool
+entry :: Node -> [Bool]

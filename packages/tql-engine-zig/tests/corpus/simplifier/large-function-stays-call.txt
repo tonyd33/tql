@@ -4,7 +4,7 @@ asserts: core, simplified, values
 
 --- tql ---
 score n = n * n + n * 2 + n * 3 + 1;
-main = Filter (\_ -> [score 1, score 2]);
+main = Kleisli $ \_ -> [score 1, score 2];
 
 --- source ---
 class A {}
@@ -15,7 +15,9 @@ class A {}
 --- simplified ---
 score = \n -> op[+] (op[+] (op[+] (op[*] n n) (op[*] n 2)) (op[*] n 3)) 1
 main = \_ -> Cons (score 1) (Cons (score 2) Nil)
+entry = main
 
 --- core ---
 score = \n -> op[+] (op[+] (op[+] (op[*] n n) (op[*] n 2)) (op[*] n 3)) 1
-main = Filter (\_ -> Cons (score 1) (Cons (score 2) Nil))
+main = Kleisli (\_ -> Cons (score 1) (Cons (score 2) Nil))
+entry = run_main main

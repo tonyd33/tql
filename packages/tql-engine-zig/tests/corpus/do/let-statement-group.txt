@@ -22,14 +22,16 @@ class A {}
 [{ "k": "class_declaration", "n": "A" }]
 
 --- types ---
-main :: Filter Node {k: Kind, n: String}
+main :: Kleisli List Node {k: Kind, n: String}
+entry :: Node -> [{k: Kind, n: String}]
 
 --- core ---
 main = bind (children_of_kind :class_declaration) (
-  \c -> bind (compose_flipped (pure c) (Filter field[name])) (
+  \c -> bind (compose_flipped (pure c) (Kleisli field[name])) (
     \cn ->
       let name = text cn in
       let k = kind c in
       return (record[k,n] k name)
   )
 )
+entry = run_main main

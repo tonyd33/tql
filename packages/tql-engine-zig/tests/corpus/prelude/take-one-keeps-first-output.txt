@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 import Data.List (take);
 
-main = Filter (take 1 . run (children | of_kind :class_declaration | #name)) | arr text;
+main = Kleisli (take 1 . run (children | of_kind :class_declaration | #name)) | arr text;
 
 --- source ---
 class A {}
@@ -15,4 +15,5 @@ class B {}
 ["A"]
 
 --- types ---
-main :: Filter Node String
+main :: Kleisli List Node String
+entry :: Node -> [String]

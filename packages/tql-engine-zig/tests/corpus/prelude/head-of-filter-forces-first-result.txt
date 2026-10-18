@@ -13,14 +13,14 @@ bottom :: Int;
 bottom = bottom;
 
 p :: Filter Node Int;
-p = Filter (\_ -> [1, bottom]);
+p = Kleisli $ \_ -> [1, bottom];
 
 main = do {
   root <- identity;
   return (
-    has (Filter (take 1 . run p)) root,
-    has (Filter (take 1 . run empty)) root,
-    run (or_else (Filter (take 1 . run empty)) (Filter (take 1 . run p))) root
+    has (Kleisli $ take 1 . run p) root,
+    has (Kleisli $ take 1 . run empty) root,
+    run (or_else (Kleisli $ take 1 . run empty) (Kleisli $ take 1 . run p)) root
   );
 };
 
@@ -33,4 +33,5 @@ class A {}
 --- types ---
 bottom :: Int
 p :: Filter Node Int
-main :: Filter Node (Bool, Bool, [Int])
+main :: Kleisli List Node (Bool, Bool, [Int])
+entry :: Node -> [(Bool, Bool, [Int])]

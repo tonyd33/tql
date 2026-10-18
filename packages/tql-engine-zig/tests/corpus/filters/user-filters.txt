@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 point_free = children | of_kind :class_declaration;
 
-wrapped = Filter (\n -> run named_children n);
+wrapped = Kleisli $ \n -> run named_children n;
 
 over_input = do {
   n <- identity;
@@ -23,7 +23,8 @@ class A {}
 ["class_declaration","type_identifier","class_body","class_declaration"]
 
 --- types ---
-point_free :: Filter Node Node
-wrapped :: Filter Node Node
-over_input :: Filter Node Node
-main :: Filter Node String
+point_free :: Kleisli List Node Node
+wrapped :: Kleisli List Node Node
+over_input :: Kleisli List Node Node
+main :: Kleisli List Node String
+entry :: Node -> [String]

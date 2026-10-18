@@ -5,7 +5,7 @@ asserts: core, values
 --- tql ---
 sign x = case x of { -3 -> "minus three"; _ -> "other" };
 
-main = Filter (\_ -> [sign (-3), sign 3]);
+main = Kleisli $ \_ -> [sign (-3), sign 3];
 
 --- source ---
 class A {}
@@ -17,4 +17,5 @@ class A {}
 sign = \x -> case eq x (-3) of
   False -> "other"
   True -> "minus three"
-main = Filter (\_ -> Cons (sign (-3)) (Cons (sign 3) Nil))
+main = Kleisli (\_ -> Cons (sign (-3)) (Cons (sign 3) Nil))
+entry = run_main main

@@ -17,4 +17,4 @@ class A {}
 
 --- simplified ---
 names = \x -> Cons (bind[List] (%children x) (\x -> Cons (%text x) Nil)) Nil
-main = names
+entry = names

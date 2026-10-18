@@ -16,9 +16,11 @@ class A {}
 main =
   let y = op[-] 10 3 in
   \_ -> Cons y Nil
+entry = main
 
 --- core ---
 main = pure (
   case Mk 10 3 of
     Mk a b -> op[-] a b
 )
+entry = run_main main

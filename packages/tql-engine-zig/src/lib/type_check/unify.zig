@@ -18,6 +18,16 @@ pub const Mismatch = struct {
     found: types.Type,
     /// For `labels`, a label one record has and the other cannot.
     missing: ?Missing = null,
+    /// For `rigid` and `escape`, the rigid variable.
+    skolem: ?*const types.Skolem = null,
+
+    /// The same mismatch with its sides exchanged.
+    pub fn swapped(self: Mismatch) Mismatch {
+        var m = self;
+        m.expected = self.found;
+        m.found = self.expected;
+        return m;
+    }
 
     pub const Missing = struct {
         label: []const u8,
@@ -35,6 +45,11 @@ pub const Mismatch = struct {
         labels,
         /// A metavariable and a type of different kinds.
         kind,
+        /// A rigid variable and a type other than itself.
+        rigid,
+        /// A metavariable and a type mentioning a rigid variable bound inside
+        /// the metavariable's scope.
+        escape,
     };
 };
 
@@ -61,7 +76,16 @@ pub fn unify(
     if (left == .meta and right == .meta and left.meta == right.meta) return .unified;
 
     if (left == .meta) return try bindMeta(subst, left.meta, b);
-    if (right == .meta) return try bindMeta(subst, right.meta, a);
+    if (right == .meta) return switch (try bindMeta(subst, right.meta, a)) {
+        .unified => .unified,
+        .mismatch => |m| .{ .mismatch = m.swapped() },
+    };
+
+    if (left == .skolem or right == .skolem) {
+        if (left == .skolem and right == .skolem and left.skolem == right.skolem) return .unified;
+        const skolem = if (left == .skolem) left.skolem else right.skolem;
+        return .{ .mismatch = .{ .reason = .rigid, .expected = a, .found = b, .skolem = skolem } };
+    }
 
     // `m a` against `T x_1 .. x_n` is `m` against `T x_1 .. x_(n-1)` and `a`
     // against `x_n`.
@@ -80,7 +104,7 @@ pub fn unify(
     }
 
     switch (left) {
-        .meta, .variable => unreachable,
+        .meta, .variable, .skolem => unreachable,
         // Nominal in the head, pointwise in the arguments.
         .constructor => |c| {
             if (right != .constructor or right.constructor.name != c.name or
@@ -145,6 +169,9 @@ fn bindMeta(subst: *Substitution, id: types.Meta, t: types.Type) Allocator.Error
     if (!try hasKind(subst, t, subst.kindOf(id))) {
         return .{ .mismatch = .{ .reason = .kind, .expected = .{ .meta = id }, .found = t } };
     }
+    if (subst.promote(solution, subst.levelOf(id))) |skolem| {
+        return .{ .mismatch = .{ .reason = .escape, .expected = .{ .meta = id }, .found = t, .skolem = skolem } };
+    }
     subst.bind(id, solution);
     return .unified;
 }
@@ -160,6 +187,7 @@ fn hasKind(subst: *Substitution, t: types.Type, kind: types.Kind) Allocator.Erro
 pub fn kindOf(subst: *Substitution, t: types.Type) Allocator.Error!types.Kind {
     return switch (t) {
         .meta => |id| subst.kindOf(id),
+        .skolem => |k| k.kind,
         .constructor => |c| try types.Kind.arrows(subst.arena, subst.datatypes.get(c.name).parameters[c.arguments.len..], .type),
         .function => .type,
         .alias => |a| try kindOf(subst, a.expansion),
@@ -213,23 +241,30 @@ fn records(
     const left_row = row(left.rest);
     const right_row = row(right.rest);
 
-    // A closed side has no row to hold the other side's extra labels, and one
+    // Only a flexible row can hold the other side's extra labels, and one
     // row on both sides cannot hold labels only one side has.
-    const same_row = left_row != null and left_row == right_row;
-    if ((right_row == null or same_row) and only_left.items.len > 0) {
+    const same_row = left_row != .closed and std.meta.eql(left_row, right_row);
+    if ((right_row != .flexible or same_row) and only_left.items.len > 0) {
         return missing(a, b, only_left.items[0].label, .found);
     }
-    if ((left_row == null or same_row) and only_right.items.len > 0) {
+    if ((left_row != .flexible or same_row) and only_right.items.len > 0) {
         return missing(a, b, only_right.items[0].label, .expected);
     }
     if (same_row) return .unified;
 
-    const left_id = left_row orelse {
-        const right_id = right_row orelse return .unified;
-        return try bindMeta(subst, right_id, .{ .record = .{ .fields = only_left.items } });
+    const left_id = switch (left_row) {
+        .flexible => |id| id,
+        .closed, .rigid => switch (right_row) {
+            .flexible => |id| return try bindMeta(subst, id, try withFields(subst, only_left.items, if (left.rest) |t| t.* else null)),
+            .closed, .rigid => {
+                const skolem = if (left_row == .rigid) left_row.rigid else if (right_row == .rigid) right_row.rigid else return .unified;
+                return .{ .mismatch = .{ .reason = .rigid, .expected = a, .found = b, .skolem = skolem } };
+            },
+        },
     };
-    const right_id = right_row orelse {
-        return try bindMeta(subst, left_id, .{ .record = .{ .fields = only_right.items } });
+    const right_id = switch (right_row) {
+        .flexible => |id| id,
+        .closed, .rigid => return try bindMeta(subst, left_id, try withFields(subst, only_right.items, if (right.rest) |t| t.* else null)),
     };
 
     if (only_left.items.len == 0) {
@@ -260,19 +295,25 @@ fn missing(
     } };
 }
 
-/// The metavariable a flattened record's `rest` is, or null for a closed
-/// record.
-fn row(rest: ?*const types.Type) ?types.Meta {
-    const t = rest orelse return null;
+/// What a flattened record's `rest` is.
+const Row = union(enum) {
+    closed,
+    flexible: types.Meta,
+    rigid: *const types.Skolem,
+};
+
+fn row(rest: ?*const types.Type) Row {
+    const t = rest orelse return .closed;
     return switch (t.*) {
-        .meta => |id| id,
-        .variable => unreachable,
+        .meta => |id| .{ .flexible = id },
+        .skolem => |k| .{ .rigid = k },
         else => unreachable,
     };
 }
 
-/// `{fields | rest}`, or `rest` itself when `fields` is empty.
-fn withFields(subst: *Substitution, fields: []const types.Type.Field, rest: types.Type) Allocator.Error!types.Type {
-    if (fields.len == 0) return rest;
-    return .{ .record = .{ .fields = fields, .rest = try types.store(subst.arena, rest) } };
+/// `{fields | rest}`, or `rest` itself when `fields` is empty. A null
+/// `rest` closes the record.
+fn withFields(subst: *Substitution, fields: []const types.Type.Field, rest: ?types.Type) Allocator.Error!types.Type {
+    if (fields.len == 0) return rest orelse .{ .record = .{ .fields = &.{} } };
+    return .{ .record = .{ .fields = fields, .rest = if (rest) |t| try types.store(subst.arena, t) else null } };
 }

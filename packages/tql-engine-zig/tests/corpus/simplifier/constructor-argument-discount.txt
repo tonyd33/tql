@@ -4,7 +4,7 @@ asserts: core, simplified, values
 
 --- tql ---
 pick b = if b then 1 + 2 + 3 else 4 + 5 + 6;
-main = Filter (\_ -> [pick True, pick (1 == 1)]);
+main = Kleisli $ \_ -> [pick True, pick (1 == 1)];
 
 --- source ---
 class A {}
@@ -17,9 +17,11 @@ pick = \b -> case b of
   False -> op[+] (op[+] 4 5) 6
   True -> op[+] (op[+] 1 2) 3
 main = \_ -> Cons (op[+] (op[+] 1 2) 3) (Cons (pick (%eq_int 1 1)) Nil)
+entry = main
 
 --- core ---
 pick = \b -> case b of
   False -> op[+] (op[+] 4 5) 6
   True -> op[+] (op[+] 1 2) 3
-main = Filter (\_ -> Cons (pick True) (Cons (pick (eq 1 1)) Nil))
+main = Kleisli (\_ -> Cons (pick True) (Cons (pick (eq 1 1)) Nil))
+entry = run_main main

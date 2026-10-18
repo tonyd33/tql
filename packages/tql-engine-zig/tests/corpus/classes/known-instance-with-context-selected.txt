@@ -25,7 +25,7 @@ instance Describe a => Describe [a] where {
   };
 };
 
-main = Filter (\_ -> describe [Circle 1]);
+main = Kleisli $ \_ -> describe [Circle 1];
 
 --- source ---
 class A {}
@@ -34,4 +34,4 @@ class A {}
 ["circle"]
 
 --- simplified ---
-main = \_ -> describe[List] (Cons (Circle 1) Nil)
+entry = \_ -> describe[List] instance[Describe,Shape] (Cons (Circle 1) Nil)

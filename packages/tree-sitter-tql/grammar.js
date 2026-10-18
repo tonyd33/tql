@@ -109,7 +109,7 @@ module.exports = grammar({
 
     _declaration: $ =>
       choice(
-        $.signature,
+        seq($.signature, ";"),
         $.definition,
         $.data_declaration,
         $.type_alias,
@@ -127,10 +127,38 @@ module.exports = grammar({
         field("parameter", $._type_variable),
         "where",
         "{",
-        repeat(field("method", $.signature)),
+        repeat(
+          choice(
+            seq(field("method", $.signature), ";"),
+            field("default", $.definition),
+            field("minimal", $.minimal),
+          ),
+        ),
         "}",
         ";",
       ),
+
+    minimal: $ => seq("minimal", field("formula", $._minimal_formula), ";"),
+
+    _minimal_formula: $ => choice($.minimal_any, $._minimal_conjunction),
+
+    minimal_any: $ =>
+      seq(
+        field("alternative", $._minimal_conjunction),
+        repeat1(seq("|", field("alternative", $._minimal_conjunction))),
+      ),
+
+    _minimal_conjunction: $ => choice($.minimal_all, $._minimal_atom),
+
+    minimal_all: $ =>
+      seq(
+        field("conjunct", $._minimal_atom),
+        repeat1(seq(",", field("conjunct", $._minimal_atom))),
+      ),
+
+    _minimal_atom: $ => choice(value_name($), $.parenthesized_minimal),
+
+    parenthesized_minimal: $ => seq("(", $._minimal_formula, ")"),
 
     instance_declaration: $ =>
       seq(
@@ -203,7 +231,6 @@ module.exports = grammar({
         "::",
         optional(seq(field("context", $.context), "=>")),
         field("type", $._type),
-        ";",
       ),
 
     context: $ =>
@@ -423,7 +450,8 @@ module.exports = grammar({
         ),
       ),
 
-    binding_group: $ => seq("{", sep_trailing($.binding, ";"), "}"),
+    binding_group: $ =>
+      seq("{", sep_trailing(choice($.binding, $.signature), ";"), "}"),
 
     binding: $ =>
       seq(
@@ -586,6 +614,7 @@ module.exports = grammar({
         $.tuple,
         $.tuple_constructor,
         $.parenthesized,
+        $.annotated,
         $.field_selector,
         $.operator_name,
         $.left_section,
@@ -667,6 +696,17 @@ module.exports = grammar({
       ),
 
     parenthesized: $ => seq("(", $._expression, ")"),
+
+    // `(e :: t)` checks `e` against `t`.
+    annotated: $ =>
+      seq(
+        "(",
+        field("expression", $._expression),
+        "::",
+        optional(seq(field("context", $.context), "=>")),
+        field("type", $._type),
+        ")",
+      ),
 
     // `()` is the unit value, pattern and type.
     unit: _ => seq("(", ")"),

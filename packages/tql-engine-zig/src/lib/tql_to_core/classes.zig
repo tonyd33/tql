@@ -17,6 +17,23 @@
 //! dictionary, a function of its context's dictionaries when it has a
 //! context. Inference decides which dictionary each use passes. See Classes
 //! in `type_check.zig`.
+//!
+//! A default is a global of its own. In
+//!
+//! ```tql
+//! class Describe a where {
+//!   describe :: a -> String;
+//!   tags :: a -> [String];
+//!   tags x = [describe x];
+//! };
+//! instance Describe Int where { describe n = "int"; };
+//! ```
+//!
+//! the default is `default[Describe,tags] :: Describe a => a -> [String]`,
+//! checked once at the method's own scheme. `Int`'s instance doesn't write
+//! `tags`, so `tags[Int] = default[Describe,tags]`, and the `Describe Int`
+//! that use wants is solved by `instance[Describe,Int]`, the dictionary
+//! `tags[Int]` is a field of.
 
 const std = @import("std");
 const core = @import("../core.zig");
@@ -33,7 +50,8 @@ const Allocator = std.mem.Allocator;
 
 pub const Error = Allocator.Error;
 
-/// A written instance method, to be desugared as the definition of `symbol`.
+/// A written method of an instance, or a class's default, to be desugared
+/// as the definition of `symbol`.
 pub const Method = struct {
     symbol: core.SymbolId,
     definition: *const cst.Definition,
@@ -49,6 +67,14 @@ pub const Linker = struct {
     /// What each class declaration of the module registered, in order. Null
     /// for a duplicate.
     declared: []?classes.ClassId = &.{},
+    /// Each default of the module's classes, once declared.
+    defaults: std.ArrayList(Default) = .empty,
+
+    const Default = struct {
+        symbol: core.SymbolId,
+        method: core.SymbolId,
+        definition: *const cst.Definition,
+    };
 
     fn arena(self: *const Linker) Allocator {
         return self.env.allocator();
@@ -284,6 +310,131 @@ pub const Linker = struct {
         }
         class.selectors = selectors.items;
         class.constructor = try self.declareDictionary(declared.name, selectors.items.len + symbols.len);
+
+        const written = try self.arena().alloc(?*const cst.Definition, symbols.len);
+        if (!try self.slotMethods(class.*, declared.defaults, .invalid_class, written)) self.failed = true;
+        const defaults = try self.arena().alloc(?core.SymbolId, symbols.len);
+        for (written, defaults, symbols) |definition, *default, method| {
+            const d = definition orelse {
+                default.* = null;
+                continue;
+            };
+            const spelling = try std.fmt.allocPrint(self.arena(), "default[{s},{s}]", .{ declared.name, d.name });
+            default.* = try self.env.interner.generate(self.module(), spelling, .vanilla);
+            try self.defaults.append(self.arena(), .{ .symbol = default.*.?, .method = method, .definition = d });
+        }
+        class.defaults = defaults;
+        class.minimal = self.minimal(declared, class.*) catch |err| switch (err) {
+            error.BadAnnotation => blk: {
+                self.failed = true;
+                break :blk try self.required(defaults);
+            },
+            else => |e| return e,
+        };
+    }
+
+    /// Slots each of `definitions` at the index of the method of `class` it
+    /// names. Reports, under `category`, one that names no method, and one
+    /// that repeats another. Returns whether every one was slotted.
+    fn slotMethods(
+        self: *Linker,
+        class: classes.Class,
+        definitions: []const cst.Definition,
+        category: diagnostic.Category,
+        out: []?*const cst.Definition,
+    ) Error!bool {
+        @memset(out, null);
+        var slotted = true;
+        for (definitions) |*definition| {
+            const index = self.methodIndex(class, definition.name) orelse {
+                try self.sink.report(category, definition.span, "`{s}` is not a method of `{s}`", .{ definition.name, class.name.name });
+                slotted = false;
+                continue;
+            };
+            if (out[index] != null) {
+                try self.sink.report(.duplicate_definition, definition.span, "`{s}` is defined more than once", .{definition.name});
+                slotted = false;
+                continue;
+            }
+            out[index] = definition;
+        }
+        return slotted;
+    }
+
+    fn methodIndex(self: *const Linker, class: classes.Class, name: []const u8) ?u32 {
+        for (class.methods, 0..) |method, i| {
+            if (std.mem.eql(u8, self.env.interner.spelling(method), name)) return @intCast(i);
+        }
+        return null;
+    }
+
+    /// Every method without a default.
+    fn required(self: *Linker, defaults: []const ?core.SymbolId) Error!classes.Minimal {
+        var out: std.ArrayList(classes.Minimal) = .empty;
+        for (defaults, 0..) |d, i| {
+            if (d == null) try out.append(self.arena(), .{ .method = @intCast(i) });
+        }
+        return .{ .all = out.items };
+    }
+
+    /// The class's `minimal`, or every method without a default when it
+    /// states none. Reports one that names something other than a method,
+    /// or that an instance may satisfy leaving a method without a default
+    /// undefined.
+    fn minimal(self: *Linker, declared: *const cst.ClassDeclaration, class: classes.Class) annotation.Error!classes.Minimal {
+        if (declared.minimal.len == 0) return try self.required(class.defaults);
+        if (declared.minimal.len > 1) {
+            try self.sink.report(.invalid_class, declared.minimal[1].span, "`{s}` states `minimal` more than once", .{declared.name});
+            return error.BadAnnotation;
+        }
+        const written = declared.minimal[0];
+        const formula = try self.translateFormula(class, written.formula);
+
+        const defined = try self.gpa.alloc(bool, class.defaults.len);
+        defer self.gpa.free(defined);
+        for (class.defaults, class.methods, 0..) |d, method, i| {
+            if (d != null) continue;
+            @memset(defined, true);
+            defined[i] = false;
+            if (!formula.satisfied(defined)) continue;
+            try self.sink.report(
+                .invalid_class,
+                written.span,
+                "an instance of `{s}` satisfying `minimal` may leave `{s}` undefined, which has no default",
+                .{ declared.name, self.env.interner.spelling(method) },
+            );
+            return error.BadAnnotation;
+        }
+        return formula;
+    }
+
+    fn translateFormula(self: *Linker, class: classes.Class, written: cst.Minimal.Formula) annotation.Error!classes.Minimal {
+        switch (written) {
+            .method => |m| {
+                const index = self.methodIndex(class, m.name) orelse {
+                    try self.sink.report(.invalid_class, m.span, "`{s}` is not a method of `{s}`", .{ m.name, class.name.name });
+                    return error.BadAnnotation;
+                };
+                return .{ .method = index };
+            },
+            inline .all, .any => |operands, tag| {
+                const out = try self.arena().alloc(classes.Minimal, operands.len);
+                for (operands, out) |o, *operand| operand.* = try self.translateFormula(class, o);
+                return @unionInit(classes.Minimal, @tagName(tag), out);
+            },
+        }
+    }
+
+    /// Annotates each default of the module's classes with its method's
+    /// scheme, and appends it to `out`.
+    ///
+    /// Preconditions:
+    /// - The module's classes' members are declared and kinded.
+    pub fn defineDefaults(self: *Linker, out: *std.ArrayList(Method)) Error!void {
+        for (self.defaults.items) |d| {
+            try self.env.annotate(d.symbol, .{ .scheme = self.env.schemeOf(d.method).?, .span = d.definition.span });
+            try out.append(self.gpa, .{ .symbol = d.symbol, .definition = d.definition });
+        }
     }
 
     /// `dict[C]`, a datatype of `count` parameters with one constructor
@@ -300,21 +451,32 @@ pub const Linker = struct {
         return constructor;
     }
 
-    /// Declares each instance, and appends its written methods to `out`.
+    /// Declares each instance, and appends its written methods to `out` and
+    /// those it leaves to its class's defaults to `generated`.
     ///
     /// Preconditions:
     /// - The members of every class in scope are declared.
-    pub fn declareInstances(self: *Linker, source: cst.SourceFile, out: *std.ArrayList(Method)) Error!void {
+    pub fn declareInstances(
+        self: *Linker,
+        source: cst.SourceFile,
+        out: *std.ArrayList(Method),
+        generated: *std.ArrayList(core.Definition),
+    ) Error!void {
         for (source.declarations) |*decl| {
             if (decl.* != .instance_declaration) continue;
-            self.declareInstance(&decl.instance_declaration, out) catch |err| switch (err) {
+            self.declareInstance(&decl.instance_declaration, out, generated) catch |err| switch (err) {
                 error.BadAnnotation => self.failed = true,
                 else => |e| return e,
             };
         }
     }
 
-    fn declareInstance(self: *Linker, declared: *const cst.InstanceDeclaration, out: *std.ArrayList(Method)) annotation.Error!void {
+    fn declareInstance(
+        self: *Linker,
+        declared: *const cst.InstanceDeclaration,
+        out: *std.ArrayList(Method),
+        generated: *std.ArrayList(core.Definition),
+    ) annotation.Error!void {
         const class_id = try annotation.resolveClass(self.scope, declared.class, declared.span, self.sink);
         const class = self.env.classes.get(class_id);
         if (self.env.classes.evidenceOf(class_id) == .builtin) {
@@ -350,35 +512,7 @@ pub const Linker = struct {
 
         const defined = try self.gpa.alloc(?*const cst.Definition, class.methods.len);
         defer self.gpa.free(defined);
-        @memset(defined, null);
-        for (declared.methods) |*definition| {
-            const index = for (class.methods, 0..) |method, i| {
-                if (std.mem.eql(u8, self.env.interner.spelling(method), definition.name)) break i;
-            } else {
-                try self.sink.report(
-                    .invalid_instance,
-                    definition.span,
-                    "`{s}` is not a method of `{s}`",
-                    .{ definition.name, class.name.name },
-                );
-                return error.BadAnnotation;
-            };
-            if (defined[index] != null) {
-                try self.sink.report(.duplicate_definition, definition.span, "`{s}` is defined more than once", .{definition.name});
-                return error.BadAnnotation;
-            }
-            defined[index] = definition;
-        }
-        for (class.methods, defined) |method, definition| {
-            if (definition != null) continue;
-            try self.sink.report(
-                .invalid_instance,
-                declared.span,
-                "`{s} {s}` does not define `{s}`",
-                .{ class.name.name, head_name, self.env.interner.spelling(method) },
-            );
-            return error.BadAnnotation;
-        }
+        if (!try self.slotMethods(class.*, declared.methods, .invalid_instance, defined)) return error.BadAnnotation;
 
         const id = try self.addInstance(.{
             .class = class_id,
@@ -390,13 +524,49 @@ pub const Linker = struct {
             .span = declared.span,
         });
 
-        for (class.methods, defined, self.env.classes.instance(id).methods) |method, definition, implementation| {
-            try self.env.annotate(implementation, .{
-                .scheme = try self.methodScheme(self.env.schemeOf(method).?, head),
-                .span = definition.?.span,
-            });
-            try out.append(self.gpa, .{ .symbol = implementation, .definition = definition.? });
+        const written = try self.gpa.alloc(bool, class.methods.len);
+        defer self.gpa.free(written);
+        for (defined, written, self.env.classes.instance(id).methods, 0..) |definition, *mark, implementation, i| {
+            mark.* = definition != null;
+            const d = definition orelse continue;
+            try self.annotateImplementation(id, i, d.span);
+            try out.append(self.gpa, .{ .symbol = implementation, .definition = d });
         }
+        try self.complete(id, written, generated);
+    }
+
+    /// Reports instance `id` when the methods `defined` marks do not satisfy
+    /// its class's `minimal`, and otherwise defines each other method as its
+    /// class's default, appending them to `out`.
+    fn complete(self: *Linker, id: classes.InstanceId, defined: []const bool, out: *std.ArrayList(core.Definition)) annotation.Error!void {
+        const instance = self.env.classes.instance(id);
+        const class = self.env.classes.get(instance.class);
+        if (!class.minimal.satisfied(defined)) {
+            const missing: Missing = .{ .formula = class.minimal, .defined = defined, .interner = &self.env.interner, .methods = class.methods };
+            try self.sink.report(.invalid_instance, instance.span, "`{s} {s}` does not define {f}", .{
+                class.name.name,
+                self.env.datatypes.get(instance.head()).name,
+                missing,
+            });
+            return error.BadAnnotation;
+        }
+        const builder: core.Builder = .{ .allocator = self.arena() };
+        for (class.defaults, instance.methods, defined, 0..) |default, implementation, written, i| {
+            if (written) continue;
+            try self.annotateImplementation(id, i, instance.span);
+            try out.append(self.gpa, .{ .symbol = implementation, .body = builder.symbol(default.?, instance.span), .span = instance.span });
+        }
+    }
+
+    /// Annotates instance `id`'s implementation of method `index` with the
+    /// method's scheme at the instance's head.
+    fn annotateImplementation(self: *Linker, id: classes.InstanceId, index: usize, span: diagnostic.Span) Error!void {
+        const instance = self.env.classes.instance(id);
+        const method = self.env.classes.get(instance.class).methods[index];
+        try self.env.annotate(instance.methods[index], .{
+            .scheme = try self.methodScheme(self.env.schemeOf(method).?, .{ .type = instance.type, .context = instance.context }),
+            .span = span,
+        });
     }
 
     /// Adds `declared`. Reports an instance already declared for its class
@@ -462,7 +632,7 @@ pub const Linker = struct {
         try self.inferContexts(pending.items);
         for (pending.items) |p| {
             if (p.failed or self.env.classes.instance(p.instance).methods.len == 0) continue;
-            try out.append(self.gpa, try self.generate(p.instance, p.datatype));
+            try self.generate(p.instance, p.datatype, out);
         }
     }
 
@@ -532,7 +702,7 @@ pub const Linker = struct {
     pub fn deriveTuple(self: *Linker, id: datatypes.TypeId, out: *std.ArrayList(core.Definition)) Error!void {
         for (classes.derivable) |class_id| {
             const instance = self.env.classes.instanceFor(class_id, id).?;
-            if (self.env.classes.instance(instance).methods.len > 0) try out.append(self.gpa, try self.generate(instance, id));
+            if (self.env.classes.instance(instance).methods.len > 0) try self.generate(instance, id, out);
         }
     }
 
@@ -542,6 +712,8 @@ pub const Linker = struct {
     fn inferContexts(self: *Linker, pending: []Pending) Error!void {
         var leaves: std.ArrayList(types.TypeClassConstraint) = .empty;
         defer leaves.deinit(self.gpa);
+        var givens: std.ArrayList(classes.Given(void)) = .empty;
+        defer givens.deinit(self.gpa);
         var changed = true;
         while (changed) {
             changed = false;
@@ -552,8 +724,11 @@ pub const Linker = struct {
                 fields: for (self.env.datatypes.get(p.datatype).constructors, p.declared.constructors) |constructor, written| {
                     for (constructor.fields, written.fields) |field, written_field| {
                         leaves.clearRetainingCapacity();
-                        const view = classes.Bound{};
-                        if (try classes.reduce(&self.env.classes, instance.class, field, view, Leaves{ .gpa = self.gpa, .out = &leaves })) |culprit| {
+                        givens.clearRetainingCapacity();
+                        try classes.assume(self.gpa, p.context.items, &givens);
+                        const solution = try classes.solve(self.gpa, &self.env.classes, instance.class, field, classes.Bound{}, givens.items, classes.Check{ .collect = .{ .gpa = self.gpa, .out = &leaves } });
+                        if (solution == .refuted) {
+                            const culprit = solution.refuted;
                             var names = try self.env.messageNames(self.gpa, &.{ instance.type, culprit }, &.{});
                             defer names.deinit(self.gpa);
                             const class = self.env.classes.spelling(instance.class);
@@ -586,7 +761,6 @@ pub const Linker = struct {
                                 self.failed = true;
                                 break :fields;
                             }
-                            if (self.env.classes.entailedBy(p.context.items, leaf)) continue;
                             try p.context.append(self.gpa, leaf);
                         }
                     }
@@ -599,7 +773,7 @@ pub const Linker = struct {
 
         for (pending) |*p| {
             if (p.failed) continue;
-            const kept = self.env.classes.pruneEntailed(p.context.items);
+            const kept = try classes.prune(self.gpa, &self.env.classes, p.context.items, classes.Bound{});
             self.env.classes.instanceMut(p.instance).context = try self.requirements(p.context.items[0..kept]);
         }
     }
@@ -611,9 +785,9 @@ pub const Linker = struct {
         return out;
     }
 
-    /// The derived instance's method, annotated with the class method's
-    /// scheme at its head.
-    fn generate(self: *Linker, id: classes.InstanceId, datatype: datatypes.TypeId) Error!core.Definition {
+    /// Appends the derived instance's first method, annotated with the class
+    /// method's scheme at its head, and its class's defaults for the rest.
+    fn generate(self: *Linker, id: classes.InstanceId, datatype: datatypes.TypeId, out: *std.ArrayList(core.Definition)) Error!void {
         const instance = self.env.classes.instance(id);
         const class = self.env.classes.get(instance.class);
         const span = instance.span;
@@ -627,15 +801,16 @@ pub const Linker = struct {
             .datatype = datatype,
             .span = span,
         };
-        const symbol = instance.methods[0];
-        try self.env.annotate(symbol, .{
-            .scheme = try self.methodScheme(self.env.schemeOf(class.methods[0]).?, .{
-                .type = instance.type,
-                .context = instance.context,
-            }),
-            .span = span,
-        });
-        return .{ .symbol = symbol, .body = try derivation.body(), .span = span };
+        try self.annotateImplementation(id, 0, span);
+        try out.append(self.gpa, .{ .symbol = instance.methods[0], .body = try derivation.body(), .span = span });
+        const defined = try self.gpa.alloc(bool, class.methods.len);
+        defer self.gpa.free(defined);
+        @memset(defined, false);
+        defined[0] = true;
+        self.complete(id, defined, out) catch |err| switch (err) {
+            error.BadAnnotation => self.failed = true,
+            else => |e| return e,
+        };
     }
 
     /// A class method's scheme at an instance head: the head's variables
@@ -663,50 +838,39 @@ pub const Linker = struct {
     }
 };
 
-/// Reports each instance whose class has a superclass the instance's head
-/// does not admit under the instance's context. Returns whether there was
-/// none.
-///
-/// Preconditions:
-/// - Every module of the link is declared.
-pub fn checkSuperclasses(gpa: Allocator, env: *const core.env.Env, sink: *diagnostic.Sink) Error!bool {
-    var ok = true;
-    for (env.classes.instances.items) |instance| {
-        const class = env.classes.get(instance.class);
-        for (class.superclasses) |super| {
-            const needed = try unmet(gpa, env, instance, super) orelse continue;
-            ok = false;
-            var names = try env.messageNames(gpa, &.{ instance.type, needed.type }, &.{ instance.class, needed.class });
-            defer names.deinit(gpa);
-            try sink.report(
-                .invalid_instance,
-                instance.span,
-                "`{f} {f}` needs `{f} {f}`",
-                .{
-                    names.class(instance.class, class.name.name),
-                    instance.type.namedOperand(&names),
-                    names.class(needed.class, env.classes.spelling(needed.class)),
-                    needed.type.namedOperand(&names),
-                },
-            );
+/// The part of `formula` that `defined` leaves unsatisfied, as a message
+/// names it: "`a` and (`b` or `c`)".
+const Missing = struct {
+    formula: classes.Minimal,
+    defined: []const bool,
+    interner: *const core.Interner,
+    methods: []const core.SymbolId,
+
+    pub fn format(self: Missing, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try self.write(self.formula, false, w);
+    }
+
+    fn write(self: Missing, formula: classes.Minimal, nested: bool, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (formula) {
+            .method => |i| try w.print("`{s}`", .{self.interner.spelling(self.methods[i])}),
+            inline .all, .any => |operands, tag| {
+                const separator = if (tag == .all) " and " else " or ";
+                var shown: usize = 0;
+                for (operands) |o| shown += @intFromBool(!o.satisfied(self.defined));
+                const grouped = nested and shown > 1;
+                if (grouped) try w.writeByte('(');
+                var first = true;
+                for (operands) |o| {
+                    if (o.satisfied(self.defined)) continue;
+                    if (!first) try w.writeAll(separator);
+                    first = false;
+                    try self.write(o, nested or shown > 1, w);
+                }
+                if (grouped) try w.writeByte(')');
+            },
         }
     }
-    return ok;
-}
-
-/// The part of `super` at `instance`'s head that its context does not
-/// supply, if any.
-fn unmet(gpa: Allocator, env: *const core.env.Env, instance: classes.Instance, super: classes.ClassId) Error!?types.TypeClassConstraint {
-    var leaves: std.ArrayList(types.TypeClassConstraint) = .empty;
-    defer leaves.deinit(gpa);
-    if (try classes.reduce(&env.classes, super, instance.type, classes.Bound{}, Leaves{ .gpa = gpa, .out = &leaves })) |culprit| {
-        return .{ .class = super, .type = culprit };
-    }
-    for (leaves.items) |leaf| {
-        if (!env.classes.requires(instance.context, leaf)) return leaf;
-    }
-    return null;
-}
+};
 
 /// Builds a derived `eq` or `compare`, which compares constructor tags, then
 /// fields left to right through each field type's own instance.
@@ -816,17 +980,5 @@ const Derivation = struct {
             if (argument != .variable or argument.variable != i) return false;
         }
         return true;
-    }
-};
-
-/// Collects the constraints a reduction leaves on bound variables.
-const Leaves = struct {
-    gpa: Allocator,
-    out: *std.ArrayList(types.TypeClassConstraint),
-
-    pub const Error = Allocator.Error;
-
-    pub fn leaf(self: Leaves, class: classes.ClassId, t: types.Type) Allocator.Error!void {
-        try self.out.append(self.gpa, .{ .class = class, .type = t });
     }
 };

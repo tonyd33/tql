@@ -6,7 +6,7 @@ asserts: types, values
 type Named r = {name: String | r};
 greet :: Named r -> String;
 greet x = x.name;
-main = Filter (\_ -> [greet {name = "a", age = 1}, greet {name = "b"}]);
+main = Kleisli $ \_ -> [greet {name = "a", age = 1}, greet {name = "b"}];
 
 --- source ---
 class A {}
@@ -16,4 +16,5 @@ class A {}
 
 --- types ---
 greet :: Named a -> String
-main :: Filter Node String
+main :: Kleisli List a String
+entry :: Node -> [String]

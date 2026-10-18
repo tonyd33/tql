@@ -1,0 +1,19 @@
+title: an annotation checks its expression
+grammar: typescript
+asserts: error
+
+`(e :: t)` checks `e` against `t`, so the mismatch is at the literal inside
+it (Static semantics: Annotations).
+
+--- tql ---
+main = pure ("one" :: Int);
+
+--- source ---
+f(x);
+
+--- error ---
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 1:14
+  |
+1 | main = pure ("one" :: Int);
+  |              ^^^^^
