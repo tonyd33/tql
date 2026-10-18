@@ -150,6 +150,8 @@ pub const ClassDeclaration = struct {
     parameter: Identifier,
     superclasses: []const ClassConstraint = &.{},
     methods: []const Signature,
+    defaults: []const Definition = &.{},
+    minimal: []const Minimal = &.{},
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: ClassDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
@@ -159,8 +161,43 @@ pub const ClassDeclaration = struct {
             try w.writeByte(' ');
             try m.sexpr(w);
         }
+        for (self.defaults) |d| {
+            try w.writeByte(' ');
+            try d.sexpr(w);
+        }
+        for (self.minimal) |m| {
+            try w.writeAll(" (minimal ");
+            try m.formula.sexpr(w);
+            try w.writeByte(')');
+        }
         try w.writeByte(')');
     }
+};
+
+/// `minimal describe | label, tags;`
+pub const Minimal = struct {
+    formula: Formula,
+    span: diagnostic.Span = .unknown,
+
+    pub const Formula = union(enum) {
+        method: struct { name: Identifier, span: diagnostic.Span = .unknown },
+        all: []const Formula,
+        any: []const Formula,
+
+        pub fn sexpr(self: Formula, w: *std.Io.Writer) std.Io.Writer.Error!void {
+            switch (self) {
+                .method => |m| try w.writeAll(m.name),
+                inline .all, .any => |operands, tag| {
+                    try w.print("({s}", .{@tagName(tag)});
+                    for (operands) |o| {
+                        try w.writeByte(' ');
+                        try o.sexpr(w);
+                    }
+                    try w.writeByte(')');
+                },
+            }
+        }
+    };
 };
 
 /// `instance Describe a => Describe [a] where { describe xs = ...; };`

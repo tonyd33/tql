@@ -1,0 +1,20 @@
+title: a default whose body disagrees with its method's type
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+  describe x = 1;
+};
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[type-mismatch]: Expected `String`, found `Int`.
+ --> 3:16
+  |
+3 |   describe x = 1;
+  |                ^

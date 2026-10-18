@@ -1,0 +1,34 @@
+title: `minimal` naming something other than a method
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+  tags :: a -> [String];
+  minimal describe | label;
+};
+instance Describe Int where {
+  describe n = "int";
+};
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[invalid-class]: `label` is not a method of `Describe`
+ --> 4:22
+  |
+4 |   minimal describe | label;
+  |                      ^^^^^
+
+error[invalid-instance]: `Describe Int` does not define `tags`
+ --> 6:1
+  |
+6 | instance Describe Int where {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |   describe n = "int";
+  |   ^^^^^^^^^^^^^^^^^^^
+8 | };
+  | ^^

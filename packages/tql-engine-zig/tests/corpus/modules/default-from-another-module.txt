@@ -1,0 +1,29 @@
+title: an instance takes a default declared with its class in another module
+grammar: typescript
+asserts: values
+
+--- module Classes ---
+module Classes (Describe(..));
+
+class Describe a where {
+  describe :: a -> String;
+  label :: a -> [String];
+  label x = [describe x, "label"];
+};
+
+--- tql ---
+import Classes;
+
+data Shape = Circle;
+
+instance Describe Shape where {
+  describe s = "circle";
+};
+
+main = pure $ label Circle;
+
+--- source ---
+class A {}
+
+--- values ---
+[["circle","label"]]

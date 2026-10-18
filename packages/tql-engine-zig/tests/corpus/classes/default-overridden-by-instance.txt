@@ -1,0 +1,21 @@
+title: an instance's own method takes precedence over the default
+grammar: typescript
+asserts: values
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+  label :: a -> String;
+  label x = describe x;
+};
+instance Describe Int where {
+  describe n = "int";
+  label n = "one";
+};
+main = pure $ label 1;
+
+--- source ---
+class A {}
+
+--- values ---
+["one"]

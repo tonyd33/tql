@@ -1,0 +1,30 @@
+title: an instance defines one alternative of `minimal` and the other is its default
+grammar: typescript
+asserts: values
+
+`same` and `differ` are defaults of each other. `Int` defines `differ`, and
+`Bool` `same`.
+
+--- tql ---
+import Data.Bool (not);
+
+class Same a where {
+  same :: a -> a -> Bool;
+  differ :: a -> a -> Bool;
+  same x y = not $ differ x y;
+  differ x y = not $ same x y;
+  minimal same | differ;
+};
+instance Same Int where {
+  differ x y = x != y;
+};
+instance Same Bool where {
+  same x y = x == y;
+};
+main = Kleisli $ \_ -> [same 1 1, differ 1 1, same True False, differ True False];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false,false,true]

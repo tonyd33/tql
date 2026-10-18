@@ -369,9 +369,10 @@ pub const Desugarer = struct {
         try group.commit(&self.env.?);
         var methods: std.ArrayList(classes_mod.Method) = .empty;
         defer methods.deinit(self.allocator);
-        try class_linker.declareInstances(source, &methods);
+        try class_linker.defineDefaults(&methods);
         var generated: std.ArrayList(core.Definition) = .empty;
         defer generated.deinit(self.allocator);
+        try class_linker.declareInstances(source, &methods, &generated);
         try class_linker.derive(source, &generated);
 
         var declarations = try resolve.collect(self.allocator, interner, module, source, sink);

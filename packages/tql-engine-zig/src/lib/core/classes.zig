@@ -41,6 +41,10 @@ pub const Class = struct {
     superclasses: []const ClassId = &.{},
     /// Method symbols, in declaration order.
     methods: []const symbols.SymbolId = &.{},
+    /// `default[C,m]` for each method with a default, in `methods` order.
+    defaults: []const ?symbols.SymbolId = &.{},
+    /// Which methods an instance must define.
+    minimal: Minimal = .{ .all = &.{} },
     /// `dict[C]`, the constructor of this class's dictionaries: one field per
     /// selector, then one per method. Null for a class with built-in
     /// evidence, and for a reservation `Prim` has not filled in.
@@ -48,6 +52,27 @@ pub const Class = struct {
     /// One per superclass with dictionary evidence, in `superclasses` order.
     selectors: []const Selector = &.{},
     span: diagnostic.Span = .unknown,
+};
+
+/// A formula over a class's methods, each by its index in `Class.methods`.
+pub const Minimal = union(enum) {
+    method: u32,
+    all: []const Minimal,
+    any: []const Minimal,
+
+    /// Returns whether an instance defining the methods `defined` marks
+    /// satisfies the formula.
+    pub fn satisfied(self: Minimal, defined: []const bool) bool {
+        return switch (self) {
+            .method => |i| defined[i],
+            .all => |operands| for (operands) |o| {
+                if (!o.satisfied(defined)) break false;
+            } else true,
+            .any => |operands| for (operands) |o| {
+                if (o.satisfied(defined)) break true;
+            } else false,
+        };
+    }
 };
 
 /// `super[C,S]`, which takes a dictionary of its class to one of

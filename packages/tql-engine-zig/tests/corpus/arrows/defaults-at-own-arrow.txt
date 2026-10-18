@@ -1,0 +1,30 @@
+title: an `Arrow` instance writing `arr` and `first` gets `second`, `split` and `fanout`
+grammar: typescript
+asserts: values
+
+--- tql ---
+newtype Fn a b = Fn (a -> b);
+
+apply :: Fn a b -> a -> b;
+apply k = case k of {
+  Fn f -> f;
+};
+
+instance Category Fn where {
+  identity = Fn $ \x -> x;
+  compose g f = Fn $ \x -> apply g $ apply f x;
+};
+instance Arrow Fn where {
+  arr f = Fn f;
+  first k = Fn $ \p -> (apply k $ fst p, snd p);
+};
+
+inc = arr $ \x -> x + 1;
+double = arr $ \x -> x * 2;
+main = Kleisli $ \_ -> [apply (second inc) (1, 1), apply (split inc double) (1, 1), apply (fanout inc double) 5];
+
+--- source ---
+class A {}
+
+--- values ---
+[[1,2],[2,2],[6,10]]

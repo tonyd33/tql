@@ -379,14 +379,40 @@ const Walker = struct {
             &.{};
 
         const methods = try self.fieldChildren(cst.Signature, node, "method", signature) orelse return null;
+        const defaults = try self.fieldChildren(cst.Definition, node, "default", definition) orelse return null;
+        const minimal = try self.fieldChildren(cst.Minimal, node, "minimal", minimalDeclaration) orelse return null;
 
         return .{
             .name = try self.dupe(name_node),
             .parameter = try self.typeParameter(parameter_node) orelse return null,
             .superclasses = superclasses,
             .methods = methods,
+            .defaults = defaults,
+            .minimal = minimal,
             .span = spanOf(node, self.source_id),
         };
+    }
+
+    fn minimalDeclaration(self: *Walker, node: ts.Node) !?cst.Minimal {
+        const formula_node = try self.requiredField(node, "formula") orelse return null;
+        return .{
+            .formula = try self.minimalFormula(formula_node) orelse return null,
+            .span = spanOf(node, self.source_id),
+        };
+    }
+
+    fn minimalFormula(self: *Walker, node: ts.Node) (error{OutOfMemory})!?cst.Minimal.Formula {
+        const kind = node.kind();
+        if (std.mem.eql(u8, kind, "parenthesized_minimal")) {
+            return try self.minimalFormula(node.namedChild(0) orelse return null);
+        }
+        if (std.mem.eql(u8, kind, "minimal_any")) {
+            return .{ .any = try self.fieldChildren(cst.Minimal.Formula, node, "alternative", minimalFormula) orelse return null };
+        }
+        if (std.mem.eql(u8, kind, "minimal_all")) {
+            return .{ .all = try self.fieldChildren(cst.Minimal.Formula, node, "conjunct", minimalFormula) orelse return null };
+        }
+        return .{ .method = .{ .name = try self.dupe(node), .span = spanOf(node, self.source_id) } };
     }
 
     fn instanceDeclaration(self: *Walker, node: ts.Node) !?cst.InstanceDeclaration {

@@ -6,7 +6,7 @@ module Control.Arrow (
   run_kleisli,
 );
 
-import Data.Tuple (fst, snd);
+import Data.Tuple (fst, snd, swap);
 import Data.Functor (Functor(..));
 import Control.Applicative (Applicative(..), Alternative(..));
 import Control.Monad (Monad(..), kleisli);
@@ -18,6 +18,10 @@ class Category k => Arrow k where {
   second :: k a b -> k (c, a) (c, b);
   split :: k a b -> k c d -> k (a, c) (b, d);
   fanout :: k a b -> k a c -> k a (b, c);
+  second f = compose (arr swap) $ compose (first f) $ arr swap;
+  split f g = compose (second g) $ first f;
+  fanout f g = compose (split f g) $ arr $ \x -> (x, x);
+  minimal arr, first;
 };
 
 class Arrow k => ArrowZero k where {

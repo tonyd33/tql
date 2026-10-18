@@ -591,19 +591,40 @@
         {
           "type": "REPEAT",
           "content": {
-            "type": "SEQ",
+            "type": "CHOICE",
             "members": [
               {
+                "type": "SEQ",
+                "members": [
+                  {
+                    "type": "FIELD",
+                    "name": "method",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "signature"
+                    }
+                  },
+                  {
+                    "type": "STRING",
+                    "value": ";"
+                  }
+                ]
+              },
+              {
                 "type": "FIELD",
-                "name": "method",
+                "name": "default",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "signature"
+                  "name": "definition"
                 }
               },
               {
-                "type": "STRING",
-                "value": ";"
+                "type": "FIELD",
+                "name": "minimal",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "minimal"
+                }
               }
             ]
           }
@@ -615,6 +636,163 @@
         {
           "type": "STRING",
           "value": ";"
+        }
+      ]
+    },
+    "minimal": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "minimal"
+        },
+        {
+          "type": "FIELD",
+          "name": "formula",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_minimal_formula"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": ";"
+        }
+      ]
+    },
+    "_minimal_formula": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "minimal_any"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_minimal_conjunction"
+        }
+      ]
+    },
+    "minimal_any": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "FIELD",
+          "name": "alternative",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_minimal_conjunction"
+          }
+        },
+        {
+          "type": "REPEAT1",
+          "content": {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "STRING",
+                "value": "|"
+              },
+              {
+                "type": "FIELD",
+                "name": "alternative",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_minimal_conjunction"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "_minimal_conjunction": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "minimal_all"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_minimal_atom"
+        }
+      ]
+    },
+    "minimal_all": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "FIELD",
+          "name": "conjunct",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_minimal_atom"
+          }
+        },
+        {
+          "type": "REPEAT1",
+          "content": {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "STRING",
+                "value": ","
+              },
+              {
+                "type": "FIELD",
+                "name": "conjunct",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_minimal_atom"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "_minimal_atom": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "identifier"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "STRING",
+                "value": "pattern"
+              },
+              "named": true,
+              "value": "identifier"
+            }
+          ]
+        },
+        {
+          "type": "SYMBOL",
+          "name": "parenthesized_minimal"
+        }
+      ]
+    },
+    "parenthesized_minimal": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "("
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_minimal_formula"
+        },
+        {
+          "type": "STRING",
+          "value": ")"
         }
       ]
     },

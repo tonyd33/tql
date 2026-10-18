@@ -85,6 +85,7 @@ class Eq a where {
   (!=) :: a -> a -> Bool;
   x == y = not (x != y);
   x != y = not (x == y);
+  minimal (==) | (!=);
 };
 ```
 
@@ -96,8 +97,11 @@ error.
 
 A method with a definition in the class has a default, used by every
 instance that does not define it. Each class states which methods an
-instance must define; for `Eq` it is `==` or `!=`. An instance that
-defines too few is an error.
+instance must define; for `Eq` it is `==` or `!=`. `minimal` joins methods
+with `,`, all of them, and `|`, either side, `,` binding tighter; without
+it, an instance must define every method without a default. A `minimal`
+that an instance could satisfy while leaving a method without a default
+undefined is an error, as is an instance that defines too few.
 
 A class translates to a dictionary type and selectors:
 

@@ -11,6 +11,7 @@
 
 ### New Features
 
+- Classes may give methods defaults, used by instances that omit them, and state which methods an instance must define with `minimal`: `class Same a where { same :: a -> a -> Bool; differ :: a -> a -> Bool; same x y = not $ differ x y; differ x y = not $ same x y; minimal same | differ; };`. `Foldable`'s `null` and `to_list` are methods with defaults, and `Arrow` defaults `second`, `split` and `fanout`.
 - Added local signatures, `let { g :: a -> a; g x = x; } in g 1`, and type annotations, `([] :: [Int]) == []`.
 
 ### Improvements

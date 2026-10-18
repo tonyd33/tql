@@ -1,0 +1,26 @@
+title: an instance defining neither alternative of `minimal`
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Bool (not);
+
+class Same a where {
+  same :: a -> a -> Bool;
+  differ :: a -> a -> Bool;
+  same x y = not $ differ x y;
+  differ x y = not $ same x y;
+  minimal same | differ;
+};
+instance Same Int where {};
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[invalid-instance]: `Same Int` does not define `same` or `differ`
+  --> 10:1
+   |
+10 | instance Same Int where {};
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^

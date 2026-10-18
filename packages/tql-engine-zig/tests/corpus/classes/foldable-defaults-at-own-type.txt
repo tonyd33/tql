@@ -1,0 +1,18 @@
+title: a `Foldable` instance writing only `foldr` gets `null` and `to_list`
+grammar: typescript
+asserts: values
+
+--- tql ---
+data Pair a = Pair a a;
+instance Foldable Pair where {
+  foldr f z p = case p of {
+    Pair x y -> f x $ f y z;
+  };
+};
+main = Kleisli $ \_ -> [to_list $ Pair 1 2, if null (Pair 1 2) then [] else [0]];
+
+--- source ---
+class A {}
+
+--- values ---
+[[1,2],[0]]
