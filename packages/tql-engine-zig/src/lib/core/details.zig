@@ -11,7 +11,7 @@ const types = @import("types.zig");
 /// Arithmetic is on 64-bit two's complement and wraps.
 pub const Scalar = enum {
     /// `s ~ r`: whether `r` matches anywhere in `s`. A construct the matcher
-    /// cannot run, such as `\K`, diverges.
+    /// cannot run, a recursion that consumes nothing first, diverges.
     match,
     not_match,
     add,

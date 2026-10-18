@@ -1,0 +1,15 @@
+title: a regex that makes `\d` Unicode is a compile error
+grammar: typescript
+asserts: error
+
+`\d`, `\w` and `\s` match ASCII only. `(*UCP)` would widen them.
+
+--- tql ---
+main = pure $ "٧" ~ r"(*UCP)^\d$";
+
+--- error ---
+error[invalid-regex]: `(*UCP)^\d$` uses `(*UCP)`, which tql regexes do not support
+ --> 1:22
+  |
+1 | main = pure $ "٧" ~ r"(*UCP)^\d$";
+  |                     ^^^^^^^^^^^^^

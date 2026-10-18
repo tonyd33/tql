@@ -4,7 +4,8 @@
 
 ### Bug Fixes
 
-- An inferred `Serial` context is reduced through instances, as `Eq`'s is: `f x = s [x]` infers `Serial a => a -> Int`, and `f x = s (P, x)` is no longer ambiguous.
+- `\K`, backtracking verbs such as `(*PRUNE)`, script runs and `(*UCP)` are `invalid-regex` errors: `r"a\Kb|b"` is rejected at compile time.
+- An inferred `Serial` context is reduced through instances, as `Eq`'s is: `f x = s [x]` infers `Serial a => a -> Int`, and `f x = s (P, x)` infers `Serial b => b -> Int`.
 
 ## 0.4.0 (2026-10-17)
 

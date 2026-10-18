@@ -205,7 +205,8 @@ pub const Error = Allocator.Error || std.Io.Writer.Error || error{
     /// A local read a slot bound under a different name. Reached only by a
     /// translation bug, and checked only in safe builds.
     MisplacedLocal,
-    /// A regex reached a construct the matcher cannot run, such as `\K`.
+    /// A regex reached a construct the matcher cannot run: a recursion that
+    /// consumes nothing before recursing.
     RegexFailed,
 };
 
