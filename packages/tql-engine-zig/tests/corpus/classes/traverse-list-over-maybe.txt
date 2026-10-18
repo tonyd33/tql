@@ -14,4 +14,5 @@ class A {}
 [{"tag":"Just","fields":[1]},{"tag":"Just","fields":[11]},{"tag":"Nothing","fields":[]}]
 
 --- types ---
-main :: Kleisli List Node (Maybe Int)
+main :: Kleisli List a (Maybe Int)
+entry :: Node -> [Maybe Int]

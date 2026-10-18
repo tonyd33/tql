@@ -13,3 +13,4 @@ class A {}
 
 --- core ---
 main = Kleisli (\_ -> append (map (\y -> and True y) (Cons True (Cons False Nil))) (map (\x -> or x False) (Cons True (Cons False Nil))))
+entry = run_main main

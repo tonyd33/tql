@@ -36,3 +36,4 @@ describe = \xs ->
       True -> b
   ) alternative
 main = Kleisli (\_ -> Cons (describe (Cons 1 (Cons 5 Nil))) (Cons (describe (Cons 7 (Cons 2 Nil))) (Cons (describe (Cons 3 (Cons 3 Nil))) Nil)))
+entry = run_main main

@@ -15,3 +15,4 @@ class A {}
 
 --- types ---
 main :: Kleisli List Node [Maybe Int]
+entry :: Node -> [[Maybe Int]]

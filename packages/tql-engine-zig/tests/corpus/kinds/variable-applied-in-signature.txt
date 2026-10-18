@@ -19,4 +19,5 @@ class A {}
 [false,true]
 --- types ---
 apply :: (a b -> c) -> a b -> c
-main :: Kleisli List Node Bool
+main :: Kleisli List a Bool
+entry :: Node -> [Bool]

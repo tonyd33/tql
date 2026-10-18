@@ -50,3 +50,4 @@ class A {}
 tick :: a -> Counted a
 twice :: Counted Int
 main :: Kleisli List Node (Counted Int)
+entry :: Node -> [Counted Int]

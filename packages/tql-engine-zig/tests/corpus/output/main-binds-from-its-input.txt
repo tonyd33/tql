@@ -17,4 +17,5 @@ class A {}
 [["program","class_declaration"]]
 
 --- types ---
-main :: Kleisli List Node (String, String)
+main :: Filter Node (String, String)
+entry :: Node -> [(String, String)]

@@ -41,6 +41,7 @@ main = \x -> bind[List] (%descendants_of_kind :call_expression x) (
             Cons _ _ -> Nil
       Cons _ _ -> Nil
 )
+entry = main
 
 --- core ---
 $mCallee = \s -> \k -> \f ->
@@ -91,3 +92,4 @@ $mConsoleCall = \s -> \k -> \f -> $mMethod s (
             Cons _ _ -> f
 ) f
 main = bind descendants (\scrutinee -> $mConsoleCall scrutinee (\p -> return (text p)) empty)
+entry = run_main main

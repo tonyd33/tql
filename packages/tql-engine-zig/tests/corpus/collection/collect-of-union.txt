@@ -17,4 +17,5 @@ class A {}
 [[1, 2, 3]]
 
 --- types ---
-main :: Kleisli List Node [Int]
+main :: Filter a [Int]
+entry :: Node -> [[Int]]

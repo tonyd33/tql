@@ -35,3 +35,4 @@ f = \xs ->
           Nil -> jump alternative'
           Cons _ _ -> jump alternative
 main = Kleisli (\_ -> Cons (f (Cons (Cons 1 Nil) Nil)) (Cons (f (Cons (Cons 2 Nil) (Cons (Cons 3 Nil) Nil))) (Cons (f (Cons (Cons 4 (Cons 5 Nil)) Nil)) (Cons (f Nil) (Cons (f (Cons Nil (Cons Nil Nil))) Nil)))))
+entry = run_main main

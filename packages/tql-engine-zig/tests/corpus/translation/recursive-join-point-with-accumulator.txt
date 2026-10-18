@@ -29,7 +29,7 @@ rev = {} \u {} ->
       jump go xs@0 c1@1
   in
   t2@0
-main = {} \u {} ->
+entry = {} \u {} ->
   let
     t3 = {} \n {_} ->
       let

@@ -29,3 +29,4 @@ main = Kleisli (
     )
   )
 )
+entry = run_main main

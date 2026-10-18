@@ -20,3 +20,4 @@ class A {}
 
 --- simplified ---
 main = \_ -> Cons (%lte_int 1 2) (Cons (%lte_int 2 2) (Cons (%lte_int 3 2) Nil))
+entry = main

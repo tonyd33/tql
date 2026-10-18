@@ -24,7 +24,8 @@ class A {}
 
 --- types ---
 both :: Maybe Int -> Maybe Int -> Int
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]
 
 --- core ---
 both = \m -> \n ->
@@ -41,3 +42,4 @@ both = \m -> \n ->
           Nothing -> jump alternative
       Nothing -> op[-] 0 1
 main = Kleisli (\_ -> Cons (both (Just 1) (Just 2)) (Cons (both Nothing (Just 2)) (Cons (both (Just 1) Nothing) Nil)))
+entry = run_main main

@@ -51,4 +51,5 @@ in_bind :: Name -> [String]
 in_as :: Name -> (String, Name)
 in_tuple :: (Name, Name) -> String
 in_list :: [Name] -> String
-main :: Kleisli List Node String
+main :: Kleisli List a String
+entry :: Node -> [String]

@@ -51,4 +51,5 @@ summed :: Kleisli Maybe Int Int
 fallback :: Kleisli Maybe Int Int
 chained :: Kleisli Maybe Int Int
 halve :: Kleisli Maybe Int Int
-main :: Kleisli List Node (Maybe Int)
+main :: Kleisli List a (Maybe Int)
+entry :: Node -> [Maybe Int]

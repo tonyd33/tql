@@ -17,3 +17,4 @@ class A {}
 
 --- simplified ---
 main = \_ -> map[List] (\x -> op[+] x 1) (Cons 1 (Cons 2 Nil))
+entry = main

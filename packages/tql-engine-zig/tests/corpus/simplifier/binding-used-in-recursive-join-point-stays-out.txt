@@ -27,3 +27,4 @@ f = \x -> \xs ->
 main =
   let y = f 3 (Cons 1 (Cons 2 Nil)) in
   \_ -> Cons y Nil
+entry = main

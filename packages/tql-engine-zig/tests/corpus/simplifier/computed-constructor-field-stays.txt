@@ -29,6 +29,7 @@ f = \x ->
     ) Nil
   )
 main = f 2
+entry = main
 
 --- core ---
 f = \x ->
@@ -45,3 +46,4 @@ f = \x ->
     )
   )
 main = f 2
+entry = run_main main

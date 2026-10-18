@@ -17,3 +17,4 @@ class A {}
 --- types ---
 both :: Pred a -> Pred a -> Pred a
 main :: Kleisli List Node Bool
+entry :: Node -> [Bool]

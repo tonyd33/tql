@@ -15,7 +15,9 @@ class A {}
 --- types ---
 apply :: (a -> b) -> a -> b
 main :: Kleisli List Node Int
+entry :: Node -> [Int]
 
 --- core ---
 apply = \f -> \x -> f x
 main = pure (apply (\n -> op[*] n 3) 5)
+entry = run_main main

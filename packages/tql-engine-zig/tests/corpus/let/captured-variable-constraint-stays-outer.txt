@@ -17,4 +17,5 @@ class A {}
 
 --- types ---
 same_as :: Eq a => a -> a -> Bool
-main :: Kleisli List Node Bool
+main :: Kleisli List a Bool
+entry :: Node -> [Bool]

@@ -15,7 +15,9 @@ class A {}
 --- simplified ---
 add = \x -> \y -> op[+] x y
 main = \_ -> map[List] (add 1) (Cons 1 (Cons 2 Nil))
+entry = main
 
 --- core ---
 add = \x -> \y -> op[+] x y
 main = Kleisli (\_ -> map (add 1) (Cons 1 (Cons 2 Nil)))
+entry = run_main main

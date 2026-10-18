@@ -27,7 +27,7 @@ module Data.Node (
 
 import Prim;
 import Prim (parent, ancestors, children, named_children, descendants, named_descendants, children_of_kind, descendants_of_kind) as P;
-import Data.Filter (Filter);
+import Data.Filter (Filter, run);
 import Control.Arrow (Kleisli(..));
 
 parent :: Filter Node Node;
@@ -56,3 +56,6 @@ descendants_of_kind k = Kleisli $ P.descendants_of_kind k;
 
 of_kind :: Kind -> Filter Node Node;
 of_kind k = Kleisli $ \x -> if is_kind k x then [x] else [];
+
+run_main :: Serial t => Filter Node t -> Node -> [t];
+run_main = run;

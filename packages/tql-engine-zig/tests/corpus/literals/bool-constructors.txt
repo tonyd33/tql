@@ -16,6 +16,8 @@ class A {}
 
 --- core ---
 main = Kleisli (\_ -> Cons True (Cons False (Cons True Nil)))
+entry = run_main main
 
 --- types ---
-main :: Kleisli List Node Bool
+main :: Kleisli List a Bool
+entry :: Node -> [Bool]

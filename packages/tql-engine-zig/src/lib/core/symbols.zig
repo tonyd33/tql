@@ -38,6 +38,7 @@ pub const Known = enum {
     run_kleisli,
     Kleisli,
     of_kind,
+    run_main,
 };
 
 pub const InsertError = error{Collision} || Allocator.Error;

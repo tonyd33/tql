@@ -21,3 +21,4 @@ f = \b -> \x ->
     False -> op[+] 1 (g x)
     True -> g x
 main = \_ -> Cons (f True 1) (Cons (f False 1) Nil)
+entry = main

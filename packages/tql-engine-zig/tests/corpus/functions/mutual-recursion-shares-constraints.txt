@@ -19,4 +19,5 @@ class A {}
 --- types ---
 f :: Eq a => a -> Int
 g :: Eq a => a -> Int
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

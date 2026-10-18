@@ -27,3 +27,4 @@ apply :: (a b -> c) -> a b -> c
 wrapped :: Wrap ((->) Int) Int
 wrapped_filter :: Wrap ((->) Node) [Node]
 main :: Kleisli List Node Int
+entry :: Node -> [Int]

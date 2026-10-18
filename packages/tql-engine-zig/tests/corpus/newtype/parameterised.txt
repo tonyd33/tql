@@ -21,3 +21,4 @@ class A {}
 --- types ---
 first :: Pair a -> a
 main :: Kleisli List Node Int
+entry :: Node -> [Int]

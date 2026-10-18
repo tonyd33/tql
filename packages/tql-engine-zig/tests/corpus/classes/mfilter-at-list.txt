@@ -21,3 +21,4 @@ class A {}
 
 --- simplified ---
 main = \_ -> mfilter (\x -> %gt_int x 0) (Cons 0 (Cons 1 (Cons 2 Nil)))
+entry = main

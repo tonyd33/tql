@@ -16,3 +16,4 @@ f("y");
 
 --- core ---
 main = compose_flipped (compose_flipped (descendants_of_kind :call_expression) (keep (compose (any (compose (\x -> eq x "import") text)) (run (Kleisli field[function]))))) (arr text)
+entry = run_main main

@@ -18,10 +18,12 @@ class A {}
 
 --- types ---
 half :: Int -> Maybe Int
-main :: Kleisli List Node (Maybe [Int])
+main :: Kleisli List a (Maybe [Int])
+entry :: Node -> [Maybe [Int]]
 
 --- simplified ---
 half = \n -> case %eq_int (%mod n 2) 0 of
   False -> Nothing
   True -> Just (%div n 2)
 main = \_ -> Cons (traverse[List] instance[Applicative,Maybe] half (Cons 2 (Cons 4 Nil))) (Cons (traverse[List] instance[Applicative,Maybe] half (Cons 2 (Cons 3 Nil))) Nil)
+entry = main

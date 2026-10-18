@@ -18,6 +18,7 @@ class A {}
 --- types ---
 loop :: a -> b
 main :: Kleisli List Node Bool
+entry :: Node -> [Bool]
 
 --- values ---
 [false]

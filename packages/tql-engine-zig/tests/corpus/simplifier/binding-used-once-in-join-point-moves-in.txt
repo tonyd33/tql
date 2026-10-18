@@ -25,3 +25,4 @@ f = \b -> \x ->
     False -> jump g 2
     True -> jump g 1
 main = \_ -> Cons (f True 3) (Cons (f False 3) Nil)
+entry = main

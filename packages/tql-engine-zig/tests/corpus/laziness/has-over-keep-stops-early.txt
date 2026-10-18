@@ -19,4 +19,5 @@ class A {}
 --- types ---
 from :: Alternative a => Int -> a Int
 non_negative :: Int -> Bool
-main :: Kleisli List Node Bool
+main :: Kleisli List a Bool
+entry :: Node -> [Bool]

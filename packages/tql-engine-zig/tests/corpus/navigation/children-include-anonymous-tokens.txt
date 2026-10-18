@@ -17,3 +17,4 @@ import {a} from "./b";
 
 --- types ---
 main :: Kleisli List Node [Kind]
+entry :: Node -> [[Kind]]

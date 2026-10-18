@@ -24,6 +24,7 @@ class A {}
 --- types ---
 class_name :: (Monad a, Alternative a) => a Node -> a String
 main :: Kleisli List Node {in_list: [String], in_maybe: Maybe String}
+entry :: Node -> [{in_list: [String], in_maybe: Maybe String}]
 --- simplified ---
 class_name = \d -> \d' ->
   let
@@ -39,3 +40,4 @@ class_name = \d -> \d' ->
           dict[Applicative] _ m _ -> m (%text c)
     )
 main = \x -> Cons (record[in_list,in_maybe] (class_name instance[Monad,List] instance[Alternative,List] (%children x)) (class_name instance[Monad,Maybe] instance[Alternative,Maybe] (Just x))) Nil
+entry = main

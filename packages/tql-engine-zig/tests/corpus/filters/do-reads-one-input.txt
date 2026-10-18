@@ -23,6 +23,8 @@ class B {}
 
 --- simplified ---
 main = \x -> bind[List] (%descendants_of_kind :class_declaration x) (\y -> bind[List] (field[name] y) (\y -> Cons ((,) (%kind_name x) (%text y)) Nil))
+entry = main
 
 --- types ---
 main :: Kleisli List Node (String, String)
+entry :: Node -> [(String, String)]

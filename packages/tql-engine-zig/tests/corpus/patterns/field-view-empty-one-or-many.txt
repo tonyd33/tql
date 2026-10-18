@@ -55,3 +55,4 @@ decorated = bind identity (
       Cons _ _ -> return "some"
 )
 main = compose_flipped (descendants_of_kind :class_declaration) (alt (alt undecorated one_decorator) decorated)
+entry = run_main main

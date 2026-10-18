@@ -25,3 +25,4 @@ class Service {}
 
 --- types ---
 main :: Kleisli List Node Node
+entry :: Node -> [Node]

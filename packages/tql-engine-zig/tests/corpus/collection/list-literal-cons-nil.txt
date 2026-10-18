@@ -15,3 +15,4 @@ class A {}
 
 --- core ---
 main = Kleisli (const (Cons (Cons 1 (Cons (op[+] 1 1) (Cons 3 Nil))) (Cons Nil Nil)))
+entry = run_main main

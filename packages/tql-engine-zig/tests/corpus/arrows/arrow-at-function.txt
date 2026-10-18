@@ -34,3 +34,4 @@ bottom :: Int
 double :: Int -> Int
 next :: Int -> Int
 main :: Kleisli List Node (Int, (Int, String), (String, Int), (Int, Int), (Int, Int), Int)
+entry :: Node -> [(Int, (Int, String), (String, Int), (Int, Int), (Int, Int), Int)]

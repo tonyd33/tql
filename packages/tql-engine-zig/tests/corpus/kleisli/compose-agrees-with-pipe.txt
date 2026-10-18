@@ -27,9 +27,11 @@ piped = \x -> bind[List] (bind[List] (%named_children x) %named_children) (\x ->
 composed = \x -> bind[List] (bind[List] (%named_children x) %named_children) (\x -> Cons (%kind_name x) Nil)
 dotted = \x -> bind[List] (bind[List] (%named_children x) %named_children) (\x -> Cons (%kind_name x) Nil)
 main = \root -> Cons (eq[List] instance[Eq,String] (piped root) (composed root)) (Cons (eq[List] instance[Eq,String] (piped root) (dotted root)) Nil)
+entry = main
 
 --- types ---
 piped :: Filter Node String
 composed :: Node -> [String]
 dotted :: Node -> [String]
 main :: Kleisli List Node Bool
+entry :: Node -> [Bool]

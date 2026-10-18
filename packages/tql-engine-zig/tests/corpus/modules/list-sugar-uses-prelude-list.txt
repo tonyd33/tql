@@ -17,4 +17,5 @@ let x = 1;
 --- types ---
 depth :: Stack -> Int
 size :: [a] -> Int
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

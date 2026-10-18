@@ -24,3 +24,4 @@ describe = \c ->
     Nil -> "plain"
     Cons _ _ -> "decorated"
 main = compose_flipped (descendants_of_kind :class_declaration) (arr describe)
+entry = run_main main

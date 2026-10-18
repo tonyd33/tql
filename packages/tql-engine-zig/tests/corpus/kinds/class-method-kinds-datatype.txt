@@ -29,4 +29,5 @@ class A {}
 [1]
 --- types ---
 list :: Proxy List
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

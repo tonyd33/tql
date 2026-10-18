@@ -20,3 +20,4 @@ class A {}
 --- types ---
 unbox :: Box (Named a) -> String
 main :: Kleisli List Node String
+entry :: Node -> [String]

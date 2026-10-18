@@ -17,4 +17,5 @@ class A {}
 
 --- types ---
 marked :: Marker a => a -> [a]
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

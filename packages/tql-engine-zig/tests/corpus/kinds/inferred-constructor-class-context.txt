@@ -25,4 +25,5 @@ class A {}
 [3,4]
 --- types ---
 twice :: Mappable b => (a -> a) -> b a -> b a
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

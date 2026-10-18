@@ -19,3 +19,4 @@ class A {}
 pick :: Node -> Range
 twice :: a -> [a]
 main :: Kleisli List Node Range
+entry :: Node -> [Range]

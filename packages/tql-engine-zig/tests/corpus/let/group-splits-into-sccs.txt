@@ -35,3 +35,4 @@ main =
   let four = 4 in
   let answer = Cons (is_even four) (Cons (is_odd four) Nil) in
   Kleisli (\_ -> answer)
+entry = run_main main

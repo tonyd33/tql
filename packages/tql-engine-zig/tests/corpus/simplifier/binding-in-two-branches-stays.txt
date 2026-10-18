@@ -19,6 +19,7 @@ f = \b ->
     False -> op[+] a 1
     True -> a
 main = \_ -> map[List] f (Cons True (Cons False Nil))
+entry = main
 
 --- core ---
 f = \b ->
@@ -27,3 +28,4 @@ f = \b ->
     False -> op[+] a 1
     True -> a
 main = Kleisli (\_ -> map f (Cons True (Cons False Nil)))
+entry = run_main main

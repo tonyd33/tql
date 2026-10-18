@@ -32,4 +32,5 @@ class A {}
 
 --- types ---
 unbox :: Box a -> [a]
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

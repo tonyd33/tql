@@ -20,3 +20,4 @@ main = pure (
     Mk a b -> case Mk 3 4 of
       Mk c d -> op[+] (op[+] (op[+] (op[*] 1000 a) (op[*] 100 b)) (op[*] 10 c)) d
 )
+entry = run_main main

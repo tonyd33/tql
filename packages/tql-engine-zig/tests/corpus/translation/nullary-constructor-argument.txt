@@ -12,7 +12,7 @@ class A {}
 [true]
 
 --- stg ---
-main = {} \u {} ->
+entry = {} \u {} ->
   let
     t2 = {} \n {_} ->
       let

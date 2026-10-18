@@ -24,3 +24,4 @@ same = \x -> \y -> \z -> case eq[List] instance[Eq,Int] x y of
     False -> False
     True -> eq[List] instance[Eq,Int] x z
 main = \_ -> Cons (same (Cons 1 Nil) (Cons 1 Nil) (Cons 1 Nil)) (Cons (same (Cons 1 Nil) (Cons 2 Nil) (Cons 1 Nil)) Nil)
+entry = main

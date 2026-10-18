@@ -80,3 +80,4 @@ unfiltered = bind descendants (
                     Cons _ _ -> empty
 )
 main = alt filtered unfiltered
+entry = run_main main

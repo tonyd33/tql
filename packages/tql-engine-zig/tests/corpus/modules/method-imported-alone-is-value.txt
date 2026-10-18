@@ -21,4 +21,5 @@ class A {}
 
 --- types ---
 label :: Describe a => a -> [String]
-main :: Kleisli List Node String
+main :: Kleisli List a String
+entry :: Node -> [String]

@@ -21,3 +21,4 @@ class A {}
 a :: Node -> [String]
 b :: Node -> [String]
 main :: Kleisli List Node String
+entry :: Node -> [String]

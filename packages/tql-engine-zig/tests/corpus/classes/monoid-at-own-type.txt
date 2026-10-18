@@ -33,4 +33,5 @@ class A {}
 
 --- types ---
 combine :: (Foldable a, Monoid b) => a b -> b
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

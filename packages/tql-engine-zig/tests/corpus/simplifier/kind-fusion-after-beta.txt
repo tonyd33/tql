@@ -22,8 +22,10 @@ class A {}
 
 --- simplified ---
 main = %descendants_of_kind :class_declaration
+entry = main
 
 --- core ---
 main =
   let only = \k -> compose_flipped descendants (of_kind k) in
   only :class_declaration
+entry = run_main main

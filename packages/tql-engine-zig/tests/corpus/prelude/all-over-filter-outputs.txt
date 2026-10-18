@@ -25,3 +25,4 @@ class C {}
 method_names :: Kleisli List Node Node
 is_getter :: Node -> Bool
 main :: Kleisli List Node Bool
+entry :: Node -> [Bool]

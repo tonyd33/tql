@@ -19,9 +19,11 @@ count = \n -> case %eq_int n 0 of
 main =
   let y = count 3 in
   \_ -> Cons y Nil
+entry = main
 
 --- core ---
 count = \n -> case eq n 0 of
   False -> op[+] 1 (count (op[-] n 1))
   True -> 0
 main = pure (count 3)
+entry = run_main main

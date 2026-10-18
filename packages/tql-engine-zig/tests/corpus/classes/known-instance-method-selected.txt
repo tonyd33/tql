@@ -33,3 +33,4 @@ class A {}
 
 --- simplified ---
 main = \_ -> describe[Shape] (Group (Cons (Circle 1) (Cons (Square 2) Nil)))
+entry = main

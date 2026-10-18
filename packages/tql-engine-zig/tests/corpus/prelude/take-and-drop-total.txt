@@ -20,4 +20,5 @@ class A {}
 [[1,2],[3],[1],[],[]]
 
 --- types ---
-main :: Kleisli List Node [Int]
+main :: Kleisli List a [Int]
+entry :: Node -> [[Int]]

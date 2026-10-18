@@ -20,4 +20,5 @@ class A {}
 [{"tag":"Just","fields":[3]},{"tag":"Nothing","fields":[]}]
 --- types ---
 both :: Monad a => a Int -> a Int -> a Int
-main :: Kleisli List Node (Maybe Int)
+main :: Kleisli List a (Maybe Int)
+entry :: Node -> [Maybe Int]

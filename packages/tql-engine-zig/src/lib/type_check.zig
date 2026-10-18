@@ -184,7 +184,7 @@
 //! evidence variable instead, and raises a wanted for it. See Solving.
 //!
 //! `Serial` is the exception. Nothing calls its methods, since the machine
-//! serializes `main`'s output itself, so it's checked like any other class
+//! serializes `entry`'s output itself, so it's checked like any other class
 //! but has no dictionary.
 //!
 //! ## Solving
@@ -249,6 +249,15 @@
 //! "a"`, `"a"` fails against `+`'s `Int`, and `f` returns an `Int` whatever
 //! its argument, so `not (f 1)` is an error of its own.
 //!
+//! In `h = pure (f True)`, `h` is `m t` with only `t` poisoned, and being
+//! restricted (see Monomorphism restriction), it leaves `Applicative m` for
+//! its uses to fix. But every use of `h` has a poisoned type of its own and
+//! fixes nothing, so `m` would be reported as ambiguous after the mismatch it
+//! follows from. A restricted group poisons each metavariable it leaves that
+//! only its poisoned members mention. Poisoning `h`'s whole type instead
+//! would reach metavariables of the enclosing scope, and drop later errors
+//! about them that follow from nothing.
+//!
 //! An ambiguity is an error about its constraint's type, so one
 //! undetermined metavariable is reported once. An error that doesn't follow
 //! from another is still reported, in a definition that has one too.
@@ -290,18 +299,27 @@
 //!
 //! ## main
 //!
-//! `main` gets three checks beyond its own inference. Its type must be
-//! `Filter Node t`, since the machine applies it to the root node. `t` must
-//! have a `Serial` instance, since each result is printed as JSON. And `t`
-//! must be determined. Consider
+//! The machine runs a definition no module writes. The linker adds
+//!
+//! ```tql
+//! entry = run_main main;
+//! ```
+//!
+//! to the entry module, with `run_main :: Serial t => Filter Node t -> Node
+//! -> [t]` from the library, and `entry` is checked like any definition
+//! written without parameters. `main` gets no rule of its own: one that isn't
+//! a filter from nodes is a mismatch at its use in `entry`, and `entry` wants
+//! `Serial` of its output.
+//!
+//! The output must be determined only as far as that constraint needs. In
 //!
 //! ```tql
 //! main = Kleisli $ \_ -> [];
 //! ```
 //!
-//! It returns nothing, but nothing says what it would return either, so
-//! there's no telling which `Serial` instance applies. It's rejected as
-//! ambiguous rather than guessed at.
+//! nothing says what `main` would return, so `Serial t` is ambiguous. But
+//! with `data P a = P deriving (Serial)`, `main = pure P` leaves `a` free and
+//! is fine: `Serial (P a)` holds whatever `a` is.
 //!
 //! ## Newtypes
 //!

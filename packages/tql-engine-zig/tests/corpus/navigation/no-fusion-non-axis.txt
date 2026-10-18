@@ -20,6 +20,8 @@ main = \x -> bind[List] (%parent x) (
     False -> Nil
     True -> Cons x Nil
 )
+entry = main
 
 --- core ---
 main = compose_flipped parent (of_kind :class_declaration)
+entry = run_main main

@@ -20,4 +20,5 @@ class A {}
 --- types ---
 ignore :: a -> ()
 check :: () -> Int
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

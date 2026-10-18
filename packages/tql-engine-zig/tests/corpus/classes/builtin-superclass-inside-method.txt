@@ -32,4 +32,5 @@ class A {}
 
 --- types ---
 alike :: Same a => a -> Bool
-main :: Kleisli List Node Bool
+main :: Kleisli List a Bool
+entry :: Node -> [Bool]

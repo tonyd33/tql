@@ -15,6 +15,8 @@ class B {}
 
 --- core ---
 main = compose_flipped (compose_flipped (compose_flipped children (of_kind :class_declaration)) (Kleisli field[name])) (arr text)
+entry = run_main main
 
 --- types ---
 main :: Kleisli List Node String
+entry :: Node -> [String]

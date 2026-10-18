@@ -20,3 +20,4 @@ class A {}
 --- types ---
 rewrap :: (a b -> c d) -> Wrap a b -> Wrap c d
 main :: Kleisli List Node Int
+entry :: Node -> [Int]

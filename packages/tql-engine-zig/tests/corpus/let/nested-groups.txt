@@ -18,9 +18,11 @@ class A {}
 
 --- types ---
 main :: Kleisli List Node Int
+entry :: Node -> [Int]
 
 --- core ---
 main =
   let outer = 10 in
   let inner = op[+] outer 5 in
   pure inner
+entry = run_main main

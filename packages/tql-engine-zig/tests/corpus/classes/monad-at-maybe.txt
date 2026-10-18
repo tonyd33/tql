@@ -27,4 +27,5 @@ class A {}
 
 --- types ---
 half :: Int -> Maybe Int
-main :: Kleisli List Node (Maybe Int)
+main :: Kleisli List a (Maybe Int)
+entry :: Node -> [Maybe Int]

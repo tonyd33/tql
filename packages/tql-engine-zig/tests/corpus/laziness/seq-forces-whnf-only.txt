@@ -21,4 +21,5 @@ class A {}
 
 --- types ---
 bottom :: Int
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

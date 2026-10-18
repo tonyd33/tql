@@ -10,7 +10,7 @@
 //! - `type_check.zig`: inference, dictionary passing, and newtype erasure.
 //! - `core_to_core.zig`: the simplifier.
 //! - `core_to_stg.zig`: lowering to the terms the machine runs.
-//! - `stg/eval.zig`: the machine, which applies `main` to the target's root
+//! - `stg/eval.zig`: the machine, which applies `entry` to the target's root
 //!   node and serializes what it returns.
 //!
 //! `core.zig` says what a Core term means, and every stage after desugaring

@@ -13,3 +13,4 @@ class A {}
 
 --- core ---
 main = Kleisli (\_ -> append (map (\y -> op[-] 10 y) (Cons 1 (Cons 2 Nil))) (map (\x -> op[*] x 2) (Cons 10 (Cons 4 Nil))))
+entry = run_main main

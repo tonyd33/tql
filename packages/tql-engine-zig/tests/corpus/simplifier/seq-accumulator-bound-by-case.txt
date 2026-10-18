@@ -27,6 +27,7 @@ fold = \f -> \z -> \xs -> case xs of
 main =
   let y = fold (\n -> \x -> op[+] n x) 0 (Cons 1 (Cons 2 (Cons 3 Nil))) in
   \_ -> Cons y Nil
+entry = main
 
 --- stg ---
 fold = {} \u {} ->
@@ -64,3 +65,4 @@ main = {} \u {} ->
       Cons y@0 c6@2
   in
   t7@1
+entry = {} \u {} -> main

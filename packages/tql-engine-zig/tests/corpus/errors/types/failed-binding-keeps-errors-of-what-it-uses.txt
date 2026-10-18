@@ -1,0 +1,36 @@
+title: a failed binding leaves errors about what it uses reported
+grammar: typescript
+asserts: error
+
+`h` fails through `g`, and its own `Applicative` constraint, which no use of
+`h` can fix, is not reported. `one`'s type is not `h`'s to poison, so the
+errors that follow from `one 3` are reported.
+
+--- tql ---
+g y = if y then 1 else "a";
+one = pure 1;
+h = (one, pure (g True));
+other = seq h (one 3);
+main = Kleisli $ \_ -> one;
+
+--- source ---
+f(x);
+
+--- error ---
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 1:24
+  |
+1 | g y = if y then 1 else "a";
+  |                        ^^^
+
+error[unsatisfied-constraint]: `Applicative ((->) Int)` is not satisfied.
+ --> 2:7
+  |
+2 | one = pure 1;
+  |       ^^^^
+
+error[type-mismatch]: Expected `List`, found `(->) Int`.
+ --> 5:1
+  |
+5 | main = Kleisli $ \_ -> one;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^

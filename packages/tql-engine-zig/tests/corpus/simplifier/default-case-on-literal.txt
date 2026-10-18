@@ -13,6 +13,7 @@ class A {}
 
 --- core ---
 main = pure (seq 1 2)
+entry = run_main main
 
 --- simplified ---
-main = \_ -> Cons 2 Nil
+entry = \_ -> Cons 2 Nil

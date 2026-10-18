@@ -13,8 +13,10 @@ class A {}
 
 --- simplified ---
 main = \_ -> Cons (op[+] 1 1) (Cons (op[+] 2 1) Nil)
+entry = main
 
 --- core ---
 main =
   let inc = \x -> op[+] x 1 in
   Kleisli (\_ -> Cons (inc 1) (Cons (inc 2) Nil))
+entry = run_main main

@@ -31,3 +31,4 @@ main = Kleisli (
           Cons _ _ -> empty
   )
 )
+entry = run_main main

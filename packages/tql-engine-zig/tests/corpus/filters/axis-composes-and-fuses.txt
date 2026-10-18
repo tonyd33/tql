@@ -27,8 +27,9 @@ names =
       \x -> bind[List] (p x) field[name]
   in
   \x -> bind[List] (p x) (\x -> Cons (%text x) Nil)
-main = names
+entry = names
 
 --- types ---
 names :: Kleisli List Node String
 main :: Kleisli List Node String
+entry :: Node -> [String]

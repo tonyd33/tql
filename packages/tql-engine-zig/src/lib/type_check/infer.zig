@@ -34,7 +34,6 @@ pub const Failure = struct {
         unbound: core.SymbolId,
         too_many_variables: usize,
         ambiguous: types.TypeClassConstraint,
-        ambiguous_output: types.Type,
         /// An instance whose head lacks a superclass of its class.
         superclass: struct {
             instance: classes.InstanceId,
@@ -124,10 +123,6 @@ pub const Inference = struct {
     shared: std.ArrayList(core.Definition) = .empty,
     /// Each instance's dictionary, as `finish` builds it.
     instances: std.ArrayList(evidence.Instance) = .empty,
-    /// The evidence `main` is applied to.
-    entry_evidence: []const core.Term = &.{},
-    /// `main`, while a program is checked.
-    entry: ?core.SymbolId = null,
 
     pub fn init(
         gpa: Allocator,
@@ -843,12 +838,6 @@ pub const Inference = struct {
                 frame.* = try self.implication();
                 value.* = (try self.elaborateIn(frame.*, b.value, p)).term;
             }
-
-            // `main` is checked at `Filter Node tau` before it generalizes, so
-            // it quantifies over nothing that type determines.
-            for (bindings, placeholders, spans) |b, p, span| {
-                if (b.name == self.entry) _ = try self.mainOutput(p, span);
-            }
         }
 
         return try self.generalizeGroup(placeholders, spans, frames, restricted, group.generalized());
@@ -915,6 +904,7 @@ pub const Inference = struct {
         defer self.gpa.free(residuals);
         var context: []const types.TypeClassConstraint = residuals;
         if (restricted and residuals.len > 0) {
+            try self.poisonUnfixable(group, residuals, quantified.items, bounds);
             for (residuals) |c| _ = self.subst.promote(c.type, self.subst.level);
             try self.collectQuantified(group, &quantified, bounds);
             context = &.{};
@@ -957,6 +947,34 @@ pub const Inference = struct {
             };
         }
         return try self.builder.dupeSlice(types.Meta, quantified.items);
+    }
+
+    /// Poisons each metavariable of `residuals` that a poisoned member of
+    /// `group` mentions and no other member does. See Poisoned types in
+    /// type_check.zig.
+    ///
+    /// Preconditions:
+    /// - `quantified[bounds[i]..bounds[i + 1]]` are the metavariables
+    ///   `group[i]` mentions.
+    fn poisonUnfixable(
+        self: *Inference,
+        group: []const types.Type,
+        residuals: []const types.TypeClassConstraint,
+        quantified: []const types.Meta,
+        bounds: []const usize,
+    ) Error!void {
+        var free: std.ArrayList(types.Meta) = .empty;
+        defer free.deinit(self.gpa);
+        for (residuals) |c| try self.subst.freeMetas(c.type, &free);
+        for (free.items) |id| {
+            var failed = false;
+            var fixed = false;
+            for (group, 0..) |t, i| {
+                if (std.mem.indexOfScalar(types.Meta, quantified[bounds[i]..bounds[i + 1]], id) == null) continue;
+                if (self.subst.isPoisoned(t)) failed = true else fixed = true;
+            }
+            if (failed and !fixed) self.subst.poison(.{ .meta = id });
+        }
     }
 
     /// The group context of the wanteds of `frames`: each residual
@@ -1226,17 +1244,10 @@ pub const Inference = struct {
     }
 
     /// A linked program: every component, each instance's superclasses,
-    /// then `main`'s three extra checks, then the wanteds left at the top.
+    /// then the wanteds left at the top.
     pub fn check(self: *Inference, p: *const core.Program) Error!void {
-        self.entry = p.entry;
         try self.program(p.definitions, p.components);
         try self.superclasses();
-
-        // Only after the body has a type, and spanning the whole definition
-        // rather than the body.
-        for (p.entryDefinitions()) |d| {
-            if (d.symbol == p.entry) try self.checkMain(p.entry, d.span);
-        }
         try self.solve(evidence.top, &.{});
     }
 
@@ -1273,81 +1284,16 @@ pub const Inference = struct {
         return self.inferred.get(id);
     }
 
-    /// `Kleisli List input output`.
-    fn filter(self: *Inference, input: types.Type, output: types.Type) Error!types.Type {
-        const id = core.datatypes.ownerOf(&self.env.interner, self.env.known.get(.Kleisli).?).?;
-        const list = try types.constructed(self.subst.arena, core.datatypes.list_id, types.list_spelling, &.{});
-        return try types.constructed(self.subst.arena, id, self.env.datatypes.get(id).name, &.{ list, input, output });
-    }
-
-    /// The `tau` of `Filter Node tau` once `t` is unified with it, or null,
-    /// reported at `span`, when it cannot be.
-    fn mainOutput(self: *Inference, t: types.Type, span: diagnostic.Span) Error!?types.Type {
-        const output = try self.subst.fresh(.type);
-        const wanted = try self.filter(types.node_type, output);
-        switch (try unify.unify(self.subst, wanted, t)) {
-            .unified => return output,
-            .mismatch => |m| {
-                try self.reportAbout(.main_type, span, .{ .mismatch = m }, &.{ wanted, t });
-                return null;
-            },
-        }
-    }
-
-    /// `main`'s three extra checks. Its constraints are raised at the types
-    /// `main` is run at, in the top frame, and `finish` applies it to their
-    /// evidence.
-    pub fn checkMain(self: *Inference, id: core.SymbolId, span: diagnostic.Span) Error!void {
-        if (self.failed.contains(id)) return;
-        const scheme = self.inferred.get(id) orelse return;
-        const instantiated = try self.instantiate(scheme, span);
-
-        // 1. `Filter Node tau`
-        const output = try self.mainOutput(instantiated.type, span) orelse return;
-
-        // 2. `Serial tau`
-        try self.evidence.want(evidence.top, .{ .class = .serial, .type = output, .evidence = null, .origin = span });
-
-        // 3. Nothing may remain undetermined
-        const settled = try self.subst.resolveDeep(output);
-        var free: std.ArrayList(types.Meta) = .empty;
-        defer free.deinit(self.gpa);
-        try self.subst.freeMetas(settled, &free);
-        if (free.items.len > 0) return try self.report(.ambiguous_output, span, .{ .ambiguous_output = settled });
-
-        try self.inferred.put(id, .{
-            .type = try self.filter(types.node_type, settled),
-        });
-        self.entry_evidence = instantiated.evidence;
-    }
-
     /// Replaces each definition's body in `linked` with its elaborated one,
     /// and appends the evidence solved at the top, the selectors, and the
     /// instance dictionaries.
-    ///
-    /// A `main` that takes dictionaries is renamed to a generated global, and
-    /// `main` becomes that global applied to its evidence.
     pub fn finish(self: *Inference, linked: *core.Program) Error!void {
         if (self.elaborated.entries.items.len == 0) return;
 
         var definitions: std.ArrayList(core.Definition) = .empty;
         defer definitions.deinit(self.gpa);
-        try definitions.ensureTotalCapacity(self.gpa, linked.definitions.len);
-        var entry: ?core.Definition = null;
-        for (linked.definitions) |d| {
-            const body = self.elaborated.get(d.symbol) orelse d.body;
-            if (d.symbol == linked.entry and self.entry_evidence.len > 0) {
-                entry = try self.renameEntry(d, body);
-                definitions.appendAssumeCapacity(.{
-                    .symbol = d.symbol,
-                    .body = try self.builder.applyMany(self.builder.symbol(entry.?.symbol, d.span), self.entry_evidence, d.span),
-                    .span = d.span,
-                });
-                continue;
-            }
-            definitions.appendAssumeCapacity(.{ .symbol = d.symbol, .body = body, .span = d.span });
-        }
-        if (entry) |e| try definitions.append(self.gpa, e);
+        try definitions.appendSlice(self.gpa, linked.definitions);
+        for (definitions.items) |*d| d.body = self.elaborated.get(d.symbol) orelse d.body;
         try definitions.appendSlice(self.gpa, self.shared.items);
         const module = self.env.interner.moduleOf(linked.entry).?;
         for (self.evidence.get(evidence.top).bindings.items) |b| {
@@ -1356,20 +1302,6 @@ pub const Inference = struct {
         }
         try evidence.dictionaries(self.builder, &self.env.classes, self.env, &self.evidence, self.instances.items, &definitions, self.gpa);
         linked.definitions = try self.builder.dupeSlice(core.Definition, definitions.items);
-    }
-
-    /// `main`'s definition under a generated name, its references to itself
-    /// renamed.
-    fn renameEntry(self: *Inference, d: core.Definition, body: core.Term) Error!core.Definition {
-        const renamed = try self.env.interner.generate(
-            self.env.interner.moduleOf(d.symbol).?,
-            self.env.interner.spelling(d.symbol),
-            .vanilla,
-        );
-        var rename: evidence.Replacements = .empty;
-        defer rename.deinit(self.gpa);
-        try rename.put(self.gpa, d.symbol, self.builder.symbol(renamed, d.span));
-        return .{ .symbol = renamed, .body = try evidence.substitute(self.builder, body, &rename), .span = d.span };
     }
 
     /// Hands the scheme table to the caller, who becomes responsible for it.
@@ -1400,7 +1332,7 @@ pub const Inference = struct {
             .violation, .ambiguous => |c| try self.reportAbout(category, span, detail, &.{c.type}),
             .not_given => |n| try self.reportAbout(category, span, detail, &.{n.needed.type}),
             .superclass => |sc| try self.reportAbout(category, span, detail, &.{sc.needed.type}),
-            .over_application, .not_a_function, .view_not_function, .ambiguous_output => |t| try self.reportAbout(category, span, detail, &.{t}),
+            .over_application, .not_a_function, .view_not_function => |t| try self.reportAbout(category, span, detail, &.{t}),
             .unbound, .too_many_variables => try self.reportAbout(category, span, detail, &.{}),
         }
     }
@@ -1430,8 +1362,6 @@ pub const Inference = struct {
 ///
 /// Every insoluble wanted is reported, in source order, at its own span,
 /// except one about a poisoned type. See Poisoned types in type_check.zig.
-/// `main`'s shape is checked only after its body has a type, and a body
-/// that failed to infer produces no `main-type` diagnostic on top.
 pub fn check(
     gpa: Allocator,
     program: *core.Program,
@@ -1526,7 +1456,7 @@ fn render(
                 needed.namedOperand(&names),
             });
         },
-        inline .over_application, .view_not_function, .not_a_function, .ambiguous_output => |shown, tag| {
+        inline .over_application, .view_not_function, .not_a_function => |shown, tag| {
             const t = try subst.resolveDeep(shown);
             var names = try env.messageNames(gpa, &.{t}, &.{});
             defer names.deinit(gpa);
@@ -1534,7 +1464,6 @@ fn render(
                 .over_application => "`{f}` has no argument left to take.",
                 .view_not_function => "The expression of a view pattern must be a function; found `{f}`.",
                 .not_a_function => "`{f}` is not a function.",
-                .ambiguous_output => "`main`'s output `{f}` is ambiguous: nothing determines its type.",
                 else => comptime unreachable,
             };
             try buf.writer.print(message, .{t.named(&names)});

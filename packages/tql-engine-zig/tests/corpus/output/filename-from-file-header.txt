@@ -17,3 +17,4 @@ class A {}
 
 --- types ---
 main :: Kleisli List Node (Maybe String)
+entry :: Node -> [Maybe String]

@@ -26,3 +26,4 @@ describe = \m -> case m of
     True -> "zero"
   Nothing -> "none"
 main = Kleisli (\_ -> Cons (describe (Just 0)) (Cons (describe (Just 5)) (Cons (describe Nothing) Nil)))
+entry = run_main main

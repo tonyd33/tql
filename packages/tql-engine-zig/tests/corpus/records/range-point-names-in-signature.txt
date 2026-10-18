@@ -16,3 +16,4 @@ class A {}
 --- types ---
 line :: Range -> Point
 main :: Kleisli List Node Point
+entry :: Node -> [Point]

@@ -20,3 +20,4 @@ class A {}
 
 --- core ---
 main = Kleisli (\_ -> bind (Cons 1 (Cons 2 Nil)) (\x -> bind (Cons x Nil) (\y -> bind (Cons y Nil) (\_ -> return y))))
+entry = run_main main

@@ -15,7 +15,8 @@ class A {}
 [1]
 
 --- simplified ---
-main = \x -> Cons 1 Nil
+entry = \x -> Cons 1 Nil
 
 --- core ---
 main = bind (guard True) (\_ -> return 1)
+entry = run_main main

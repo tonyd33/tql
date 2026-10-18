@@ -30,6 +30,7 @@ main =
         True -> False
     ) Nil
   )
+entry = main
 
 --- core ---
 main =
@@ -40,3 +41,4 @@ main =
     is_odd = \n -> not (is_even n)
   in
   Kleisli (\_ -> Cons (is_even 4) (Cons (is_odd 7) Nil))
+entry = run_main main

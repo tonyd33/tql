@@ -19,7 +19,9 @@ class A {}
 --- types ---
 name_of :: Kleisli List Node String
 main :: Kleisli List Node String
+entry :: Node -> [String]
 
 --- core ---
 name_of = Kleisli (\n -> map text (field[name] n))
 main = compose_flipped (compose_flipped children (of_kind :class_declaration)) name_of
+entry = run_main main

@@ -37,4 +37,5 @@ class A {}
 [1,2,1,12,11,2,11,12,3,4]
 
 --- types ---
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

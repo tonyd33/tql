@@ -16,4 +16,5 @@ class A {}
 [true, true, false]
 
 --- types ---
-main :: Kleisli List Node Bool
+main :: Kleisli List a Bool
+entry :: Node -> [Bool]

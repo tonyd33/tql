@@ -17,7 +17,9 @@ class A {}
 --- types ---
 add :: Int -> Int -> Int
 main :: Kleisli List Node Int
+entry :: Node -> [Int]
 
 --- core ---
 add = \x -> \y -> op[+] x y
 main = pure (op[+] (add 1 2) (add 3 4))
+entry = run_main main

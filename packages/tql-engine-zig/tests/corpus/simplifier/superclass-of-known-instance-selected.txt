@@ -35,4 +35,4 @@ class A {}
 [1]
 
 --- simplified ---
-main = \_ -> Cons 1 Nil
+entry = \_ -> Cons 1 Nil

@@ -26,3 +26,4 @@ main = {} \u {} ->
       Cons (-7) t2@1
   in
   t3@0
+entry = {} \u {} -> main

@@ -37,3 +37,4 @@ pick = \xs -> \ys ->
 main =
   let y = Cons (pick Nil (Cons 5 (Cons 6 Nil))) (Cons (pick (Cons 1 (Cons 2 Nil)) Nil) (Cons (pick Nil Nil) Nil)) in
   \_ -> Cons y Nil
+entry = main

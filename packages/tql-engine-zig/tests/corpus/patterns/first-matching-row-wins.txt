@@ -21,7 +21,8 @@ class A {}
 
 --- types ---
 shape :: [a] -> Int
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]
 
 --- core ---
 shape = \xs -> case xs of
@@ -30,3 +31,4 @@ shape = \xs -> case xs of
     Nil -> 1
     Cons _ _ -> 2
 main = Kleisli (\_ -> Cons (shape (Cons 1 Nil)) (Cons (shape (Cons 1 (Cons 2 Nil))) (Cons (shape Nil) Nil)))
+entry = run_main main

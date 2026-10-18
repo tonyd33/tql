@@ -20,3 +20,4 @@ class A {}
 --- simplified ---
 size = \xs -> op[+] (op[+] (length[List] xs) (op[*] (length[List] xs) 2)) (op[*] (length[List] xs) 3)
 main = \_ -> Cons (size (Cons 1 Nil)) (Cons (size (Cons 1 (Cons 2 Nil))) Nil)
+entry = main

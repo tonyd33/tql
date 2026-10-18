@@ -21,3 +21,4 @@ class A {}
 --- types ---
 from :: Int -> [Int]
 main :: Kleisli List Node Bool
+entry :: Node -> [Bool]

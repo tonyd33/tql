@@ -20,3 +20,4 @@ class B {}
 --- types ---
 methods :: Kleisli List Node Node
 main :: Kleisli List Node String
+entry :: Node -> [String]

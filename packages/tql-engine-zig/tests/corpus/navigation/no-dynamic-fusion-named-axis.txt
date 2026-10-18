@@ -33,3 +33,4 @@ main = \x -> bind[List] (%descendants x) (
     ) (\y -> Cons (%text y) Nil)
   )
 )
+entry = main

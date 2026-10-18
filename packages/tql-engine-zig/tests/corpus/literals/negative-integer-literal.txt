@@ -13,7 +13,9 @@ class A {}
 [-7, -7]
 
 --- types ---
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]
 
 --- core ---
 main = Kleisli (\_ -> Cons (-7) (Cons (op[-] 0 7) Nil))
+entry = run_main main

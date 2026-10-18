@@ -41,3 +41,4 @@ over_list = \xs -> bind[List] xs (
 main =
   let y = record[at_list,at_maybe] (over_list (Cons 1 (Cons 2 (Cons 1 Nil)))) (Cons (checked (Just 1)) (Cons (checked (Just 2)) Nil)) in
   \_ -> Cons y Nil
+entry = main

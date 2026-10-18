@@ -12,6 +12,8 @@ class A {}
 [[0,1,2]]
 --- types ---
 main :: Kleisli List Node [Int]
+entry :: Node -> [[Int]]
 
 --- core ---
 main = pure (Cons 0 (Cons 1 (Cons 2 Nil)))
+entry = run_main main

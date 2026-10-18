@@ -91,6 +91,7 @@ main = {} \u {} ->
       Cons t3@1 t9@2
   in
   t10@0
+entry = {} \u {} -> main
 --- core ---
 g = \xs ->
   join alternative a b = op[+] (op[+] (op[+] (op[*] a 2) (op[*] a 3)) (op[*] b 4)) (op[*] b 5) in
@@ -113,3 +114,4 @@ g = \xs ->
             Nil -> 0
             Cons _ _ -> jump alternative'
 main = Kleisli (\_ -> Cons (g (Cons 1 (Cons 2 Nil))) (Cons (g (Cons 0 (Cons 3 Nil))) Nil))
+entry = run_main main

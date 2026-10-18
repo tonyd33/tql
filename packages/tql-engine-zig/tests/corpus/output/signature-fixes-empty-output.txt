@@ -14,4 +14,5 @@ main = empty;
 []
 
 --- types ---
-main :: Kleisli List Node String
+main :: Filter Node String
+entry :: Node -> [String]

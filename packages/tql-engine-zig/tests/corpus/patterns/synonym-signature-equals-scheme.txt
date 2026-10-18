@@ -19,3 +19,4 @@ f(1);
 --- types ---
 $mCallee :: Node -> (Node -> a) -> a -> a
 main :: Kleisli List Node String
+entry :: Node -> [String]

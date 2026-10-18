@@ -16,7 +16,9 @@ class A {}
 [4, 3, 3]
 
 --- types ---
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]
 
 --- core ---
 main = Kleisli (\_ -> Cons (length "\"ab\"") (Cons (length "a\\b") (Cons (length "\n\t\r") Nil)))
+entry = run_main main

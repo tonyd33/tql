@@ -29,4 +29,5 @@ class A {}
 
 --- types ---
 both :: (Describe a, Describe b) => a -> b -> [String]
-main :: Kleisli List Node String
+main :: Kleisli List a String
+entry :: Node -> [String]

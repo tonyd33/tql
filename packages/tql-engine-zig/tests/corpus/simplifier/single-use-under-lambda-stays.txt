@@ -15,8 +15,10 @@ class A {}
 main =
   let a = op[*] 2 3 in
   \_ -> map[List] (\x -> op[+] x a) (Cons 1 (Cons 2 Nil))
+entry = main
 
 --- core ---
 main =
   let a = op[*] 2 3 in
   Kleisli (\_ -> map (\x -> op[+] x a) (Cons 1 (Cons 2 Nil)))
+entry = run_main main

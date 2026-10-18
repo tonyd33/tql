@@ -26,6 +26,7 @@ one = \xs ->
           Cons _ _ -> jump alternative
         Cons _ _ -> jump alternative
 main = Kleisli (\_ -> Cons (one (Cons (Cons 1 Nil) Nil)) (Cons (one (Cons (Cons 2 Nil) (Cons (Cons 3 Nil) Nil))) (Cons (one (Cons (Cons 4 (Cons 5 Nil)) Nil)) Nil)))
+entry = run_main main
 --- values ---
 [[1], [], []]
 
@@ -117,3 +118,4 @@ main = {} \u {} ->
       Cons t4@1 t21@2
   in
   t22@0
+entry = {} \u {} -> main

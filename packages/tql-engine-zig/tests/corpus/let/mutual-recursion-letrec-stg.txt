@@ -30,9 +30,11 @@ main =
       True -> False
   in
   Kleisli (\_ -> Cons (is_even 4) (Cons (is_even 7) Nil))
+entry = run_main main
 
 --- types ---
-main :: Kleisli List Node Bool
+main :: Kleisli List a Bool
+entry :: Node -> [Bool]
 
 --- stg ---
 main = {} \u {} ->
@@ -66,3 +68,4 @@ main = {} \u {} ->
       Cons t4@2 t7@3
   in
   t8@2
+entry = {} \u {} -> main

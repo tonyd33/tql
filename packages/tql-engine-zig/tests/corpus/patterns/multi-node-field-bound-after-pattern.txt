@@ -33,3 +33,4 @@ main = bind descendants (
               Cons _ _ -> empty
             Cons _ _ -> empty
 )
+entry = run_main main

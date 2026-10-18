@@ -21,3 +21,4 @@ f = \eq' -> case eq eq' 1 of
   False -> 20
   True -> 10
 main = Kleisli (\_ -> Cons (f 1) (Cons (f 2) Nil))
+entry = run_main main

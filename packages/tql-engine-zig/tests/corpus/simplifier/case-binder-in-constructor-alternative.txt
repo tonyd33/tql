@@ -40,6 +40,7 @@ main =
     )
   in
   \_ -> Cons y Nil
+entry = main
 
 --- stg ---
 double = {} \u {} ->
@@ -100,3 +101,4 @@ main = {} \u {} ->
       Cons y@0 c11@2
   in
   t12@1
+entry = {} \u {} -> main

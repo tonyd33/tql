@@ -23,3 +23,4 @@ class A {}
 size = \xs -> op[+] (op[+] (length[List] xs) (op[*] (length[List] xs) 2)) (op[*] (length[List] xs) 3)
 twice = \xs -> op[+] (op[+] (size xs) (op[*] (size xs) 2)) (op[*] (size xs) 3)
 main = \_ -> Cons (twice (Cons 1 Nil)) (Cons (twice (Cons 1 (Cons 2 Nil))) Nil)
+entry = main

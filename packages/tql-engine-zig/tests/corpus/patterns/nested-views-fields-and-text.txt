@@ -65,6 +65,7 @@ main = bind descendants (
                                   Cons _ _ -> empty
                         Cons _ _ -> empty
 )
+entry = run_main main
 
 --- simplified ---
 main = \x -> bind[List] (%descendants_of_kind :call_expression x) (
@@ -98,3 +99,4 @@ main = \x -> bind[List] (%descendants_of_kind :call_expression x) (
                   Cons _ _ -> Nil
             Cons _ _ -> Nil
 )
+entry = main

@@ -19,4 +19,5 @@ class A {}
 [{"tag":"Just","fields":[1]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]}]
 --- types ---
 first_of :: (Monad a, Alternative a) => a [b] -> a b
-main :: Kleisli List Node (Maybe Int)
+main :: Kleisli List a (Maybe Int)
+entry :: Node -> [Maybe Int]

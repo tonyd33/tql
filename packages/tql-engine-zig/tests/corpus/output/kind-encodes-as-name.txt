@@ -13,3 +13,4 @@ interface I {}
 
 --- types ---
 main :: Kleisli List Node Kind
+entry :: Node -> [Kind]

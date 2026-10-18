@@ -23,6 +23,7 @@ class A {}
 
 --- types ---
 main :: Kleisli List Node {k: Kind, n: String}
+entry :: Node -> [{k: Kind, n: String}]
 
 --- core ---
 main = bind (children_of_kind :class_declaration) (
@@ -33,3 +34,4 @@ main = bind (children_of_kind :class_declaration) (
       return (record[k,n] k name)
   )
 )
+entry = run_main main

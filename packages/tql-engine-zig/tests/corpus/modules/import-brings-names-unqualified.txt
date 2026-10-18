@@ -23,4 +23,5 @@ let x = 1;
 [3]
 
 --- types ---
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

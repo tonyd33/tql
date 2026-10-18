@@ -20,3 +20,4 @@ class A {}
 
 --- simplified ---
 main = \_ -> Cons (any (\x -> %gt_int x 0) (Cons 0 (Cons 1 Nil))) (Cons (any (\x -> %gt_int x 0) (Cons 0 Nil)) Nil)
+entry = main

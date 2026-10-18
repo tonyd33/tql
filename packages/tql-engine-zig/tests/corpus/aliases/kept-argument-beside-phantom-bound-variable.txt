@@ -23,3 +23,4 @@ class A {}
 k :: Const Int a -> a -> Int
 h :: Const Int Int -> Int
 main :: Kleisli List Node Int
+entry :: Node -> [Int]

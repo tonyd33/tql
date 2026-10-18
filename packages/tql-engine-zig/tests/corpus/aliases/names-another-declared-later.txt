@@ -18,3 +18,4 @@ class A {}
 --- types ---
 total :: Ints -> Int
 main :: Kleisli List Node Int
+entry :: Node -> [Int]

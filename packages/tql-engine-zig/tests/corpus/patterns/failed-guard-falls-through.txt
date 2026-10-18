@@ -33,3 +33,4 @@ f = \xs ->
           True -> "pair"
         Cons _ _ -> jump alternative
 main = Kleisli (\_ -> Cons (f (Cons 1 (Cons 1 Nil))) (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 1 Nil)) Nil)))
+entry = run_main main

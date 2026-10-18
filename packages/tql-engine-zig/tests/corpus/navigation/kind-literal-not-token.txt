@@ -18,3 +18,4 @@ let x: string = "a";
 
 --- types ---
 main :: Kleisli List Node {literal: Bool, text: String}
+entry :: Node -> [{literal: Bool, text: String}]

@@ -42,6 +42,8 @@ pub const Desugarer = struct {
     edges: std.ArrayList([]const u32) = .empty,
     /// Where the last source added begins in `definitions`.
     entry_offset: u32 = 0,
+    /// The last module added.
+    entry_module: core.ModuleId = .prim,
     /// The linked index of every definition added so far.
     linked: std.AutoHashMapUnmanaged(core.SymbolId, u32) = .empty,
     /// What each module added so far exports, by `ModuleId`.
@@ -72,6 +74,7 @@ pub const Desugarer = struct {
             .definitions = definitions,
             .edges = edges,
             .entry_offset = base.entry_offset,
+            .entry_module = base.entry_module,
             .linked = linked,
             .exports = try base.exports.clone(allocator),
         };
@@ -451,15 +454,19 @@ pub const Desugarer = struct {
         if (failed or sink.hasErrors()) return error.DesugarFailed;
 
         self.entry_offset = first;
+        self.entry_module = module;
         try self.definitions.appendSlice(self.allocator, definitions);
         try self.edges.appendSlice(self.allocator, edges);
-        for (generated.items) |method| {
-            try self.linked.put(self.allocator, method.symbol, @intCast(self.definitions.items.len));
-            try self.definitions.append(self.allocator, method);
-            try self.edges.append(self.allocator, try self.references(builder, method.body));
-        }
+        for (generated.items) |method| try self.append(builder, method);
         std.debug.assert(self.exports.items.len == @intFromEnum(module));
         try self.exports.append(self.allocator, exports);
+    }
+
+    /// Links `d` after every definition added so far.
+    fn append(self: *Desugarer, builder: core.Builder, d: core.Definition) !void {
+        try self.linked.put(self.allocator, d.symbol, @intCast(self.definitions.items.len));
+        try self.definitions.append(self.allocator, d);
+        try self.edges.append(self.allocator, try self.references(builder, d.body));
     }
 
     /// The linked indices of the definitions `body` mentions, in first-mention
@@ -474,6 +481,23 @@ pub const Desugarer = struct {
         return targets;
     }
 
+    /// Appends `entry = run_main main`, `main` being the entry module's own
+    /// binding of the name. Returns `entry`.
+    fn defineEntry(self: *Desugarer, entry_span: diagnostic.Span, sink: *diagnostic.Sink) Error!core.SymbolId {
+        const env = &self.env.?;
+        const builder = core.Builder{ .allocator = env.allocator() };
+        const module = self.entry_module;
+        const main = env.interner.lookup(module, "main") orelse {
+            try sink.report(.missing_main, entry_span, "no `main` definition", .{});
+            return error.LinkFailed;
+        };
+        const span = if (self.linked.get(main)) |i| self.definitions.items[i].span else entry_span;
+        const entry = try env.interner.generate(module, "entry", .vanilla);
+        const body = try builder.apply(builder.symbol(env.known.get(.run_main).?, span), builder.symbol(main, span), span);
+        try self.append(builder, .{ .symbol = entry, .body = body, .span = span, .simple = true });
+        return entry;
+    }
+
     /// Assembles the added sources into a program. The last one added is the
     /// entry module and must declare `main`.
     pub fn finish(
@@ -483,16 +507,9 @@ pub const Desugarer = struct {
     ) Error!Program {
         const scratch = self.env.?.allocator();
 
+        const entry = try self.defineEntry(entry_span, sink);
         const definitions = try scratch.dupe(core.Definition, self.definitions.items);
         const edges = self.edges.items;
-        const entry_offset = self.entry_offset;
-
-        const main = try entrySymbol(
-            definitions[entry_offset..],
-            &self.env.?.interner,
-            entry_span,
-            sink,
-        );
 
         // A reference to a signed definition is not a dependency.
         for (edges) |*edge| {
@@ -519,8 +536,8 @@ pub const Desugarer = struct {
             .env = target,
             .definitions = definitions,
             .components = components,
-            .entry = main,
-            .entry_offset = entry_offset,
+            .entry = entry,
+            .entry_offset = self.entry_offset,
             .entry_end = @intCast(definitions.len),
         };
     }
@@ -605,18 +622,4 @@ fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8
         .builtin_constructor => {},
         .record => |r| for (r.fields) |f| try typeNames(gpa, f.type, out),
     }
-}
-
-fn entrySymbol(
-    entry_definitions: []const core.Definition,
-    interner: *const core.Interner,
-    entry_span: diagnostic.Span,
-    sink: *diagnostic.Sink,
-) Error!core.SymbolId {
-    for (entry_definitions) |d| {
-        if (std.mem.eql(u8, interner.spelling(d.symbol), "main")) return d.symbol;
-    }
-
-    try sink.report(.missing_main, entry_span, "no `main` definition", .{});
-    return error.LinkFailed;
 }

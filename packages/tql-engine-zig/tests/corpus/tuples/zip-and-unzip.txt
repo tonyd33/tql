@@ -20,3 +20,4 @@ class A {}
 --- types ---
 nats :: Int -> [Int]
 main :: Kleisli List Node ([(Int, String)], ([Int], [String]), [Int])
+entry :: Node -> [([(Int, String)], ([Int], [String]), [Int])]

@@ -12,7 +12,9 @@ class A {}
 [3, 3]
 
 --- types ---
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]
 
 --- core ---
 main = Kleisli (\_ -> bind (Cons 1 (Cons 2 Nil)) (\_ -> Cons 3 Nil))
+entry = run_main main

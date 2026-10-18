@@ -27,4 +27,5 @@ class A {}
 --- types ---
 same :: Eq (a b) => a b -> a b -> Bool
 same_wrap :: Eq (a b) => Wrap a b -> Wrap a b -> Bool
-main :: Kleisli List Node Bool
+main :: Kleisli List a Bool
+entry :: Node -> [Bool]

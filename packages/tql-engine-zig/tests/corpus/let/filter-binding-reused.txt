@@ -20,3 +20,4 @@ class A { m() {} }
 
 --- types ---
 main :: Kleisli List Node Kind
+entry :: Node -> [Kind]

@@ -15,3 +15,4 @@ class A {}
 --- core ---
 same = \x' -> \x -> map (\x'' -> x' x'' x) (Cons 2 Nil)
 main = Kleisli (\_ -> same (\x -> \y -> eq x y) 2)
+entry = run_main main

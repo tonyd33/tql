@@ -28,3 +28,4 @@ class Store { getA() {} }
 --- types ---
 getters :: Kleisli List Node Node
 main :: Kleisli List Node String
+entry :: Node -> [String]

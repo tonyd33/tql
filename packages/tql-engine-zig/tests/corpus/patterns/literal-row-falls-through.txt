@@ -18,3 +18,4 @@ f = \n -> case eq n 3 of
   False -> 0
   True -> 1
 main = Kleisli (\_ -> Cons (f 3) (Cons (f 4) Nil))
+entry = run_main main

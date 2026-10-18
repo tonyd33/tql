@@ -35,7 +35,7 @@ pub const modules = [_]load.Named{
     .{ .name = prelude_name, .path = "Prelude.tql", .text = @embedFile("library/Prelude.tql") },
 };
 
-/// The module that exports each `core.Known` under its spelling.
+/// The module that declares each `core.Known` under its spelling.
 const known_owners: std.EnumArray(core.Known, []const u8) = .init(.{
     .eq = core.ModuleId.prim_name,
     .compare = core.ModuleId.prim_name,
@@ -50,6 +50,7 @@ const known_owners: std.EnumArray(core.Known, []const u8) = .init(.{
     .run_kleisli = "Control.Arrow",
     .Kleisli = "Control.Arrow",
     .of_kind = "Data.Node",
+    .run_main = "Data.Node",
 });
 
 /// Returns the library module named `name`.
@@ -122,7 +123,7 @@ pub const Library = struct {
             };
             for (std.enums.values(core.Known)) |k| {
                 if (!std.mem.eql(u8, known_owners.get(k), m.name)) continue;
-                env.known.set(k, desugarer.exports.items[i].values.get(@tagName(k)) orelse return error.PreludeInvalid);
+                env.known.set(k, env.interner.lookup(id, @tagName(k)) orelse return error.PreludeInvalid);
             }
         }
         for (env.known.values) |symbol| if (symbol == null) return error.PreludeInvalid;

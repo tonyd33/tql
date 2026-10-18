@@ -27,3 +27,4 @@ point_free :: Kleisli List Node Node
 wrapped :: Kleisli List Node Node
 over_input :: Kleisli List Node Node
 main :: Kleisli List Node String
+entry :: Node -> [String]

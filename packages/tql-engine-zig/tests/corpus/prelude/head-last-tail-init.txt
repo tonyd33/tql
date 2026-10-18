@@ -20,3 +20,4 @@ class A {}
 
 --- types ---
 main :: Kleisli List Node ([Maybe Int], [Maybe Int], [Maybe [Int]], [Maybe [Int]])
+entry :: Node -> [([Maybe Int], [Maybe Int], [Maybe [Int]], [Maybe [Int]])]

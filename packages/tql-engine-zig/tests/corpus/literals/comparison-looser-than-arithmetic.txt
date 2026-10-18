@@ -13,6 +13,8 @@ class A {}
 
 --- types ---
 main :: Kleisli List Node Bool
+entry :: Node -> [Bool]
 
 --- core ---
 main = pure (eq (op[+] 1 1) 2)
+entry = run_main main

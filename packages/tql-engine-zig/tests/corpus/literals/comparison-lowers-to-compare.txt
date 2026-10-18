@@ -13,7 +13,8 @@ class A {}
 [true, true, false, true]
 
 --- types ---
-main :: Kleisli List Node Bool
+main :: Kleisli List a Bool
+entry :: Node -> [Bool]
 
 --- core ---
 main = Kleisli (
@@ -45,3 +46,4 @@ main = Kleisli (
     )
   )
 )
+entry = run_main main

@@ -36,3 +36,4 @@ main = {} \u {} ->
       Cons t0@2 t3@3
   in
   t4@1
+entry = {} \u {} -> main

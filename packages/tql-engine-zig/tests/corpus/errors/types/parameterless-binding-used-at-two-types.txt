@@ -14,8 +14,8 @@ other = (one :: Maybe Int);
 f(x);
 
 --- error ---
-error[type-mismatch]: Expected `Maybe`, found `List`.
- --> 3:10
+error[type-mismatch]: Expected `List`, found `Maybe`.
+ --> 2:1
   |
-3 | other = (one :: Maybe Int);
-  |          ^^^
+2 | main = Kleisli $ \_ -> one;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^

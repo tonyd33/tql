@@ -20,3 +20,4 @@ main = Kleisli (
     \x -> eq x e
   ) (Cons 2 (Cons 3 Nil))
 )
+entry = run_main main

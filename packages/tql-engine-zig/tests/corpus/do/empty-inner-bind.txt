@@ -17,6 +17,8 @@ class A {}
 
 --- types ---
 main :: Kleisli List Node Int
+entry :: Node -> [Int]
 
 --- core ---
 main = bind (Kleisli (\_ -> Cons 1 (Cons 2 Nil))) (\l -> bind (compose_flipped (compose_flipped children (of_kind :interface_declaration)) (pure 0)) (\r -> return (op[+] l r)))
+entry = run_main main

@@ -14,4 +14,5 @@ let x = 1;
 
 --- types ---
 keep :: a -> [a]
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]

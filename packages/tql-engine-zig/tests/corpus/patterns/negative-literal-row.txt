@@ -18,3 +18,4 @@ sign = \x -> case eq x (-3) of
   False -> "other"
   True -> "minus three"
 main = Kleisli (\_ -> Cons (sign (-3)) (Cons (sign 3) Nil))
+entry = run_main main

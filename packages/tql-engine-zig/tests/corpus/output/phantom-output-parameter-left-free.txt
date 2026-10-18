@@ -1,0 +1,21 @@
+title: an output type parameter nothing constrains is left free
+grammar: typescript
+asserts: types, values
+
+`P`'s derived `Serial` instance needs nothing of `a`, so `Serial (P a)` holds
+whatever `a` is, and nothing has to determine it.
+
+--- tql ---
+data P a = P deriving (Serial);
+
+main = pure P;
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"P","fields":[]}]
+
+--- types ---
+main :: Kleisli List Node (P a)
+entry :: Node -> [P a]

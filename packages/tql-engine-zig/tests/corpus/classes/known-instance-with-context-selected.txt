@@ -34,4 +34,4 @@ class A {}
 ["circle"]
 
 --- simplified ---
-main = \_ -> describe[List] instance[Describe,Shape] (Cons (Circle 1) Nil)
+entry = \_ -> describe[List] instance[Describe,Shape] (Cons (Circle 1) Nil)

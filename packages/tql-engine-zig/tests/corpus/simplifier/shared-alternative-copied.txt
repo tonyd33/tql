@@ -19,6 +19,7 @@ size = \xs -> case xs of
     Nil -> 1
     Cons _ _ -> length[List] xs
 main = \_ -> map[List] size (Cons (Cons 1 Nil) (Cons (Cons 1 (Cons 2 Nil)) Nil))
+entry = main
 
 --- core ---
 size = \xs ->
@@ -29,3 +30,4 @@ size = \xs ->
       Nil -> 1
       Cons _ _ -> jump alternative xs
 main = Kleisli (\_ -> map size (Cons (Cons 1 Nil) (Cons (Cons 1 (Cons 2 Nil)) Nil)))
+entry = run_main main

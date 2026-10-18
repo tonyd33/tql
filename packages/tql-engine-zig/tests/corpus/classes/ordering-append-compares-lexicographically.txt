@@ -22,4 +22,5 @@ class A {}
 --- types ---
 label :: Ordering -> String
 by_both :: (Ord a, Ord b) => a -> a -> b -> b -> Ordering
-main :: Kleisli List Node String
+main :: Kleisli List a String
+entry :: Node -> [String]

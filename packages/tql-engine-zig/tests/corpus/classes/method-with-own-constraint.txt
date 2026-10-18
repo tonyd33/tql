@@ -43,4 +43,5 @@ class A {}
 
 --- types ---
 check :: Container a => a -> Bool
-main :: Kleisli List Node [String]
+main :: Kleisli List a [String]
+entry :: Node -> [[String]]

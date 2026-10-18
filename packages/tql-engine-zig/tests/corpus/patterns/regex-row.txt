@@ -18,3 +18,4 @@ f = \s -> case op[~] s r"^on" of
   False -> "other"
   True -> "handler"
 main = Kleisli (\_ -> Cons (f "onClick") (Cons (f "render") Nil))
+entry = run_main main

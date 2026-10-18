@@ -16,6 +16,8 @@ class A {}
 
 --- types ---
 main :: Kleisli List Node Bool
+entry :: Node -> [Bool]
 
 --- core ---
 main = pure (not (eq 1 1))
+entry = run_main main

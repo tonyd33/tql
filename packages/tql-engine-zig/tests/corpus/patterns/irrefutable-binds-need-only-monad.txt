@@ -47,6 +47,7 @@ class A {}
 --- types ---
 total :: Done Int
 main :: Kleisli List Node (Done Int)
+entry :: Node -> [Done Int]
 --- core ---
 total = bind (Done 1) (
   \x -> bind (Done 2) (
@@ -59,3 +60,4 @@ total = bind (Done 1) (
   )
 )
 main = pure total
+entry = run_main main

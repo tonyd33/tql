@@ -18,3 +18,4 @@ f = \b -> case b of
   False -> "no"
   True -> "yes"
 main = Kleisli (\_ -> Cons (f True) (Cons (f False) Nil))
+entry = run_main main

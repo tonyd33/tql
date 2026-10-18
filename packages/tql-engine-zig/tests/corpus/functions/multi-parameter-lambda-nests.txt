@@ -20,10 +20,12 @@ class A {}
 [3, 3]
 
 --- types ---
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]
 
 --- core ---
 main =
   let a = \x -> \y -> op[+] x y in
   let b = \x -> \y -> op[+] x y in
   Kleisli (\_ -> Cons (a 1 2) (Cons (b 1 2) Nil))
+entry = run_main main

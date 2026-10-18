@@ -83,3 +83,4 @@ main = {} \u {} ->
       Cons y@0 c4@2
   in
   t5@1
+entry = {} \u {} -> main

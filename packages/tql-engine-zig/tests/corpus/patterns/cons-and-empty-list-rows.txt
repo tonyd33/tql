@@ -18,9 +18,11 @@ class A {}
 --- types ---
 sum :: [Int] -> Int
 main :: Kleisli List Node Int
+entry :: Node -> [Int]
 
 --- core ---
 sum = \xs -> case xs of
   Nil -> 0
   Cons h t -> op[+] h (sum t)
 main = pure (sum (Cons 1 (Cons 2 (Cons 3 Nil))))
+entry = run_main main

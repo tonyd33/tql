@@ -22,10 +22,12 @@ add = \x -> \y -> op[+] x y
 main =
   let add10 = add 10 in
   Kleisli (\_ -> Cons (add10 1) (Cons (add10 2) Nil))
+entry = run_main main
 
 --- types ---
 add :: Int -> Int -> Int
-main :: Kleisli List Node Int
+main :: Kleisli List a Int
+entry :: Node -> [Int]
 
 --- stg ---
 add = {} \u {} ->
@@ -47,3 +49,4 @@ main = {} \u {} ->
       Cons t0@2 t3@3
   in
   t4@1
+entry = {} \u {} -> main
