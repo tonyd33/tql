@@ -37,7 +37,13 @@ fn writeRun(w: *std.Io.Writer, compiled: *const tql.CompiledQuery, run: tql.RunO
     var jws: std.json.Stringify = .{ .writer = w };
     try jws.beginObject();
     try jws.objectField("kind");
-    try jws.write("ok");
+    if (run.failure) |failure| {
+        try jws.write("failed");
+        try jws.objectField("failure");
+        try jws.write(failure);
+    } else {
+        try jws.write("ok");
+    }
     try jws.objectField("result");
     try jws.beginObject();
     try jws.objectField("values");

@@ -8,6 +8,7 @@
 
 ### Bug Fixes
 
+- A runtime error keeps the outputs before it: `main = pure 1 <|> pure bot;` prints `a.ts: [1]`, then the error. `--format=json` gives the file both `values` and `failure`, and the playground shows both.
 - `tql inspect --format json` and the playground tree write a node's text and a path as a string, with each ill-formed UTF-8 sequence read as U+FFFD: `"text":"caf�"`.
 - `\K`, backtracking verbs such as `(*PRUNE)`, script runs and `(*UCP)` are `invalid-regex` errors: `r"a\Kb|b"` is rejected at compile time.
 - An inferred `Serial` context is reduced through instances, as `Eq`'s is: `f x = s [x]` infers `Serial a => a -> Int`, and `f x = s (P, x)` infers `Serial b => b -> Int`.

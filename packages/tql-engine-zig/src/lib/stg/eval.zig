@@ -1479,18 +1479,14 @@ pub const Machine = struct {
 
     /// Write a forced list as a JSON array, forcing its spine and every
     /// element.
-    ///
-    /// Returns the number of elements written.
-    pub fn serializeList(self: *Machine, list: value.Value, jws: *std.json.Stringify) Error!usize {
+    fn serializeList(self: *Machine, list: value.Value, jws: *std.json.Stringify) Error!void {
         try jws.beginArray();
-        var count: usize = 0;
         var current = list;
-        while (try self.uncons(current)) |cell| : (count += 1) {
+        while (try self.uncons(current)) |cell| {
             try self.serialize(try self.force(cell.head), jws);
             current = try self.force(cell.tail);
         }
         try jws.endArray();
-        return count;
     }
 
     /// Write a forced value as JSON. This is the `Serial` boundary: it forces
@@ -1517,7 +1513,7 @@ pub const Machine = struct {
                 if (c.constructor == structural.true_.symbol or c.constructor == structural.false_.symbol) {
                     try jws.write(c.constructor == structural.true_.symbol);
                 } else if (c.constructor == structural.nil.symbol or c.constructor == structural.cons.symbol) {
-                    _ = try self.serializeList(v, jws);
+                    try self.serializeList(v, jws);
                 } else if (self.program.tuples.contains(c.constructor)) {
                     try jws.beginArray();
                     for (c.fields()) |field| try self.serialize(try self.force(field), jws);

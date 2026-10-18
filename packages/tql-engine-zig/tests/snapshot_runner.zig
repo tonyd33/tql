@@ -817,32 +817,38 @@ fn describeDiagnostics(
 }
 
 /// What running a compiled query over the case's target produced.
-const Run = union(enum) {
+const Run = struct {
+    /// Every output, or those before the one whose evaluation failed.
     json: []const u8,
-    /// Evaluation stopped with a runtime error.
-    failed: tql.RunError,
+    failure: ?tql.Failure,
 
     fn deinit(self: Run, allocator: std.mem.Allocator) void {
-        switch (self) {
-            .json => |j| allocator.free(j),
-            .failed => {},
-        }
+        allocator.free(self.json);
     }
 
     fn eql(a: Run, b: Run) bool {
-        return switch (a) {
-            .json => |j| b == .json and std.mem.eql(u8, j, b.json),
-            .failed => |e| b == .failed and b.failed == e,
-        };
+        if (!std.mem.eql(u8, a.json, b.json)) return false;
+        const fa = a.failure orelse return b.failure == null;
+        const fb = b.failure orelse return false;
+        return std.mem.eql(u8, fa.name(), fb.name());
     }
 
     pub fn format(self: Run, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        switch (self) {
-            .json => |j| try w.writeAll(j),
-            .failed => |e| try w.print("runtime error {t}", .{e}),
-        }
+        try w.writeAll(self.json);
+        if (self.failure) |f| try w.print(" then runtime error {s}", .{f.name()});
     }
 };
+
+/// The error a case fails with when evaluation stopped on `failure` and the
+/// case asserts no runtime error.
+fn runtimeError(failure: tql.Failure) anyerror {
+    return switch (failure) {
+        .cyclic_value => error.Cycle,
+        .stack_overflow => error.StackOverflow,
+        .regex_failed => error.RegexFailed,
+        else => error.UnexpectedRunFailure,
+    };
+}
 
 /// Translate `program` without simplifying it and run it over the case's
 /// target. The symbols translation mints stay in `program`'s environment.
@@ -876,18 +882,22 @@ fn evaluate(
 ) !Run {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
-    const outcome = compiled.runTree(
+    const outcome = try compiled.runTree(
         tree,
         tc.target.content,
         if (tc.file.len == 0) null else tc.file,
         allocator,
         arena.allocator(),
-    ) catch |err| switch (err) {
-        error.Cycle, error.StackOverflow, error.RegexFailed => return .{ .failed = err },
-        else => |e| return e,
-    };
+    );
     allocator.free(outcome.syntax_errors);
-    return .{ .json = outcome.json };
+    errdefer allocator.free(outcome.json);
+    if (outcome.failure) |f| switch (f) {
+        .cyclic_value, .stack_overflow, .regex_failed => {},
+        .memory_limit => return error.OutOfMemory,
+        .internal => |err| return err,
+        else => return error.UnexpectedRunFailure,
+    };
+    return .{ .json = outcome.json, .failure = outcome.failure };
 }
 
 /// Fail with a message when the desugared `program` breaks an invariant on
@@ -1038,19 +1048,15 @@ fn runTestCase(
 
                         if (evaluates) {
                             const evaluated = try evaluate(allocator, &compiled, tree, tc);
-                            switch (evaluated) {
-                                .json => |j| {
-                                    allocator.free(values_text);
-                                    values_text = j;
-                                },
-                                .failed => |e| {
-                                    if (!tc.isAsserted(.runtime_error)) return e;
-                                    allocator.free(runtime_error_text);
-                                    var rendered: std.Io.Writer.Allocating = .init(allocator);
-                                    errdefer rendered.deinit();
-                                    try tql.Failure.ofRun(e).render(&rendered.writer);
-                                    runtime_error_text = try rendered.toOwnedSlice();
-                                },
+                            allocator.free(values_text);
+                            values_text = evaluated.json;
+                            if (evaluated.failure) |f| {
+                                if (!tc.isAsserted(.runtime_error)) return runtimeError(f);
+                                allocator.free(runtime_error_text);
+                                var rendered: std.Io.Writer.Allocating = .init(allocator);
+                                errdefer rendered.deinit();
+                                try f.render(&rendered.writer);
+                                runtime_error_text = try rendered.toOwnedSlice();
                             }
 
                             if (!evaluated.eql(unsimplified.?)) {
