@@ -17,7 +17,7 @@ fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
     return switch (primop) {
         .text, .kind_name => .{ .type = try B.func(types.node_type, types.string_type) },
         .kind => .{ .type = try B.func(types.node_type, types.kind_type) },
-        .is_named, .is_extra => .{ .type = try B.func(types.node_type, try B.boolType()) },
+        .is_named, .is_extra, .is_error, .is_missing, .has_error => .{ .type = try B.func(types.node_type, try B.boolType()) },
         .range => .{ .type = try B.func(types.node_type, types.range_type) },
         .string_length => .{ .type = try B.func(types.string_type, types.int_type) },
         .div, .mod, .quot, .rem => .{ .type = try B.func(types.int_type, try B.func(types.int_type, types.int_type)) },

@@ -2,6 +2,10 @@
 
 ## 0.4.1 (unreleased)
 
+### New Features
+
+- `is_error`, `is_missing` and `has_error` test the nodes tree-sitter's error recovery made: `descendants | keep is_missing` finds an inserted `;`, and `keep (\n -> not (has_error n))` keeps only a file that parsed.
+
 ### Bug Fixes
 
 - `tql inspect --format json` and the playground tree write a node's text and a path as a string, with each ill-formed UTF-8 sequence read as U+FFFD: `"text":"caf�"`.

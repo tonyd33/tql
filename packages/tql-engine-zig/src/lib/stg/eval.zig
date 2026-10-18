@@ -973,6 +973,18 @@ pub const Machine = struct {
                     const subject = try self.nodeArgument(arguments);
                     return try self.boolValue(subject.isExtra());
                 },
+                .is_error => {
+                    const subject = try self.nodeArgument(arguments);
+                    return try self.boolValue(subject.isError());
+                },
+                .is_missing => {
+                    const subject = try self.nodeArgument(arguments);
+                    return try self.boolValue(subject.isMissing());
+                },
+                .has_error => {
+                    const subject = try self.nodeArgument(arguments);
+                    return try self.boolValue(subject.hasError());
+                },
                 .range => {
                     const subject = try self.nodeArgument(arguments);
                     return try self.rangeRecord(rangeOf(subject));
