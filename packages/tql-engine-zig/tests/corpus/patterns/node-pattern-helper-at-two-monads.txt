@@ -25,13 +25,17 @@ class A {}
 class_name :: (Monad a, Alternative a) => a Node -> a String
 main :: Filter Node {in_list: [String], in_maybe: Maybe String}
 --- simplified ---
-class_name = \d -> \d' -> \m -> case d of
-  dict[Monad] _ m' -> m' m (
-    \c -> case %is_kind :class_declaration c of
-      False -> case d' of
-        dict[Alternative] _ m _ -> m
-      True -> case d of
-        dict[Monad] m _ -> case m of
+class_name = \d -> \d' ->
+  let
+    evidence = case d of
+      dict[Monad] m _ -> m
+  in
+  \m -> case d of
+    dict[Monad] _ m' -> m' m (
+      \c -> case %is_kind :class_declaration c of
+        False -> case d' of
+          dict[Alternative] _ m _ -> m
+        True -> case evidence of
           dict[Applicative] _ m _ -> m (%text c)
-  )
+    )
 main = \x -> Cons (record[in_list,in_maybe] (class_name instance[Monad,List] instance[Alternative,List] (%children x)) (class_name instance[Monad,Maybe] instance[Alternative,Maybe] (Just x))) Nil

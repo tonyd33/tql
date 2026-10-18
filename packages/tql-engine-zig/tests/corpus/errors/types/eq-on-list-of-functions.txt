@@ -8,9 +8,10 @@ A container holding a function is outside `Eq`, recursively.
 Functions have no `Eq`, and the list inherits that.
 
 --- tql ---
-main =
+same =
   let { fs = [kind_name, text]; }
   in fs == fs;
+main = pure same;
 
 --- error ---
 error[unsatisfied-constraint]: `Eq (Node -> String)` is not satisfied.

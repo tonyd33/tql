@@ -478,8 +478,6 @@ pub const Desugarer = struct {
     ) Error!Program {
         const scratch = self.env.?.allocator();
 
-        if (!try classes_mod.checkSuperclasses(self.allocator, &self.env.?, sink)) return error.LinkFailed;
-
         const definitions = try scratch.dupe(core.Definition, self.definitions.items);
         const edges = self.edges.items;
         const entry_offset = self.entry_offset;

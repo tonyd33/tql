@@ -6,7 +6,7 @@ asserts: error
 pattern Callee :: String -> Node;
 pattern Callee f <- :call_expression { #function = f };
 
-main root = 1;
+main = pure 1;
 
 --- error ---
 error[signature-mismatch]: Expected `String`, found `Node`.

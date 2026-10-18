@@ -11,11 +11,11 @@ that the operand of a comparison is itself a comparison, and saying the
 operators do not chain is more useful than naming the types.
 
 --- tql ---
-main = 1 < 2 < 3;
+main = pure (1 < 2 < 3);
 
 --- error ---
 error[type-mismatch]: Expected `Bool`, found `Int`.
- --> 1:16
+ --> 1:22
   |
-1 | main = 1 < 2 < 3;
-  |                ^
+1 | main = pure (1 < 2 < 3);
+  |                      ^

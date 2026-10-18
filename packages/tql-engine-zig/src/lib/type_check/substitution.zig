@@ -59,14 +59,21 @@ pub const Substitution = struct {
     datatypes: *const datatypes.Registry,
     /// The declared classes and instances, for deciding a constraint.
     classes: *const classes.Registry,
-    /// Indexed by `Meta`. `null` means unsolved.
+    /// Indexed by `Meta`.
     ///
     /// Invariants:
     /// - No solution reaches its own metavariable, alias arguments included.
-    solutions: std.ArrayList(?types.Type),
-    /// Indexed by `Meta`.
-    kinds: std.ArrayList(types.Kind),
+    metas: std.MultiArrayList(Entry),
     gpa: Allocator,
+
+    const Entry = struct {
+        /// `null` means unsolved.
+        solution: ?types.Type,
+        kind: types.Kind,
+        /// Whether the metavariable stands in a type an error was reported
+        /// on.
+        poisoned: bool,
+    };
 
     pub fn init(
         gpa: Allocator,
@@ -74,42 +81,90 @@ pub const Substitution = struct {
         declared: *const datatypes.Registry,
         registry: *const classes.Registry,
     ) Substitution {
-        return .{ .arena = arena, .datatypes = declared, .classes = registry, .solutions = .empty, .kinds = .empty, .gpa = gpa };
+        return .{ .arena = arena, .datatypes = declared, .classes = registry, .metas = .empty, .gpa = gpa };
     }
 
     pub fn deinit(self: *Substitution) void {
-        self.solutions.deinit(self.gpa);
-        self.kinds.deinit(self.gpa);
+        self.metas.deinit(self.gpa);
     }
 
     /// A metavariable of kind `kind` no type mentions yet.
     pub fn fresh(self: *Substitution, kind: types.Kind) !types.Type {
-        const id: types.Meta = @intCast(self.solutions.items.len);
-        try self.solutions.append(self.gpa, null);
-        try self.kinds.append(self.gpa, kind);
+        const id: types.Meta = @intCast(self.metas.len);
+        try self.metas.append(self.gpa, .{ .solution = null, .kind = kind, .poisoned = false });
         return .{ .meta = id };
     }
 
     pub fn kindOf(self: *const Substitution, id: types.Meta) types.Kind {
-        return self.kinds.items[id];
+        return self.metas.items(.kind)[id];
     }
 
     pub fn count(self: *const Substitution) usize {
-        return self.solutions.items.len;
+        return self.metas.len;
     }
 
     /// What `id` is solved to, or null if it is still unknown.
     pub fn lookup(self: *const Substitution, id: types.Meta) ?types.Type {
-        return self.solutions.items[id];
+        return self.metas.items(.solution)[id];
     }
 
-    /// Binds `id` to `t`.
+    /// Binds `id` to `t`, poisoning `t` when `id` is poisoned.
     ///
     /// Preconditions:
     /// - `id` is unsolved.
     /// - `id` does not occur in `t`, alias arguments included.
     pub fn bind(self: *Substitution, id: types.Meta, t: types.Type) void {
-        self.solutions.items[id] = t;
+        self.metas.items(.solution)[id] = t;
+        if (self.metas.items(.poisoned)[id]) self.poison(t);
+    }
+
+    /// Poisons every metavariable of `t`, solved ones included.
+    pub fn poison(self: *Substitution, t: types.Type) void {
+        switch (t) {
+            .meta => |id| {
+                self.metas.items(.poisoned)[id] = true;
+                if (self.metas.items(.solution)[id]) |solution| self.poison(solution);
+            },
+            .variable => {},
+            .constructor => |c| for (c.arguments) |argument| self.poison(argument),
+            .record => |r| {
+                for (r.fields) |f| self.poison(f.type.*);
+                if (r.rest) |rest| self.poison(rest.*);
+            },
+            .function => |arrow| {
+                self.poison(arrow.from);
+                self.poison(arrow.to);
+            },
+            .application => |a| {
+                self.poison(a.head);
+                self.poison(a.argument);
+            },
+            .alias => |a| {
+                for (a.arguments) |argument| self.poison(argument);
+                self.poison(a.expansion);
+            },
+        }
+    }
+
+    /// Whether `t` reaches a poisoned metavariable, through solutions
+    /// included.
+    pub fn isPoisoned(self: *const Substitution, t: types.Type) bool {
+        return switch (t) {
+            .meta => |id| self.metas.items(.poisoned)[id] or
+                if (self.metas.items(.solution)[id]) |solution| self.isPoisoned(solution) else false,
+            .variable => false,
+            .constructor => |c| for (c.arguments) |argument| {
+                if (self.isPoisoned(argument)) break true;
+            } else false,
+            .record => |r| for (r.fields) |f| {
+                if (self.isPoisoned(f.type.*)) break true;
+            } else if (r.rest) |rest| self.isPoisoned(rest.*) else false,
+            .function => |arrow| self.isPoisoned(arrow.from) or self.isPoisoned(arrow.to),
+            .application => |a| self.isPoisoned(a.head) or self.isPoisoned(a.argument),
+            .alias => |a| for (a.arguments) |argument| {
+                if (self.isPoisoned(argument)) break true;
+            } else self.isPoisoned(a.expansion),
+        };
     }
 
     /// Follows metavariable solutions until reaching an unsolved metavariable
@@ -118,11 +173,13 @@ pub const Substitution = struct {
     pub fn resolve(self: *Substitution, t: types.Type) types.Type {
         var current = t;
         while (current == .meta) {
-            const solution = self.solutions.items[current.meta] orelse return current;
-            // Path compression: point the head straight at what it resolves to.
+            const solution = self.metas.items(.solution)[current.meta] orelse return current;
+            // Path compression: point the head straight at what it resolves
+            // to, keeping the poison of the metavariable skipped.
             if (solution == .meta) {
-                if (self.solutions.items[solution.meta]) |next| {
-                    self.solutions.items[current.meta] = next;
+                if (self.metas.items(.solution)[solution.meta]) |next| {
+                    self.metas.items(.solution)[current.meta] = next;
+                    if (self.metas.items(.poisoned)[solution.meta]) self.metas.items(.poisoned)[current.meta] = true;
                     current = next;
                     continue;
                 }

@@ -1,0 +1,27 @@
+title: a body that does not match its signature still reports its other errors
+grammar: typescript
+asserts: error
+
+`f`'s branches are `String`, against its signature's `Int`, and comparing two
+functions is a separate error (Static semantics: Errors).
+
+--- tql ---
+f :: Int -> Int;
+f x = if (\y -> y) == (\z -> z) then "a" else "b";
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[signature-mismatch]: Expected `Int`, found `String`.
+ --> 1:1
+  |
+1 | f :: Int -> Int;
+  | ^^^^^^^^^^^^^^^^
+
+error[unsatisfied-constraint]: `Eq (a -> a)` is not satisfied.
+ --> 2:10
+  |
+2 | f x = if (\y -> y) == (\z -> z) then "a" else "b";
+  |          ^^^^^^^^^^^^^^^^^^^^^^

@@ -8,11 +8,11 @@ first_of p = case p of {
   (n, _) -> n;
 };
 
-main root = [first_of (1, "a", 2)];
+main = Filter (\root -> [first_of (1, "a", 2)]);
 
 --- error ---
 error[type-mismatch]: Expected `(Int, String)`, found `(Int, String, Int)`.
- --> 6:23
+ --> 6:35
   |
-6 | main root = [first_of (1, "a", 2)];
-  |                       ^^^^^^^^^^^
+6 | main = Filter (\root -> [first_of (1, "a", 2)]);
+  |                                   ^^^^^^^^^^^

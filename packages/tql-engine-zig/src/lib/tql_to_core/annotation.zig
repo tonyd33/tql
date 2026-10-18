@@ -670,7 +670,9 @@ const Translator = struct {
         const parameter = self.classKind(class);
         const t = try self.type(c.type, parameter);
         const env = self.scope.env;
-        if (try classes.reduce(&env.classes, class, t, classes.Bound{}, classes.Discard(error{}){})) |culprit| {
+        const solution = try classes.solve(self.gpa, &env.classes, class, t, classes.Bound{}, &.{}, classes.Check{ .assume = {} });
+        if (solution == .refuted) {
+            const culprit = solution.refuted;
             var names = try env.messageNames(self.gpa, &.{culprit}, &.{class});
             defer names.deinit(self.gpa);
             try self.sink.report(.unsatisfied_constraint, c.span, "`{f} {f}` is never satisfied", .{

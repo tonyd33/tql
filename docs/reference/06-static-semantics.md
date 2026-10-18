@@ -82,9 +82,8 @@ with `β̄` fresh.
            Γ ⊢ (x1 = e1; ...; xn = en)  ⇒  x1 : σ1, ..., xn : σn
 ```
 
-`Gen` solves the group's wanteds as far as they can be solved, then
-quantifies the type variables of the group's level that no outer type
-mentions, together with the residual constraints over them. The members
+`Gen` quantifies the type variables of the group's level that no outer
+type mentions, with the context [Solving](#solving) gives it. The members
 of a group share one context. The [generalisation](04-declarations.md#generalisation)
 rules restrict which variables `Gen` may quantify: for a top-level
 binding without parameters or signature, and for a local binding that
@@ -127,19 +126,35 @@ backtracks.
 
 ## Solving
 
-Each wanted is solved once, against the givens in scope, then their
-superclasses, then the instances. Solving it produces its evidence. The
-solver runs at each binding group's generalisation and once at the top
-of the program.
+An equality `τ1 ~ τ2` is solved by unification as it arises. Class
+wanteds are solved at each binding group's generalisation and once at
+the top of the program.
 
-A wanted on a type variable, or on a type whose head is a variable, is
-not reduced by an instance: it is solved from the givens, or kept for
-generalisation. Any other wanted is reduced by E-Inst until what is left
-is of that form. A wanted that no rule solves is an error,
-`unsatisfied-constraint`, reported at the expression it came from.
+A class wanted is solved once, against the givens in scope, then their
+superclasses, then the instances. A wanted on a type variable, or on a
+type whose head is a variable, is not reduced by an instance: it is
+solved from the givens, or kept as a residual. Any other wanted is
+reduced by E-Inst until its residuals are of that form.
 
-Every insoluble wanted of a program is reported, except those in a
-binding whose type depended on a binding that already failed.
+Each class wanted has an evidence variable. Solving it binds the variable
+in the scope that solved it:
+
+```
+let d = inst_C_T d1 ... dj in e
+```
+
+A wanted for a constraint already solved in its scope, or an enclosing
+one, shares that evidence.
+
+At generalisation, `Gen` reduces the group's wanteds and takes as context
+the residuals on the variables it quantifies, without those another's
+superclass entails. It solves the wanteds with that context as givens. A
+wanted, or a residual of one, that mentions no quantified variable floats
+to the enclosing scope, so `Eq Int` is solved once, at the top. A
+residual on a variable neither quantified nor in the environment is an
+error at once, `ambiguous-constraint`. What reaches the top is solved
+there, with no givens, and a residual still on a variable is
+`ambiguous-constraint`.
 
 ## Ambiguity
 
@@ -147,4 +162,17 @@ A scheme `∀ā. Q ⇒ τ` is ambiguous when a variable of `Q` does not occur in
 `τ`, with synonyms expanded. An ambiguous scheme is an error at its
 binding, `ambiguous-constraint`, whether it was inferred or written.
 
-There is no defaulting. A program states the type it means.
+There is no defaulting.
+
+## Errors
+
+A wanted that no rule can solve is insoluble. A class wanted that an
+instance lookup refutes is `unsatisfied-constraint`, and an equality
+between distinct constructors is `type-mismatch`, each at the expression
+it came from.
+
+Checking continues past an insoluble wanted. Every insoluble wanted of a
+program is reported, except one that follows from another. An error
+poisons the types it is about, and what their variables are unified with.
+A use of an undefined name, or of a binding whose type is poisoned, has a
+poisoned type. An error about a poisoned type is not reported.

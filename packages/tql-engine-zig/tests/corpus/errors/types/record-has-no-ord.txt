@@ -5,11 +5,11 @@ asserts: error
 A structural record's only field order is alphabetical, so no record has `Ord`. Compare through a field.
 
 --- tql ---
-main root = [range root < range root];
+main = Filter (\root -> [range root < range root]);
 
 --- error ---
 error[unsatisfied-constraint]: `Ord Range` is not satisfied.
- --> 1:14
+ --> 1:26
   |
-1 | main root = [range root < range root];
-  |              ^^^^^^^^^^^^^^^^^^^^^^^
+1 | main = Filter (\root -> [range root < range root]);
+  |                          ^^^^^^^^^^^^^^^^^^^^^^^

@@ -44,6 +44,7 @@ pub const utf8 = @import("utf8.zig");
 const grammar = @import("lang/grammar.zig");
 const string_literal = @import("lang/string_literal.zig");
 const pcre2 = @import("regex.zig");
+const budget = @import("budget.zig");
 
 pub const load = @import("load.zig");
 pub const Loader = load.Loader;
@@ -246,6 +247,9 @@ pub const Engine = struct {
 };
 
 /// A query checked and translated once, run against many targets.
+/// The most scratch one run may allocate. Freed bytes count too.
+pub const run_scratch_limit: usize = @min(4 * 1024 * 1024 * 1024, std.math.maxInt(usize));
+
 pub const CompiledQuery = struct {
     checked: core.Program,
     translated: stg.Program,
@@ -302,6 +306,8 @@ pub const CompiledQuery = struct {
     /// parsed from it, and serializing one slices it for `text`.
     ///
     /// `scratch` is the machine's arena. The caller resets it between files.
+    /// A run that allocates more than `run_scratch_limit` from it fails with
+    /// `error.OutOfMemory`.
     pub fn run(
         self: *const CompiledQuery,
         target: []const u8,
@@ -332,9 +338,11 @@ pub const CompiledQuery = struct {
         target: []const u8,
         target_path: ?[]const u8,
         result_allocator: Allocator,
-        scratch: Allocator,
+        uncapped: Allocator,
     ) RunError!RunOutcome {
         const query_start = std.Io.Timestamp.now(self.io, .real);
+        var capped: budget.ScratchBudget = .{ .child = uncapped, .limit = run_scratch_limit };
+        const scratch = capped.allocator();
 
         var machine = try stg.Machine.init(scratch, self.allocator, &self.translated);
         defer machine.deinit();
@@ -551,6 +559,7 @@ test {
     const refAllDecls = std.testing.refAllDecls;
     refAllDecls(@This());
     refAllDecls(pcre2);
+    refAllDecls(budget);
     refAllDecls(utf8);
     refAllDecls(cst);
     refAllDecls(diagnostic);

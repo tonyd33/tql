@@ -7,11 +7,12 @@ Every statement of a block runs in the block's monad.
 --- tql ---
 import Data.Maybe (Maybe(..));
 
-main root = do {
+sums root = do {
   x <- [1];
   y <- Just 2;
   return (x + y);
 };
+main = Filter sums;
 
 --- error ---
 error[type-mismatch]: Expected `List`, found `Maybe`.

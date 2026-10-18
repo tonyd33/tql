@@ -4,11 +4,11 @@ asserts: error
 
 --- tql ---
 double n = n * 2;
-main = double "text";
+main = pure (double "text");
 
 --- error ---
 error[type-mismatch]: Expected `Int`, found `String`.
- --> 2:15
+ --> 2:21
   |
-2 | main = double "text";
-  |               ^^^^^^
+2 | main = pure (double "text");
+  |                     ^^^^^^

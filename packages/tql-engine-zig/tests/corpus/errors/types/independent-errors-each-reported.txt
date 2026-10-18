@@ -1,0 +1,27 @@
+title: independent type errors are each reported
+grammar: typescript
+asserts: error
+
+Every insoluble wanted is reported at its own span (Static semantics:
+Errors). `f` and `g` do not depend on each other, so both fail.
+
+--- tql ---
+f x = 1 + "a";
+g = "b" + 2;
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 1:11
+  |
+1 | f x = 1 + "a";
+  |           ^^^
+
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 2:5
+  |
+2 | g = "b" + 2;
+  |     ^^^

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 (unreleased)
+
+### Improvements
+
+- The checker reports every independent type error, not only the first: `f x = 1 + "a"; g = "b" + 2;` reports both mismatches. An error that follows from an earlier one is not reported, and an ambiguous constraint names what is left undetermined: `Eq a`, not `Eq [a]`.
+
 ## 0.4.1 (unreleased)
 
 ### Improvements

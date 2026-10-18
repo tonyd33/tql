@@ -1,0 +1,21 @@
+title: an error that follows from an earlier one is not reported
+grammar: typescript
+asserts: error
+
+`f`'s error leaves its result type undetermined, so `not (f 1)` is not a
+mismatch of its own (Static semantics: Errors).
+
+--- tql ---
+f x = 1 + "a";
+g = not (f 1);
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 1:11
+  |
+1 | f x = 1 + "a";
+  |           ^^^

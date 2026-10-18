@@ -8,7 +8,7 @@ asserts: error
 import Data.Function (const);
 
 data T = T Int deriving (Ord);
-main = const [];
+main = pure 1;
 
 --- error ---
 error[invalid-instance]: `Ord T` needs `Eq T`

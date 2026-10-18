@@ -54,6 +54,9 @@ pub const Substituter = struct {
     functions: core.SymbolTable([]const core.SymbolId),
     /// What every call passes, by parameter.
     passed: core.SymbolTable(Passed),
+    /// Bindings, local or global, to a term that builds a dictionary. Passing
+    /// one passes that dictionary.
+    bound_dictionaries: core.SymbolTable(core.Term),
     /// Every argument a call passes at a function's parameter.
     arguments: std.ArrayList(Argument) = .empty,
 
@@ -64,6 +67,7 @@ pub const Substituter = struct {
             .env = env,
             .functions = .init(scratch),
             .passed = .init(scratch),
+            .bound_dictionaries = .init(scratch),
         };
     }
 
@@ -92,9 +96,14 @@ pub const Substituter = struct {
     }
 
     /// Record `name` as a function when `value` is a lambda and `name` may
-    /// lose a parameter.
+    /// lose a parameter, and as a dictionary when `value` builds one.
     fn declare(self: *Substituter, name: core.SymbolId, value: core.Term) Error!void {
-        if (value.kind != .lambda) return;
+        if (value.kind != .lambda) {
+            if (value.kind != .symbol and laws.buildsDictionary(&self.env.interner, &self.env.classes, value)) {
+                try self.bound_dictionaries.put(name, value);
+            }
+            return;
+        }
         if (self.env.interner.details(name) == .join) return;
         if (laws.named(&self.env.interner, &self.env.classes, &self.env.known, name)) return;
         const parameters = try self.scratch.alloc(core.SymbolId, value.arity());
@@ -168,6 +177,7 @@ pub const Substituter = struct {
     fn passing(self: *Substituter, t: core.Term) Error!Passed {
         if (t.kind == .symbol) {
             if (self.passed.get(t.kind.symbol)) |passed| return passed;
+            if (self.bound_dictionaries.get(t.kind.symbol)) |value| return try self.passing(value);
         }
         if (laws.appliedInstance(&self.env.interner, &self.env.classes, t) == null) return .varies;
         const applications = try self.scratch.alloc(core.Term, t.spineLength());

@@ -212,69 +212,132 @@ pub const Registry = struct {
         }
         return false;
     }
-
-    /// Whether a requirement of `context` entails `wanted`, a constraint on a
-    /// bound variable.
-    pub fn requires(self: *const Registry, context: []const Requirement, wanted: types.TypeClassConstraint) bool {
-        if (wanted.type != .variable) return false;
-        for (context) |r| {
-            if (r.variable == wanted.type.variable and self.entails(r.class, wanted.class)) return true;
-        }
-        return false;
-    }
-
-    /// Whether a constraint of `givens` on `wanted`'s type entails it.
-    pub fn entailedBy(self: *const Registry, givens: []const types.TypeClassConstraint, wanted: types.TypeClassConstraint) bool {
-        for (givens) |given| {
-            if (types.eql(given.type, wanted.type) and self.entails(given.class, wanted.class)) return true;
-        }
-        return false;
-    }
-
-    /// Moves to the front of `context`, in order, each constraint no other
-    /// constraint of it entails. Returns how many there are.
-    pub fn pruneEntailed(self: *const Registry, context: []types.TypeClassConstraint) usize {
-        var kept: usize = 0;
-        for (context, 0..) |c, i| {
-            if (self.entailedBy(context[0..i], c) or self.entailedBy(context[i + 1 ..], c)) continue;
-            context[kept] = c;
-            kept += 1;
-        }
-        return kept;
-    }
-
-    /// Appends to `out` the selectors that take a dictionary of `from` to one
-    /// of `to`, innermost first. Returns false, leaving `out` as it was, when
-    /// `from` does not entail `to` through superclasses with dictionaries.
-    pub fn superclassPath(
-        self: *const Registry,
-        from: ClassId,
-        to: ClassId,
-        out: *std.ArrayList(symbols.SymbolId),
-        gpa: Allocator,
-    ) Allocator.Error!bool {
-        if (from == to) return true;
-        for (self.get(from).selectors) |selector| {
-            const mark = out.items.len;
-            try out.append(gpa, selector.symbol);
-            if (try self.superclassPath(selector.superclass, to, out, gpa)) return true;
-            out.shrinkRetainingCapacity(mark);
-        }
-        return false;
-    }
 };
 
-/// A `reduce` sink that keeps no leaf, for asking only whether a constraint
-/// is refuted.
-pub fn Discard(comptime E: type) type {
+/// A constraint in scope, and its evidence.
+pub fn Given(comptime E: type) type {
     return struct {
-        pub const Error = E;
-
-        pub fn leaf(_: @This(), _: ClassId, _: types.Type) E!void {}
+        class: ClassId,
+        type: types.Type,
+        evidence: E,
     };
 }
 
-/// A `reduce` view of types over bound variables, with no metavariables to
+pub fn Solution(comptime E: type) type {
+    return union(enum) {
+        solved: E,
+        /// The part of the wanted's type no instance covers, written as the
+        /// wanted writes it.
+        refuted: types.Type,
+        /// A leaf neither the givens nor `sink.leaf` discharge.
+        stuck: types.TypeClassConstraint,
+    };
+}
+
+/// Solves `class t`, building its evidence: from a given, directly or
+/// through its superclasses, else from the instance at `t`'s head with its
+/// context solved the same way. A closed record is solved field by field
+/// when `class` covers records.
+///
+/// A leaf no given solves goes to `sink.leaf`. A leaf is a constraint on a
+/// metavariable or bound variable, on one applied to types, or on an open
+/// record whose known fields are not refuted.
+///
+/// `view` supplies:
+/// - `resolve(t) Type`: `t` with every solved metavariable at its head
+///   followed
+/// - `normalize(t) !Type`: `resolve`, also stripping every alias at the head,
+///   rebuilding an application whose head is solved, and following a
+///   record's row to the end
+/// - `resolveDeep(t) !Type`: `t` with every solved metavariable followed, for
+///   comparing against a given
+///
+/// `sink` supplies the type `Evidence` and:
+/// - `select(selector, of) !Evidence`: a superclass selected from `of`
+/// - `instance(id, context) !Evidence`: instance `id` at the evidence for
+///   each requirement of its context, in order
+/// - `record(class, fields, evidence) !Evidence`: a closed record's, from
+///   each field's
+/// - `builtin(class) Evidence`: for a class the machine handles
+/// - `leaf(class, t) !?Evidence`: for a leaf no given solves, or null when
+///   it is stuck
+pub fn solve(
+    gpa: Allocator,
+    registry: *const Registry,
+    class: ClassId,
+    t: types.Type,
+    view: anytype,
+    givens: anytype,
+    sink: anytype,
+) (@TypeOf(sink).Error || Allocator.Error)!Solution(@TypeOf(sink).Evidence) {
+    const E = @TypeOf(sink).Evidence;
+    if (givens.len > 0) {
+        const wanted = try view.resolveDeep(t);
+        for (givens) |g| {
+            if (!registry.entails(g.class, class)) continue;
+            if (!types.eql(try view.resolveDeep(g.type), wanted)) continue;
+            if (registry.evidenceOf(class) == .builtin) return .{ .solved = sink.builtin(class) };
+            return .{ .solved = try superclass(registry, g.class, class, g.evidence, sink) };
+        }
+    }
+
+    const written = view.resolve(t);
+    const expanded = try view.normalize(written);
+    switch (expanded) {
+        .meta, .variable, .application => {},
+        .alias => unreachable,
+        .constructor, .function => {
+            const c = types.asApplied(expanded).?;
+            const found = registry.instanceFor(class, c.name()) orelse return .{ .refuted = written };
+            const context = registry.instance(found).context;
+            const evidence = try gpa.alloc(E, context.len);
+            defer gpa.free(evidence);
+            for (context, evidence) |needed, *slot| {
+                const solution = try solve(gpa, registry, needed.class, c.argument(needed.variable), view, givens, sink);
+                if (solution != .solved) return solution;
+                slot.* = solution.solved;
+            }
+            return .{ .solved = try sink.instance(found, evidence) };
+        },
+        .record => |r| {
+            if (!coversRecords(class)) return .{ .refuted = written };
+            if (r.rest == null) {
+                const evidence = try gpa.alloc(E, r.fields.len);
+                defer gpa.free(evidence);
+                for (r.fields, evidence) |f, *slot| {
+                    const solution = try solve(gpa, registry, class, f.type.*, view, givens, sink);
+                    if (solution != .solved) return solution;
+                    slot.* = solution.solved;
+                }
+                if (registry.evidenceOf(class) == .builtin) return .{ .solved = sink.builtin(class) };
+                return .{ .solved = try sink.record(class, r.fields, evidence) };
+            }
+            // An open record's known fields can refute it, and the rest is
+            // decided once its row is.
+            for (r.fields) |f| {
+                switch (try solve(gpa, registry, class, f.type.*, view, @as([]const Given(void), &.{}), Check{ .assume = {} })) {
+                    .refuted => |culprit| return .{ .refuted = culprit },
+                    .solved, .stuck => {},
+                }
+            }
+        },
+    }
+    if (try sink.leaf(class, expanded)) |e| return .{ .solved = e };
+    return .{ .stuck = .{ .class = class, .type = expanded } };
+}
+
+/// The evidence for `to`, a superclass of `from` at any depth, selected
+/// from `of`, evidence for `from`.
+fn superclass(registry: *const Registry, from: ClassId, to: ClassId, of: anytype, sink: anytype) !@TypeOf(of) {
+    if (from == to) return of;
+    for (registry.get(from).selectors) |selector| {
+        if (!registry.entails(selector.superclass, to)) continue;
+        return try superclass(registry, selector.superclass, to, try sink.select(selector.symbol, of), sink);
+    }
+    unreachable;
+}
+
+/// A `solve` view of types over bound variables, with no metavariables to
 /// follow.
 pub const Bound = struct {
     pub fn resolve(_: Bound, t: types.Type) types.Type {
@@ -284,6 +347,10 @@ pub const Bound = struct {
     pub fn normalize(_: Bound, t: types.Type) error{}!types.Type {
         return types.unalias(t);
     }
+
+    pub fn resolveDeep(_: Bound, t: types.Type) error{}!types.Type {
+        return t;
+    }
 };
 
 /// How many variables an instance head of type `t` is over.
@@ -292,63 +359,72 @@ pub fn parameterCount(t: types.Type) u8 {
     return @intCast(c.arity());
 }
 
-/// Reduces `class t` to the constraints on its leaves it holds under, through
-/// instances, handing each to `sink.leaf`.
-///
-/// `view` supplies:
-/// - `resolve(t) Type`: `t` with every solved metavariable at its head
-///   followed
-/// - `normalize(t) !Type`: `resolve`, also stripping every alias at the head,
-///   rebuilding an application whose head is solved, and following a
-///   record's row to the end
-///
-/// `sink` supplies `leaf(class, t) !void`, for a constraint on a
-/// metavariable or bound variable, on one applied to types, or on an open
-/// record whose known fields are not refuted.
-///
-/// Returns the first refuted part of `t`, if any, written as `t` writes it.
-pub fn reduce(
-    registry: *const Registry,
-    class: ClassId,
-    t: types.Type,
-    view: anytype,
-    sink: anytype,
-) @TypeOf(sink).Error!?types.Type {
-    const written = view.resolve(t);
-    const expanded = try view.normalize(written);
-    switch (expanded) {
-        // An application here has an unsolved head.
-        .meta, .variable, .application => try sink.leaf(class, expanded),
-        .alias => unreachable,
-        .constructor, .function => {
-            const c = types.asApplied(expanded).?;
-            const found = registry.instanceFor(class, c.name()) orelse return written;
-            for (registry.instance(found).context) |needed| {
-                const argument = c.argument(needed.variable);
-                if (try reduce(registry, needed.class, argument, view, sink)) |culprit| return culprit;
-            }
-        },
-        .record => |r| {
-            if (!coversRecords(class)) return written;
-            if (r.rest == null) return try reduceFields(registry, class, r.fields, view, sink);
-            // An open record's known fields can refute it, and the rest is
-            // decided once its row is.
-            if (try reduceFields(registry, class, r.fields, view, Discard(@TypeOf(sink).Error){})) |culprit| return culprit;
-            try sink.leaf(class, expanded);
-        },
+/// A `solve` sink that builds no evidence, by what it makes of a leaf no
+/// given solves.
+pub const Check = union(enum) {
+    /// Solved, for asking only whether a constraint is refuted.
+    assume,
+    /// Stuck, for asking whether the givens alone solve a constraint.
+    refuse,
+    /// Solved, and appended to `out`.
+    collect: struct {
+        gpa: Allocator,
+        out: *std.ArrayList(types.TypeClassConstraint),
+    },
+
+    pub const Evidence = void;
+    pub const Error = Allocator.Error;
+
+    pub fn select(_: Check, _: symbols.SymbolId, _: void) Error!void {}
+    pub fn instance(_: Check, _: InstanceId, _: []const void) Error!void {}
+    pub fn record(_: Check, _: ClassId, _: []const types.Type.Field, _: []const void) Error!void {}
+    pub fn builtin(_: Check, _: ClassId) void {}
+
+    pub fn leaf(self: Check, class: ClassId, t: types.Type) Error!?void {
+        switch (self) {
+            .assume => return {},
+            .refuse => return null,
+            .collect => |c| {
+                try c.out.append(c.gpa, .{ .class = class, .type = t });
+                return {};
+            },
+        }
     }
-    return null;
+};
+
+/// Appends each of `constraints` to `out` as a given with no evidence.
+pub fn assume(
+    gpa: Allocator,
+    constraints: []const types.TypeClassConstraint,
+    out: *std.ArrayList(Given(void)),
+) Allocator.Error!void {
+    for (constraints) |c| try out.append(gpa, .{ .class = c.class, .type = c.type, .evidence = {} });
 }
 
-fn reduceFields(
+/// Moves to the front of `context`, in order, each constraint the others do
+/// not solve as givens. Returns how many there are.
+///
+/// Preconditions:
+/// - Each constraint of `context` is a leaf.
+pub fn prune(
+    gpa: Allocator,
     registry: *const Registry,
-    class: ClassId,
-    fields: []const types.Type.Field,
+    context: []types.TypeClassConstraint,
     view: anytype,
-    sink: anytype,
-) @TypeOf(sink).Error!?types.Type {
-    for (fields) |f| {
-        if (try reduce(registry, class, f.type.*, view, sink)) |culprit| return culprit;
+) Allocator.Error!usize {
+    var givens: std.ArrayList(Given(void)) = .empty;
+    defer givens.deinit(gpa);
+    var kept: usize = 0;
+    for (context, 0..) |c, i| {
+        givens.clearRetainingCapacity();
+        try assume(gpa, context[0..kept], &givens);
+        try assume(gpa, context[i + 1 ..], &givens);
+        switch (try solve(gpa, registry, c.class, c.type, view, givens.items, Check{ .refuse = {} })) {
+            .solved => continue,
+            .refuted, .stuck => {},
+        }
+        context[kept] = c;
+        kept += 1;
     }
-    return null;
+    return kept;
 }

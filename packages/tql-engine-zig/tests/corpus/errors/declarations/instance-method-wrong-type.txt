@@ -5,7 +5,7 @@ asserts: error
 --- tql ---
 class Describe a where { describe :: a -> String; };
 instance Describe Int where { describe n = n + 1; };
-main = empty;
+main = pure 1;
 
 --- error ---
 error[signature-mismatch]: Expected `String`, found `Int`.

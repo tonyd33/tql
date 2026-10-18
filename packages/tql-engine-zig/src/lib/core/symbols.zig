@@ -236,6 +236,12 @@ pub const Interner = struct {
         return id;
     }
 
+    /// Makes the local binder `id` a global of `module` that no lookup finds.
+    /// For a binder that ends up bound by a top-level definition.
+    pub fn globalize(self: *Interner, id: SymbolId, module: ModuleId) void {
+        self.entries.items[@intFromEnum(id)].module = module;
+    }
+
     /// A local binder.
     pub fn fresh(self: *Interner, name: []const u8) Allocator.Error!SymbolId {
         return try self.append(.{ .spelling = try self.allocator.dupe(u8, name), .details = .vanilla });

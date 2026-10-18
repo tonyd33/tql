@@ -69,6 +69,29 @@
 //! occurrence analysis picks loop breakers, which are never inlined. See
 //! Loop breakers in `occurrence.zig`.
 //!
+//! ## Dictionaries
+//!
+//! Evidence arrives bound by `let`, and the simplifier keeps it bound. In
+//!
+//! ```
+//! let ev = instance[Eq,List] d in \xs -> eq ev xs xs
+//! ```
+//!
+//! `ev`'s value builds a record and a closure per method, and its use sits
+//! under a lambda, so inlining it would rebuild them on every call. Keeping
+//! it bound has a cost: the law that selects `eq[List] d` from
+//! `eq (instance[Eq,List] d)` now meets `ev`, not an instance. A binding
+//! whose value builds a dictionary from dictionaries, an instance or a
+//! superclass selector applied to them, is recorded for that reason, and a
+//! law or a `case` that wants a dictionary looks through it. The dictionary
+//! is built once and still matched.
+//!
+//! Selecting a superclass is a `case` of the dictionary. A `case` of an
+//! instance applied to dictionaries inlines that instance's dictionary
+//! function whatever its size, because its body is known to return the
+//! class's constructor: the `case` takes the alternative, and the fields it
+//! doesn't bind are dead.
+//!
 //! ## References
 //!
 //! - Simon Peyton Jones and Andre Santos. "A transformation-based optimiser
@@ -193,6 +216,10 @@ pub const Simplifier = struct {
     unfoldings: core.SymbolTable(core.Term),
     /// Bindings, local or global, to a lambda, loop breakers included.
     functions: core.SymbolTable(void),
+    /// Each instance's dictionary function, by its global. A `case` of one
+    /// applied to dictionaries inlines it, whatever its size, since what it
+    /// returns is known to be its class's constructor.
+    instances: core.SymbolTable(core.Term),
     /// Whether a rewrite fired.
     changed: bool = false,
 
@@ -212,6 +239,7 @@ pub const Simplifier = struct {
                 .classes = &env.classes,
                 .primitives = &env.primitives,
                 .known = &env.known,
+                .dictionaries = .init(scratch),
                 .list = core.datatypes.list_id,
                 .nil = env.datatypes.nilConstructor().symbol,
                 .cons = env.datatypes.consConstructor().symbol,
@@ -229,14 +257,16 @@ pub const Simplifier = struct {
             .known = .init(scratch),
             .unfoldings = .init(scratch),
             .functions = .init(scratch),
+            .instances = .init(scratch),
         };
     }
 
     /// Record `value`, simplified, as `name`'s unfolding, when `name` is not a
     /// loop breaker and `value` is a lambda or trivial. Record a lambda as a
-    /// function either way.
+    /// function, and a dictionary as one, either way.
     pub fn unfold(self: *Simplifier, name: core.SymbolId, value: core.Term) Error!void {
         if (value.kind == .lambda) try self.functions.put(name, {});
+        try self.laws.record(name, value);
         if (self.recorded(name) == .loop_breaker) return;
         if (cost.trivial(value)) {
             if (!self.options.post_inline) return;
@@ -381,17 +411,18 @@ pub const Simplifier = struct {
         continuation: []const Frame,
         span: diagnostic.Span,
     ) Error!core.Term {
-        switch (occurrence) {
-            .dead => if (self.options.dead_bindings) {
-                self.changed = true;
-                return try self.term(body, continuation);
-            },
-            .once => |once| if (self.options.pre_inline and movable(once, value.value())) {
-                self.changed = true;
-                try self.substitution.put(name, value);
-                return try self.term(body, continuation);
-            },
-            .many, .loop_breaker => {},
+        if (occurrence == .dead and self.options.dead_bindings) {
+            self.changed = true;
+            return try self.term(body, continuation);
+        }
+        const substituted = switch (occurrence) {
+            .once => |once| self.options.pre_inline and movable(once, value.value()),
+            .dead, .many, .loop_breaker => false,
+        };
+        if (substituted) {
+            self.changed = true;
+            try self.substitution.put(name, value);
+            return try self.term(body, continuation);
         }
         if (try self.letToCase(name, value, body, continuation)) |forced| return forced;
 
@@ -504,10 +535,37 @@ pub const Simplifier = struct {
     }
 
     /// Record what the global `name` is bound to before any definition is
-    /// simplified: a constructor of trivial fields or a function.
+    /// simplified: a constructor of trivial fields, a function, a dictionary,
+    /// or an instance's dictionary function.
     pub fn seed(self: *Simplifier, name: core.SymbolId, value: core.Term) Error!void {
         try self.know(name, value);
         if (value.kind == .lambda) try self.functions.put(name, {});
+        try self.laws.record(name, value);
+        if (self.instanceUnfolding(name, value)) try self.instances.put(name, value);
+    }
+
+    /// Whether `value`, bound to `name`, is an instance's dictionary function:
+    /// a lambda over its context's dictionaries returning, under `let`s, its
+    /// class's constructor.
+    fn instanceUnfolding(self: *Simplifier, name: core.SymbolId, value: core.Term) bool {
+        const id = switch (self.env.interner.details(name)) {
+            .instance => |id| id,
+            else => return false,
+        };
+        const instance = self.env.classes.instance(id);
+        const constructor = self.env.classes.get(instance.class).constructor orelse return false;
+        var body = value;
+        for (0..self.env.classes.dictionaryCount(instance.context)) |_| {
+            if (body.kind != .lambda) return false;
+            body = body.kind.lambda.body;
+        }
+        while (true) switch (body.kind) {
+            .let => |let| body = let.body,
+            .letrec => |letrec| body = letrec.body,
+            else => break,
+        };
+        const head = body.head();
+        return head.kind == .symbol and head.kind.symbol == constructor;
     }
 
     /// Record `name` as bound to `value`, simplified, when `value` is a
@@ -530,6 +588,15 @@ pub const Simplifier = struct {
                 self.changed = true;
                 const call = try self.builder.applyMany(self.builder.symbol(folded.comparison, scrutinee.span), &.{ folded.left, folded.right }, span);
                 return try self.rebuild(call, rest);
+            }
+        }
+        if (self.options.case_of_known_constructor) {
+            if (try self.unfoldInstance(scrutinee)) |unfolded| {
+                self.changed = true;
+                const frames = try self.scratch.alloc(Frame, rest.len + 1);
+                frames[0] = .{ .select = frame };
+                @memcpy(frames[1..], rest);
+                return try self.reenter(unfolded, frames);
             }
         }
         const known = if (self.options.case_of_known_constructor) try self.knownConstructor(scrutinee) else null;
@@ -716,6 +783,22 @@ pub const Simplifier = struct {
         return try self.builder.lets(kept.items, try self.term(alternative.body, continuation), span);
     }
 
+    /// `t`, a dictionary, as a copy of its instance's dictionary function
+    /// applied to the dictionaries of the instance's context, when it is one.
+    fn unfoldInstance(self: *Simplifier, t: core.Term) Error!?core.Term {
+        const applied = self.laws.dictionaryOf(t);
+        const head = applied.head();
+        if (head.kind != .symbol) return null;
+        const unfolding = self.instances.get(head.kind.symbol) orelse return null;
+        if (laws.appliedInstance(&self.env.interner, &self.env.classes, applied) == null) return null;
+        var renamed: std.AutoHashMapUnmanaged(core.SymbolId, core.SymbolId) = .empty;
+        const copied = try self.analyser.analyse(try self.copy(unfolding, &renamed));
+        const arguments = try self.scratch.alloc(core.Term, applied.spineLength());
+        applied.applications(arguments);
+        for (arguments) |*a| a.* = a.kind.apply.argument;
+        return try self.builder.applyMany(copied, arguments, applied.span);
+    }
+
     /// The constructor and fields `t` is known to be, when it is a saturated
     /// constructor application or a binding recorded in `known`.
     fn knownConstructor(self: *Simplifier, t: core.Term) Error!?Constructed {
@@ -779,7 +862,7 @@ pub const Simplifier = struct {
     /// Whether `argument` is an instance's dictionary, applied to the
     /// dictionaries of its context or not.
     fn dictionary(self: *const Simplifier, argument: core.Term) bool {
-        const head = argument.head();
+        const head = self.laws.dictionaryOf(argument).head();
         return head.kind == .symbol and self.env.interner.details(head.kind.symbol) == .instance;
     }
 

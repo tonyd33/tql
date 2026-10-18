@@ -542,6 +542,8 @@ pub const Linker = struct {
     fn inferContexts(self: *Linker, pending: []Pending) Error!void {
         var leaves: std.ArrayList(types.TypeClassConstraint) = .empty;
         defer leaves.deinit(self.gpa);
+        var givens: std.ArrayList(classes.Given(void)) = .empty;
+        defer givens.deinit(self.gpa);
         var changed = true;
         while (changed) {
             changed = false;
@@ -552,8 +554,11 @@ pub const Linker = struct {
                 fields: for (self.env.datatypes.get(p.datatype).constructors, p.declared.constructors) |constructor, written| {
                     for (constructor.fields, written.fields) |field, written_field| {
                         leaves.clearRetainingCapacity();
-                        const view = classes.Bound{};
-                        if (try classes.reduce(&self.env.classes, instance.class, field, view, Leaves{ .gpa = self.gpa, .out = &leaves })) |culprit| {
+                        givens.clearRetainingCapacity();
+                        try classes.assume(self.gpa, p.context.items, &givens);
+                        const solution = try classes.solve(self.gpa, &self.env.classes, instance.class, field, classes.Bound{}, givens.items, classes.Check{ .collect = .{ .gpa = self.gpa, .out = &leaves } });
+                        if (solution == .refuted) {
+                            const culprit = solution.refuted;
                             var names = try self.env.messageNames(self.gpa, &.{ instance.type, culprit }, &.{});
                             defer names.deinit(self.gpa);
                             const class = self.env.classes.spelling(instance.class);
@@ -586,7 +591,6 @@ pub const Linker = struct {
                                 self.failed = true;
                                 break :fields;
                             }
-                            if (self.env.classes.entailedBy(p.context.items, leaf)) continue;
                             try p.context.append(self.gpa, leaf);
                         }
                     }
@@ -599,7 +603,7 @@ pub const Linker = struct {
 
         for (pending) |*p| {
             if (p.failed) continue;
-            const kept = self.env.classes.pruneEntailed(p.context.items);
+            const kept = try classes.prune(self.gpa, &self.env.classes, p.context.items, classes.Bound{});
             self.env.classes.instanceMut(p.instance).context = try self.requirements(p.context.items[0..kept]);
         }
     }
@@ -662,51 +666,6 @@ pub const Linker = struct {
         };
     }
 };
-
-/// Reports each instance whose class has a superclass the instance's head
-/// does not admit under the instance's context. Returns whether there was
-/// none.
-///
-/// Preconditions:
-/// - Every module of the link is declared.
-pub fn checkSuperclasses(gpa: Allocator, env: *const core.env.Env, sink: *diagnostic.Sink) Error!bool {
-    var ok = true;
-    for (env.classes.instances.items) |instance| {
-        const class = env.classes.get(instance.class);
-        for (class.superclasses) |super| {
-            const needed = try unmet(gpa, env, instance, super) orelse continue;
-            ok = false;
-            var names = try env.messageNames(gpa, &.{ instance.type, needed.type }, &.{ instance.class, needed.class });
-            defer names.deinit(gpa);
-            try sink.report(
-                .invalid_instance,
-                instance.span,
-                "`{f} {f}` needs `{f} {f}`",
-                .{
-                    names.class(instance.class, class.name.name),
-                    instance.type.namedOperand(&names),
-                    names.class(needed.class, env.classes.spelling(needed.class)),
-                    needed.type.namedOperand(&names),
-                },
-            );
-        }
-    }
-    return ok;
-}
-
-/// The part of `super` at `instance`'s head that its context does not
-/// supply, if any.
-fn unmet(gpa: Allocator, env: *const core.env.Env, instance: classes.Instance, super: classes.ClassId) Error!?types.TypeClassConstraint {
-    var leaves: std.ArrayList(types.TypeClassConstraint) = .empty;
-    defer leaves.deinit(gpa);
-    if (try classes.reduce(&env.classes, super, instance.type, classes.Bound{}, Leaves{ .gpa = gpa, .out = &leaves })) |culprit| {
-        return .{ .class = super, .type = culprit };
-    }
-    for (leaves.items) |leaf| {
-        if (!env.classes.requires(instance.context, leaf)) return leaf;
-    }
-    return null;
-}
 
 /// Builds a derived `eq` or `compare`, which compares constructor tags, then
 /// fields left to right through each field type's own instance.
@@ -816,17 +775,5 @@ const Derivation = struct {
             if (argument != .variable or argument.variable != i) return false;
         }
         return true;
-    }
-};
-
-/// Collects the constraints a reduction leaves on bound variables.
-const Leaves = struct {
-    gpa: Allocator,
-    out: *std.ArrayList(types.TypeClassConstraint),
-
-    pub const Error = Allocator.Error;
-
-    pub fn leaf(self: Leaves, class: classes.ClassId, t: types.Type) Allocator.Error!void {
-        try self.out.append(self.gpa, .{ .class = class, .type = t });
     }
 };

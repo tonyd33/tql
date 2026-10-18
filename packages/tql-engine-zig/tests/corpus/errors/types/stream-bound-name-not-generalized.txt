@@ -5,10 +5,11 @@ asserts: error
 `f` cannot be used at two different types.
 
 --- tql ---
-main _ = do {
+pairs _ = do {
   f <- [\x -> x];
   return { a = f 1, b = f "s" };
 };
+main = Filter pairs;
 
 --- error ---
 error[type-mismatch]: Expected `Int`, found `String`.
