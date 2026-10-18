@@ -86,6 +86,7 @@ const Options = struct {
     corpus_dir: []const u8 = DEFAULT_CORPUS_DIR,
     max_pending: ?u32 = null,
     fail_fast: bool = false,
+    safe: bool = false,
     color: bool = true,
     jobs: ?u32 = null,
 };
@@ -134,6 +135,9 @@ const TestRunContext = struct {
     reasons: std.ArrayList([]const u8),
     /// Diagnostics from a stage the case did not expect to fail.
     unexpected: ?[]const u8,
+    /// Time spent running the case through the engine.
+    wall: std.Io.Duration = .zero,
+    cpu: std.Io.Duration = .zero,
 
     fn init(gpa: std.mem.Allocator, stdout: *std.Io.Writer, opts: Options, library: *const tql.Library) TestRunContext {
         return .{
@@ -189,7 +193,6 @@ const CaseRun = struct {
     ctx: TestRunContext,
     ran: bool = false,
     result: FileResult = .{ .passed = 0, .failed = 0, .skipped = 0, .pending = 0, .failed_fast = false },
-    duration: std.Io.Duration = .zero,
     err: ?anyerror = null,
 
     /// Preconditions:
@@ -218,7 +221,6 @@ const CaseRun = struct {
     }
 };
 
-/// Times the case on the thread's CPU clock.
 /// Stdout shared by concurrently running cases.
 const SharedOutput = struct {
     mutex: std.Io.Mutex = .init,
@@ -234,13 +236,22 @@ const SharedOutput = struct {
 };
 
 fn runCase(run: *CaseRun, out: *SharedOutput, io: std.Io) void {
-    const started = std.Io.Clock.cpu_thread.now(io);
     defer run.ran = true;
+    if (run.ctx.opts.safe) {
+        const line = std.fmt.allocPrint(run.ctx.gpa, "  RUN {s}\n", .{run.name()}) catch |err| {
+            run.err = err;
+            return;
+        };
+        defer run.ctx.gpa.free(line);
+        out.emit(io, line) catch |err| {
+            run.err = err;
+            return;
+        };
+    }
     run.result = testFile(&run.ctx, io, run.filename) catch |err| {
         run.err = err;
         return;
     };
-    run.duration = started.untilNow(io, .cpu_thread);
     out.emit(io, run.log.written()) catch |err| {
         run.err = err;
     };
@@ -258,7 +269,7 @@ fn runWorker(runs: []CaseRun, next: *std.atomic.Value(usize), out: *SharedOutput
 const SLOWEST_SHOWN = 5;
 
 fn slowerThan(runs: []const CaseRun, a: usize, b: usize) bool {
-    return runs[a].duration.nanoseconds > runs[b].duration.nanoseconds;
+    return runs[a].ctx.cpu.nanoseconds > runs[b].ctx.cpu.nanoseconds;
 }
 
 pub fn dictionarySort(
@@ -353,13 +364,13 @@ pub fn main(init: std.process.Init) !u8 {
 
     var shared: SharedOutput = .{ .writer = stdout };
     const started = std.Io.Clock.awake.now(io);
-    if (opts.fail_fast) {
+    if (opts.fail_fast or opts.safe) {
         for (runs) |*run| {
             runCase(run, &shared, io);
             if (run.err != null or run.result.failed_fast) break;
         }
     } else {
-        const jobs = opts.jobs orelse @as(u32, @intCast(std.Thread.getCpuCount() catch 1));
+        const jobs: u32 = opts.jobs orelse @intCast((std.Thread.getCpuCount() catch 1) / 2);
         var next: std.atomic.Value(usize) = .init(0);
         var group: std.Io.Group = .init;
         for (0..@max(jobs, 1)) |_| group.async(io, runWorker, .{ runs, &next, &shared, io });
@@ -371,10 +382,12 @@ pub fn main(init: std.process.Init) !u8 {
     var failed: u32 = 0;
     var skipped: u32 = 0;
     var pending: u32 = 0;
+    var cpu: std.Io.Duration = .zero;
 
     for (runs) |*run| {
         if (!run.ran) break;
         if (run.err) |err| return err;
+        cpu.nanoseconds += run.ctx.cpu.nanoseconds;
         passed += run.result.passed;
         failed += run.result.failed;
         skipped += run.result.skipped;
@@ -394,7 +407,7 @@ pub fn main(init: std.process.Init) !u8 {
                 try stdout.print("{s}, {d} skipped{s}", .{ ansi.dim, skipped, ansi.reset });
             }
         }
-        try stdout.print("{s} in {f}{s}\n", .{ ansi.dim, elapsed, ansi.reset });
+        try stdout.print("{s} in {f}, {f} CPU in cases{s}\n", .{ ansi.dim, elapsed, cpu, ansi.reset });
         if (pending > 0) {
             try stdout.print(
                 "{s}{d} pending section{s} not asserted{s}\n",
@@ -403,8 +416,8 @@ pub fn main(init: std.process.Init) !u8 {
         }
     } else {
         try stdout.print(
-            "{d} passed, {d} failed, {d} skipped, {d} pending in {f}\n",
-            .{ passed, failed, skipped, pending, elapsed },
+            "{d} passed, {d} failed, {d} skipped, {d} pending in {f}, {f} CPU in cases\n",
+            .{ passed, failed, skipped, pending, elapsed, cpu },
         );
     }
 
@@ -479,7 +492,7 @@ fn printSlowest(gpa: std.mem.Allocator, stdout: *std.Io.Writer, runs: []const Ca
         try stdout.writeAll("\nslowest\n");
     }
     for (executed.items[0..SLOWEST_SHOWN]) |i| {
-        try stdout.print("  {f} {s}\n", .{ runs[i].duration, runs[i].name() });
+        try stdout.print("  {f} {s}\n", .{ runs[i].ctx.cpu, runs[i].name() });
     }
 }
 
@@ -605,23 +618,43 @@ fn testCase(
     group: []const u8,
     name: []const u8,
 ) !CaseResult {
+    if (ctx.opts.safe) {
+        var test_gpa: std.heap.DebugAllocator(.{}) = .init;
+        return checkCase(ctx, io, tc, updates, group, name, &test_gpa);
+    }
+    // Reports a leak without its allocation site.
+    var test_gpa: std.heap.DebugAllocator(.{ .stack_trace_frames = 0 }) = .{
+        .backing_allocator = std.heap.c_allocator,
+    };
+    return checkCase(ctx, io, tc, updates, group, name, &test_gpa);
+}
+
+/// Preconditions:
+/// - `test_gpa` is a fresh `std.heap.DebugAllocator`; its `deinit` reports
+///   whether the case leaked.
+fn checkCase(
+    ctx: *TestRunContext,
+    io: std.Io,
+    tc: corpus_parser.TestCase,
+    updates: *std.ArrayList(corpus_parser.SectionUpdate),
+    group: []const u8,
+    name: []const u8,
+    test_gpa: anytype,
+) !CaseResult {
     const gpa = ctx.gpa;
-    var test_gpa: std.heap.DebugAllocator(.{}) = .init;
     const test_alloc = test_gpa.allocator();
     var unexpected: ?[]const u8 = null;
-    const actual = runTestCase(test_alloc, io, ctx.library, tc, &unexpected) catch |err| {
+    const wall_started = std.Io.Clock.awake.now(io);
+    const cpu_started = std.Io.Clock.cpu_thread.now(io);
+    const outputs = runTestCase(test_alloc, io, ctx.library, tc, &unexpected);
+    ctx.wall = wall_started.untilNow(io, .awake);
+    ctx.cpu = cpu_started.untilNow(io, .cpu_thread);
+    const actual = outputs catch |err| {
         defer _ = test_gpa.deinit();
         defer if (unexpected) |text| test_alloc.free(text);
         try ctx.addReason(@errorName(err));
         if (unexpected) |text| ctx.unexpected = try gpa.dupe(u8, text);
-        if (ctx.opts.color) {
-            try ctx.stdout.print(
-                "  {s}✗{s} {s} {s}({s}){s}\n",
-                .{ ansi.red_bold, ansi.reset, name, ansi.dim, @errorName(err), ansi.reset },
-            );
-        } else {
-            try ctx.stdout.print("  FAIL {s} ({t})\n", .{ name, err });
-        }
+        try printStatus(ctx, .failed, name, err);
         if (unexpected) |text| {
             var lines = std.mem.splitScalar(u8, text, '\n');
             while (lines.next()) |line| {
@@ -658,11 +691,7 @@ fn testCase(
                     test_modified = true;
                 } else {
                     if (!test_failed) {
-                        if (ctx.opts.color) {
-                            try ctx.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, name });
-                        } else {
-                            try ctx.stdout.print("  FAIL {s}\n", .{name});
-                        }
+                        try printStatus(ctx, .failed, name, null);
                         test_failed = true;
                     }
                     try ctx.addDiff(group, name, kind.name(), exp, actual_val);
@@ -677,11 +706,7 @@ fn testCase(
             test_modified = true;
         } else {
             if (!test_failed) {
-                if (ctx.opts.color) {
-                    try ctx.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, name });
-                } else {
-                    try ctx.stdout.print("  FAIL {s}\n", .{name});
-                }
+                try printStatus(ctx, .failed, name, null);
                 test_failed = true;
             }
             try ctx.addDiff(group, name, kind.name(), "", actual_val);
@@ -694,11 +719,7 @@ fn testCase(
     if (leaked) {
         try ctx.addReason("memory leak");
         if (!test_failed) {
-            if (ctx.opts.color) {
-                try ctx.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, name });
-            } else {
-                try ctx.stdout.print("  FAIL {s}\n", .{name});
-            }
+            try printStatus(ctx, .failed, name, null);
             test_failed = true;
         }
         if (ctx.opts.color) {
@@ -711,20 +732,27 @@ fn testCase(
     if (test_failed) {
         return .failed;
     } else if (test_modified) {
-        if (ctx.opts.color) {
-            try ctx.stdout.print("  {s}~{s} {s}\n", .{ ansi.yellow_bold, ansi.reset, name });
-        } else {
-            try ctx.stdout.print("  UPDATED {s}\n", .{name});
-        }
+        try printStatus(ctx, .modified, name, null);
         return .modified;
     } else {
-        if (ctx.opts.color) {
-            try ctx.stdout.print("  {s}✓{s} {s}\n", .{ ansi.green, ansi.reset, name });
-        } else {
-            try ctx.stdout.print("  PASS {s}\n", .{name});
-        }
+        try printStatus(ctx, .passed, name, null);
         return .passed;
     }
+}
+
+fn printStatus(ctx: *TestRunContext, status: CaseResult, name: []const u8, err: ?anyerror) !void {
+    const color = ctx.opts.color;
+    const mark, const mark_color = switch (status) {
+        .passed => if (color) .{ "✓", ansi.green } else .{ "PASS", "" },
+        .failed => if (color) .{ "✗", ansi.red_bold } else .{ "FAIL", "" },
+        .modified => if (color) .{ "~", ansi.yellow_bold } else .{ "UPDATED", "" },
+        .skipped => unreachable,
+    };
+    const dim = if (color) ansi.dim else "";
+    const reset = if (color) ansi.reset else "";
+    try ctx.stdout.print("  {s}{s}{s} {s}{s}", .{ mark_color, mark, reset, name, dim });
+    if (err) |e| try ctx.stdout.print(" ({t})", .{e});
+    try ctx.stdout.print(" {f} (cpu {f}){s}\n", .{ ctx.wall, ctx.cpu, reset });
 }
 
 /// Whether a produced section matches what the case asserts.
@@ -1288,9 +1316,13 @@ const cli_opts = .{
         .names = .{ .long = "jobs", .short = 'j' },
         .has_arg = .required_argument,
         .meta = "N",
-        .description = "Run N cases at a time (default: number of CPUs)",
+        .description = "Run N cases at a time (default: half the number of logical CPUs)",
     },
     .fail_fast = goz.Opt{ .names = .{ .long = "fail-fast" }, .description = "Stop on first failure; runs cases one at a time" },
+    .safe = goz.Opt{
+        .names = .{ .long = "safe" },
+        .description = "Record a stack trace per allocation and unmap freed pages; runs cases one at a time, naming each before it runs",
+    },
     .no_color = goz.Opt{ .names = .{ .long = "no-color" }, .description = "Disable color output" },
 };
 
@@ -1308,6 +1340,7 @@ fn parseArgs(iter: *std.process.Args.Iterator) !Options {
             .flag => |f| switch (f) {
                 .help => opts.help = true,
                 .fail_fast => opts.fail_fast = true,
+                .safe => opts.safe = true,
                 .no_color => opts.color = false,
             },
             .named_arg => |kv| switch (kv.field) {
