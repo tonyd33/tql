@@ -931,3 +931,37 @@ class Eq a where {
           to: (type_identifier))))
     deriver: (class_deriver
       primitive: (primitive))))
+
+========================================
+a class bound to a primitive
+========================================
+
+class All = %all;
+
+---
+
+(source_file
+  (class_declaration
+    name: (type_identifier)
+    representation: (primitive)))
+
+========================================
+a constraint naming a class argument
+========================================
+
+f :: All Eq r => {| r} -> Bool;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    context: (context
+      (class_constraint
+        class: (type_identifier)
+        class_argument: (type_identifier)
+        type: (type_variable)))
+    type: (function_type
+      from: (record_type
+        row: (type_variable))
+      to: (type_identifier))))

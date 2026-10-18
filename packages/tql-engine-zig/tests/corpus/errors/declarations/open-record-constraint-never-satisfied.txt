@@ -2,22 +2,22 @@ title: a constraint on an open record no record satisfies
 grammar: typescript
 asserts: error
 
-Only `Eq` and `ToJson` have instances at records, and an open record has
-one only if each known field does.
+A class without a deriver has no instance at a record, and an open record
+has one only if each known field does.
 
 --- tql ---
-f :: Ord {x: Int | r} => {x: Int | r} -> Bool;
+f :: Semigroup {x: Int | r} => {x: Int | r} -> Bool;
 f a = True;
 g :: Eq {h: Int -> Int | r} => {h: Int -> Int | r} -> Bool;
 g a = True;
 main = pure 1;
 
 --- error ---
-error[unsatisfied-constraint]: `Ord {x: Int | a}` is never satisfied
+error[unsatisfied-constraint]: `Semigroup {x: Int | a}` is never satisfied
  --> 1:6
   |
-1 | f :: Ord {x: Int | r} => {x: Int | r} -> Bool;
-  |      ^^^^^^^^^^^^^^^^
+1 | f :: Semigroup {x: Int | r} => {x: Int | r} -> Bool;
+  |      ^^^^^^^^^^^^^^^^^^^^^^
 
 error[unsatisfied-constraint]: `Eq (Int -> Int)` is never satisfied
  --> 3:6

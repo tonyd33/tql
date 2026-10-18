@@ -127,21 +127,26 @@ enclosing scope.
              Q ⊩ C (T τ̄)  ⇝  inst_C_T d1 ... dj
 
 (E-AllNil)   ────────────────
-             Q ⊩ All C ()  ⇝  ⟨⟩
+             Q ⊩ All C ()  ⇝  {}
 
 (E-AllCons)  Q ⊩ C τ  ⇝  d1      Q ⊩ All C ρ  ⇝  d2
              ───────────────────────────────────────
-             Q ⊩ All C (l : τ | ρ)  ⇝  ⟨d1, d2⟩
+             Q ⊩ All C (l : τ | ρ)  ⇝  {d2 | l = d1}
+
+(E-AllSuper) Q ⊩ All C ρ  ⇝  d      class (..., S a, ...) => C a
+             ─────────────────────────────────────────────────
+             Q ⊩ All S ρ  ⇝  map_ρ super_S d
 
 (E-Record)   C derivable      Q ⊩ All C ρ  ⇝  d
              ──────────────────────────────────
              Q ⊩ C (Record ρ)  ⇝  derived_C d
 ```
 
-The evidence of `All C ρ` lists one dictionary per field, in label order.
-`C derivable` is as [Deriving](05-declarations.md#deriving) defines it,
-and `derived_C` builds `C`'s methods over the fields from it, as `C`'s
-deriver does over a constructor's.
+The evidence of `All C ρ` is a record with `ρ`'s labels, whose field `l`
+is `C`'s dictionary at `l`'s type. `C derivable` is as
+[Deriving](05-declarations.md#deriving) defines it, and `derived_C`
+builds `C`'s methods over the fields from it, as `C`'s deriver does over a
+constructor's ([Elaboration](12-core.md#elaboration)).
 
 A program has at most one instance per class and head
 ([Instance](05-declarations.md#instance)), so E-Inst is

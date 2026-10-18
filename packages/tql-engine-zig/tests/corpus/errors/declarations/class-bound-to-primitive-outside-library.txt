@@ -1,0 +1,14 @@
+title: only a library module binds a class to a primitive
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Each = %all;
+main = pure 1;
+
+--- error ---
+error[unresolved-name]: `%all` is not defined outside the library
+ --> 1:14
+  |
+1 | class Each = %all;
+  |              ^^^^

@@ -1,0 +1,22 @@
+title: a signature constrains a row's fields with `All`
+grammar: typescript
+asserts: types, values
+
+`Eq {name: String | r}` is `Eq String` and `All Eq r`, which the context
+gives.
+
+--- tql ---
+same_name :: All Eq r => {name: String | r} -> {name: String | r} -> Bool;
+same_name a b = a == b;
+main = pure [same_name {name = "a", n = 1} {name = "a", n = 1}, same_name {name = "a", n = 1} {name = "a", n = 2}];
+
+--- source ---
+class A {}
+
+--- values ---
+[[true,false]]
+
+--- types ---
+same_name :: All Eq a => {name: String | a} -> {name: String | a} -> Bool
+main :: Kleisli List Node [Bool]
+entry :: Node -> [Json]

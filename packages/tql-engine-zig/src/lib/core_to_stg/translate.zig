@@ -12,6 +12,7 @@
 
 const std = @import("std");
 const core = @import("../core.zig");
+const diagnostic = @import("../diagnostic.zig");
 const primitives = @import("../primitives.zig");
 const pcre2 = @import("../regex.zig");
 const stg = @import("../stg.zig");
@@ -89,23 +90,10 @@ pub const Translator = struct {
 
     /// `operation`, with a synthesized payload copied into the program.
     fn owned(self: *Translator, operation: core.Operation) Error!core.Operation {
-        const source = switch (operation) {
-            .synthesized => |s| s,
-            .builtin => return operation,
+        return switch (operation) {
+            .synthesized => |s| .{ .synthesized = try s.dupe(self.arena) },
+            .builtin => operation,
         };
-        return .{ .synthesized = switch (source) {
-            .field => |f| .{ .field = .{
-                .name = try self.arena.dupe(u8, f.name),
-                .id = f.id,
-            } },
-            .operator => source,
-            .record => |labels| blk: {
-                const copies = try self.arena.alloc([]const u8, labels.len);
-                for (labels, copies) |label, *copy| copy.* = try self.arena.dupe(u8, label);
-                break :blk .{ .record = copies };
-            },
-            .select => |label| .{ .select = try self.arena.dupe(u8, label) },
-        } };
     }
 
     /// Lower a Core literal to its evaluated thunk, compiling a regex pattern
@@ -153,8 +141,12 @@ pub const Translator = struct {
                 .constructor = &self.program.env.datatypes.get(c.owner).constructors[c.tag],
             },
             .primop => |primop| return .{ .primitive = .{ .builtin = primop } },
-            // A synthesized symbol lowers like a primitive.
-            .synthesized => |s| return .{ .primitive = .{ .synthesized = s } },
+            // `fold` and `map` lower to definitions, and any other synthesized
+            // symbol like a primitive.
+            .synthesized => |s| switch (s) {
+                .fold, .map => {},
+                else => return .{ .primitive = .{ .synthesized = s } },
+            },
             .vanilla, .join, .matcher, .method, .instance_method, .instance, .selector => {},
             .synonym, .pseudo => unreachable,
         }
@@ -537,11 +529,13 @@ pub const Translator = struct {
         return .{ .apply = node };
     }
 
-    /// How many arguments a primitive's denotation takes: the arrow count of
-    /// its declared scheme.
+    /// How many arguments a primitive's denotation takes: a synthesized
+    /// one's arity, or the arrow count of a built-in's scheme.
     fn primitiveArity(self: *Translator, name: core.SymbolId) Error!u32 {
-        const scheme = self.program.env.schemeOf(name) orelse return error.Unsupported;
-        return @intCast(core.types.arrowCount(scheme.type));
+        return switch (self.program.env.interner.details(name)) {
+            .synthesized => |s| s.arity(),
+            else => @intCast(core.types.arrowCount((self.program.env.schemeOf(name) orelse return error.Unsupported).type)),
+        };
     }
 
     /// Wrap a primitive in a closure that applies it, so it can be passed as a
@@ -665,6 +659,106 @@ pub const Translator = struct {
     }
 };
 
+/// Appends to `program`'s definitions one of `fold` and one of `map` over
+/// `All` evidence, each that it names, written by a field's position:
+///
+/// ```
+/// fold = \f z d -> letrec go = \i -> if i == record_size d then z
+///   else f (record_label i d) (record_field i d) (\r -> record_field i r) (go (i + 1))
+///   in go 0
+/// map = \g d -> letrec go = \i -> if i == record_size d then {}
+///   else record_insert (record_label i d) (g (record_field i d)) (go (i + 1))
+///   in go 0
+/// ```
+fn lowerRecordFolds(program: *core.Program) Error!void {
+    const env = &program.env;
+    const b: core.Builder = .{ .allocator = env.allocator() };
+    const fold = env.interner.lookup(null, primitives.elaboratedSpelling(.fold));
+    const map = env.interner.lookup(null, primitives.elaboratedSpelling(.map));
+    if (fold == null and map == null) return;
+
+    var definitions: std.ArrayList(core.Definition) = .empty;
+    try definitions.appendSlice(b.allocator, program.definitions);
+    if (fold) |symbol| try definitions.append(b.allocator, try foldDefinition(b, env, symbol));
+    if (map) |symbol| try definitions.append(b.allocator, try mapDefinition(b, env, symbol));
+    program.definitions = definitions.items;
+}
+
+fn foldDefinition(b: core.Builder, env: *core.env.Env, symbol: core.SymbolId) Error!core.Definition {
+    const f = try env.interner.fresh("f");
+    const z = try env.interner.fresh("z");
+    const r = try env.interner.fresh("r");
+    const loop = try Loop.init(b, env);
+    const field = try loop.operation(.record_field);
+    const selector = try b.lambda(r, try b.applyMany(field, &.{ loop.term(loop.i), loop.term(r) }, Loop.span), Loop.span);
+    const step = try b.applyMany(loop.term(f), &.{ try loop.at(.record_label), try loop.at(.record_field), selector, try loop.next() }, Loop.span);
+    return try loop.definition(symbol, &.{ f, z }, loop.term(z), step);
+}
+
+fn mapDefinition(b: core.Builder, env: *core.env.Env, symbol: core.SymbolId) Error!core.Definition {
+    const g = try env.interner.fresh("g");
+    const loop = try Loop.init(b, env);
+    const mapped = try b.apply(loop.term(g), try loop.at(.record_field), Loop.span);
+    const step = try b.applyMany(try loop.operation(.record_insert), &.{ try loop.at(.record_label), mapped, try loop.next() }, Loop.span);
+    return try loop.definition(symbol, &.{g}, b.symbol(try primitives.emptyRecordSymbol(env), Loop.span), step);
+}
+
+/// A loop `go` over the fields of the record `d` by their position `i`.
+const Loop = struct {
+    b: core.Builder,
+    env: *core.env.Env,
+    d: core.SymbolId,
+    i: core.SymbolId,
+    go: core.SymbolId,
+
+    const span: diagnostic.Span = .unknown;
+
+    fn init(b: core.Builder, env: *core.env.Env) Error!Loop {
+        return .{
+            .b = b,
+            .env = env,
+            .d = try env.interner.fresh("d"),
+            .i = try env.interner.fresh("i"),
+            .go = try env.interner.fresh("go"),
+        };
+    }
+
+    fn term(self: Loop, symbol: core.SymbolId) core.Term {
+        return self.b.symbol(symbol, span);
+    }
+
+    fn operation(self: Loop, comptime op: std.meta.Tag(core.Synthesized)) Error!core.Term {
+        return self.term(try primitives.elaboratedSymbol(self.env, op));
+    }
+
+    /// `op i d`.
+    fn at(self: Loop, comptime op: std.meta.Tag(core.Synthesized)) Error!core.Term {
+        return try self.b.applyMany(try self.operation(op), &.{ self.term(self.i), self.term(self.d) }, span);
+    }
+
+    /// `go (i + 1)`.
+    fn next(self: Loop) Error!core.Term {
+        const add = self.term(try primitives.operatorSymbol(self.env, .add));
+        const successor = try self.b.applyMany(add, &.{ self.term(self.i), self.b.literal(.{ .number = 1 }, span) }, span);
+        return try self.b.apply(self.term(self.go), successor, span);
+    }
+
+    /// `symbol = \parameters d -> letrec go = \i -> if i == record_size d
+    /// then empty else step in go 0`.
+    fn definition(self: Loop, symbol: core.SymbolId, parameters: []const core.SymbolId, empty: core.Term, step: core.Term) Error!core.Definition {
+        const b = self.b;
+        const size = try b.apply(try self.operation(.record_size), self.term(self.d), span);
+        const done = try b.applyMany(self.term(self.env.primitives.get(.eq_int).?), &.{ self.term(self.i), size }, span);
+        const go = try b.lambda(self.i, try b.choose(&self.env.datatypes, done, step, empty, span), span);
+        const bindings = try b.dupeSlice(core.Letrec.Binding, &.{.{ .name = self.go, .value = go }});
+        const body = try b.letrec(bindings, try b.apply(self.term(self.go), b.literal(.{ .number = 0 }, span), span), span);
+        const all = try b.slice(core.SymbolId, parameters.len + 1);
+        @memcpy(all[0..parameters.len], parameters);
+        all[parameters.len] = self.d;
+        return .{ .symbol = symbol, .body = try b.abstract(all, body), .span = span };
+    }
+};
+
 /// Translate a checked program into the STG-shaped term language.
 ///
 /// The returned Program owns its arena and is deinitialized independently of
@@ -677,6 +771,8 @@ pub fn translate(
     errdefer gpa.destroy(arena);
     arena.* = .init(gpa);
     errdefer arena.deinit();
+
+    try lowerRecordFolds(program);
 
     var translator = try Translator.init(arena.allocator(), gpa, program);
     defer translator.deinit();

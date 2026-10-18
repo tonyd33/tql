@@ -1,0 +1,12 @@
+title: a record of ordered fields is ordered, through its alias
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = Kleisli $ \root -> [range root < range root, range root <= range root];
+
+--- source ---
+class A {}
+
+--- values ---
+[false,true]

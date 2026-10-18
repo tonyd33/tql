@@ -1,0 +1,19 @@
+title: `All` over a row with a field before its tail extends the tail's evidence
+grammar: typescript
+asserts: values
+
+`inner` wants `All Eq s` at `s = (name: String | r)`: `Eq String`, and
+`All Eq r` from `outer`'s context, with `name` placed among `r`'s labels.
+
+--- tql ---
+inner :: All Eq s => {| s} -> {| s} -> Bool;
+inner a b = a == b;
+outer :: All Eq r => {name: String | r} -> {name: String | r} -> Bool;
+outer a b = inner a b;
+main = pure [outer {name = "a", m = 1, z = 2} {name = "a", m = 1, z = 2}, outer {name = "a", m = 1, z = 2} {name = "b", m = 1, z = 2}];
+
+--- source ---
+class A {}
+
+--- values ---
+[[true,false]]

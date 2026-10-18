@@ -1,0 +1,17 @@
+title: a record comparison forces fields only up to the first difference
+grammar: typescript
+asserts: values
+
+`boom` never terminates. The fields labelled `a` already differ, so it is
+never forced.
+
+--- tql ---
+boom :: Int;
+boom = boom;
+main = pure [{a = 1, b = boom} < {a = 2, b = boom}, {a = 1, b = boom} == {a = 2, b = boom}];
+
+--- source ---
+class A {}
+
+--- values ---
+[[true,false]]

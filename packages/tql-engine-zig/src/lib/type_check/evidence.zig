@@ -14,6 +14,7 @@ const diagnostic = @import("../diagnostic.zig");
 const classes = core.classes;
 const types = core.types;
 
+const deriving = @import("../deriving.zig");
 const primitives = @import("../primitives.zig");
 
 const Allocator = std.mem.Allocator;
@@ -153,7 +154,7 @@ pub const Table = struct {
 pub fn Sink(comptime Leaf: type) type {
     return struct {
         builder: core.Builder,
-        /// Where `select[l]` symbols are interned.
+        /// Where the evidence's symbols are interned.
         env: *core.env.Env,
         span: diagnostic.Span,
         leaves: Leaf,
@@ -171,102 +172,24 @@ pub fn Sink(comptime Leaf: type) type {
             return try self.builder.applyMany(dictionary, context, self.span);
         }
 
-        pub fn record(self: Self, class: classes.ClassId, fields: []const types.Type.Field, evidence: []const core.Term) Error!core.Term {
-            return try recordDictionary(self.builder, self.env, class, fields, evidence, self.span);
+        pub fn row(self: Self, fields: []const types.Type.Field, evidence: []const core.Term, tail: ?core.Term) Error!core.Term {
+            const b = self.builder;
+            const insert = b.symbol(try primitives.elaboratedSymbol(self.env, .record_insert), self.span);
+            var result = tail orelse b.symbol(try primitives.emptyRecordSymbol(self.env), self.span);
+            for (fields, evidence) |f, e| {
+                result = try b.applyMany(insert, &.{ b.literal(.{ .string = f.label }, self.span), e, result }, self.span);
+            }
+            return result;
+        }
+
+        pub fn derived(self: Self, class: classes.ClassId, all: core.Term) Error!core.Term {
+            return try self.builder.apply(self.builder.symbol(self.env.classes.get(class).record.?, self.span), all, self.span);
         }
 
         pub fn leaf(self: Self, class: classes.ClassId, t: types.Type) Error!?core.Term {
             return try self.leaves.leaf(class, t, self.span);
         }
     };
-}
-
-/// The dictionary of `class` at a closed record of `fields`, from
-/// `evidence`, each field's: `dict[C]` at the method its deriver defines,
-/// built over the fields, and its defaults for the rest.
-///
-/// Preconditions:
-/// - `class` has a record deriver, whose method alone satisfies its
-///   `minimal`.
-fn recordDictionary(
-    b: core.Builder,
-    env: *core.env.Env,
-    class: classes.ClassId,
-    fields: []const types.Type.Field,
-    evidence: []const core.Term,
-    span: diagnostic.Span,
-) Allocator.Error!core.Term {
-    const declared = env.classes.get(class);
-    const derived = env.classes.recordDeriver(class).?;
-    const method = declared.methods[derived.method];
-    const itself = try env.interner.fresh("d");
-    var dictionary = b.symbol(declared.constructor.?, span);
-    for (declared.defaults, 0..) |default, i| {
-        const slot = if (i == derived.method) switch (derived.deriver) {
-            .derive_eq => try recordEq(b, env, method, fields, evidence, span),
-            .derive_to_json => try recordToJson(b, env, method, fields, evidence, span),
-            else => unreachable,
-        } else try b.apply(b.symbol(default.?, span), b.symbol(itself, span), span);
-        dictionary = try b.apply(dictionary, slot, span);
-    }
-    if (declared.methods.len == 1) return dictionary;
-    const bindings = try b.dupeSlice(core.Letrec.Binding, &.{.{ .name = itself, .value = dictionary }});
-    return try b.letrec(bindings, b.symbol(itself, span), span);
-}
-
-/// `\x y -> ...`, comparing a closed record's fields left to right.
-fn recordEq(
-    b: core.Builder,
-    env: *core.env.Env,
-    eq: core.SymbolId,
-    fields: []const types.Type.Field,
-    evidence: []const core.Term,
-    span: diagnostic.Span,
-) Allocator.Error!core.Term {
-    const declared = &env.datatypes;
-    const x = try env.interner.fresh("x");
-    const y = try env.interner.fresh("y");
-
-    var result: ?core.Term = null;
-    var i = fields.len;
-    while (i > 0) {
-        i -= 1;
-        const select = try primitives.selectSymbol(env, fields[i].label);
-        const pair = try b.applyMany(b.symbol(eq, span), &.{
-            evidence[i],
-            try b.apply(b.symbol(select, span), b.symbol(x, span), span),
-            try b.apply(b.symbol(select, span), b.symbol(y, span), span),
-        }, span);
-        result = if (result) |rest|
-            try b.choose(declared, pair, b.symbol(declared.boolConstructor(false).symbol, span), rest, span)
-        else
-            pair;
-    }
-    return try b.abstract(&.{ x, y }, result orelse b.symbol(declared.boolConstructor(true).symbol, span));
-}
-
-/// `\r -> JObject [("l", to_json r.l), ...]`, one member per field.
-fn recordToJson(
-    b: core.Builder,
-    env: *core.env.Env,
-    to_json: core.SymbolId,
-    fields: []const types.Type.Field,
-    evidence: []const core.Term,
-    span: diagnostic.Span,
-) Allocator.Error!core.Term {
-    const r = try env.interner.fresh("r");
-    const members = try b.slice(core.Builder.Member, fields.len);
-    for (fields, evidence, members) |f, e, *member| {
-        const select = try primitives.selectSymbol(env, f.label);
-        member.* = .{
-            .key = f.label,
-            .value = try b.applyMany(b.symbol(to_json, span), &.{
-                e,
-                try b.apply(b.symbol(select, span), b.symbol(r, span), span),
-            }, span),
-        };
-    }
-    return try b.lambda(r, try b.jsonObject(&env.datatypes, members, span), span);
 }
 
 /// Each class's selectors, and each of `instances`' dictionary: a function
@@ -282,6 +205,12 @@ pub fn dictionaries(
     gpa: Allocator,
 ) Allocator.Error!void {
     for (registry.classes.items) |class| {
+        if (class.role == .all) {
+            for (class.selectors, registry.get(class.role.all).selectors) |lifted, selector| {
+                try out.append(gpa, try mapped(builder, env, lifted.symbol, selector.symbol, class.span));
+            }
+        }
+        if (class.record) |record| try out.append(gpa, .{ .symbol = record, .body = try recordDictionary(builder, registry, env, class), .span = class.span });
         const constructor = class.constructor orelse continue;
         const fields = class.selectors.len + class.methods.len;
         for (class.selectors, 0..) |selector, i| try out.append(gpa, try field(builder, env, selector.symbol, constructor, fields, i, class.span));
@@ -306,6 +235,41 @@ pub fn dictionaries(
             .span = span,
         });
     }
+}
+
+/// `map[C,S] = map super[C,S]`, selecting `All S`'s evidence from
+/// `All C`'s.
+fn mapped(b: core.Builder, env: *core.env.Env, symbol: core.SymbolId, selector: core.SymbolId, span: diagnostic.Span) Allocator.Error!core.Definition {
+    const map = b.symbol(try primitives.elaboratedSymbol(env, .map), span);
+    return .{ .symbol = symbol, .body = try b.apply(map, b.symbol(selector, span), span), .span = span };
+}
+
+/// `record[C] = \d -> letrec r = dict[C] .. in r`, `class`'s dictionary at a
+/// record from `d`, `All C`'s evidence at its row: each superclass's
+/// `record[S]` at its evidence selected from `d`, the method the deriver
+/// defines, and the class's defaults for the rest.
+///
+/// Preconditions:
+/// - `class` has a `record[C]`.
+fn recordDictionary(b: core.Builder, registry: *const classes.Registry, env: *core.env.Env, class: classes.Class) Allocator.Error!core.Term {
+    const span = class.span;
+    const d = try env.interner.fresh("d");
+    const itself = try env.interner.fresh("r");
+    var dictionary = b.symbol(class.constructor.?, span);
+    for (class.selectors, registry.get(class.role.declared).selectors) |selector, lifted| {
+        const evidence = try b.apply(b.symbol(lifted.symbol, span), b.symbol(d, span), span);
+        dictionary = try b.apply(dictionary, try b.apply(b.symbol(registry.get(selector.superclass).record.?, span), evidence, span), span);
+    }
+    const derived = class.deriver.?;
+    for (class.defaults, class.methods, 0..) |default, method, i| {
+        const slot = if (i == derived.method)
+            try deriving.recordMethod(b, env, derived.deriver, method, d, span)
+        else
+            try b.apply(b.symbol(default.?, span), b.symbol(itself, span), span);
+        dictionary = try b.apply(dictionary, slot, span);
+    }
+    const bindings = try b.dupeSlice(core.Letrec.Binding, &.{.{ .name = itself, .value = dictionary }});
+    return try b.lambda(d, try b.letrec(bindings, b.symbol(itself, span), span), span);
 }
 
 /// An instance, and the frame its superclasses are solved in.

@@ -57,8 +57,9 @@
 //! that reaches `a` any other way, `a -> Int` say, cannot be derived.
 
 const std = @import("std");
-const core = @import("../core.zig");
-const diagnostic = @import("../diagnostic.zig");
+const core = @import("core.zig");
+const diagnostic = @import("diagnostic.zig");
+const primitives = @import("primitives.zig");
 const classes = core.classes;
 const datatypes = core.datatypes;
 const types = core.types;
@@ -354,7 +355,7 @@ pub const Derivation = struct {
             const unmatched: ?core.Term = if (!several) null else if (tag) |t| try self.apply(self.symbol(self.method), &.{
                 try self.apply(self.symbol(t), &.{self.symbol(x)}),
                 try self.apply(self.symbol(t), &.{self.symbol(y)}),
-            }) else self.constant(self.env.datatypes.boolConstructor(false));
+            }) else differs(b, self.env, self.derived.deriver, true, self.span);
             alternative.* = .{
                 .constructor = c.symbol,
                 .binders = xs,
@@ -370,31 +371,10 @@ pub const Derivation = struct {
         return self.builder.literal(.{ .number = c.tag }, self.span);
     }
 
-    /// The answer for two fields that differ, the first ordering before the
-    /// second or not.
-    fn differ(self: Derivation, earlier: bool) core.Term {
-        return switch (self.derived.deriver) {
-            .derive_eq => self.constant(self.env.datatypes.boolConstructor(false)),
-            else => self.constant(self.env.datatypes.orderingConstructor(if (earlier) .lt else .gt)),
-        };
-    }
-
-    /// The answer for two values whose fields all compare equal.
-    fn same(self: Derivation) core.Term {
-        return switch (self.derived.deriver) {
-            .derive_eq => self.constant(self.env.datatypes.boolConstructor(true)),
-            else => self.constant(self.env.datatypes.orderingConstructor(.eq)),
-        };
-    }
-
-    fn constant(self: Derivation, c: datatypes.Constructor) core.Term {
-        return self.symbol(c.symbol);
-    }
-
     /// Compares `xs` with `ys` pairwise, stopping at the first pair that
     /// decides.
     fn fields(self: Derivation, field_types: []const types.Type, xs: []const core.SymbolId, ys: []const core.SymbolId) Error!core.Term {
-        if (field_types.len == 0) return self.same();
+        if (field_types.len == 0) return equal(self.builder, self.env, self.derived.deriver, self.span);
         const b = self.builder;
         const final = field_types.len - 1;
         var result = try self.field(field_types[final], &.{ xs[final], ys[final] });
@@ -402,10 +382,7 @@ pub const Derivation = struct {
         while (i > 0) {
             i -= 1;
             const compared = try self.field(field_types[i], &.{ xs[i], ys[i] });
-            result = switch (self.derived.deriver) {
-                .derive_eq => try b.choose(&self.env.datatypes, compared, self.differ(true), result, self.span),
-                else => try b.chooseOrder(&self.env.datatypes, compared, .{ self.differ(true), result, self.differ(false) }, self.span),
-            };
+            result = try decide(b, self.env, self.derived.deriver, compared, result, self.span);
         }
         return result;
     }
@@ -600,3 +577,69 @@ pub const Derivation = struct {
         };
     }
 };
+
+/// The answer for two values that differ at a field, the first ordering
+/// before the second or not.
+fn differs(b: core.Builder, env: *core.env.Env, deriver: classes.Deriver, earlier: bool, span: diagnostic.Span) core.Term {
+    return b.symbol(switch (deriver) {
+        .derive_eq => env.datatypes.boolConstructor(false),
+        else => env.datatypes.orderingConstructor(if (earlier) .lt else .gt),
+    }.symbol, span);
+}
+
+/// The answer for two values whose fields all compare equal.
+fn equal(b: core.Builder, env: *core.env.Env, deriver: classes.Deriver, span: diagnostic.Span) core.Term {
+    return b.symbol(switch (deriver) {
+        .derive_eq => env.datatypes.boolConstructor(true),
+        else => env.datatypes.orderingConstructor(.eq),
+    }.symbol, span);
+}
+
+/// `compared`, one field's comparison, deciding unless it is equal, when
+/// `rest` compares the fields after it.
+fn decide(b: core.Builder, env: *core.env.Env, deriver: classes.Deriver, compared: core.Term, rest: core.Term, span: diagnostic.Span) Error!core.Term {
+    return switch (deriver) {
+        .derive_eq => try b.choose(&env.datatypes, compared, differs(b, env, deriver, true, span), rest, span),
+        else => try b.chooseOrder(&env.datatypes, compared, .{ differs(b, env, deriver, true, span), rest, differs(b, env, deriver, false, span) }, span),
+    };
+}
+
+/// The method `deriver` defines at a record, from `d`, `All C`'s evidence
+/// at its row, a record of each field's dictionary. A comparison folds over
+/// the fields in label order, stopping at the first that decides:
+///
+/// ```tql
+/// \x y -> fold (\_ e s k -> case compare e (s x) (s y) of { EQ -> k; o -> o; }) EQ d
+/// ```
+///
+/// and `to_json` makes an object of one member per field.
+///
+/// Preconditions:
+/// - `deriver` ranges over a whole type.
+pub fn recordMethod(b: core.Builder, env: *core.env.Env, deriver: classes.Deriver, method: core.SymbolId, d: core.SymbolId, span: diagnostic.Span) Error!core.Term {
+    const fold = b.symbol(try primitives.elaboratedSymbol(env, .fold), span);
+    const label = try env.interner.fresh("l");
+    const e = try env.interner.fresh("e");
+    const select = try env.interner.fresh("s");
+    const k = try env.interner.fresh("k");
+    const x = try env.interner.fresh("x");
+    switch (deriver) {
+        .derive_eq, .derive_ord => {
+            const y = try env.interner.fresh("y");
+            const compared = try b.applyMany(b.symbol(method, span), &.{ b.symbol(e, span), try b.apply(b.symbol(select, span), b.symbol(x, span), span), try b.apply(b.symbol(select, span), b.symbol(y, span), span) }, span);
+            const step = try b.abstract(&.{ label, e, select, k }, try decide(b, env, deriver, compared, b.symbol(k, span), span));
+            return try b.abstract(&.{ x, y }, try b.applyMany(fold, &.{ step, equal(b, env, deriver, span), b.symbol(d, span) }, span));
+        },
+        .derive_to_json => {
+            const member = try b.applyMany(b.symbol(env.datatypes.pairConstructor().symbol, span), &.{
+                b.symbol(label, span),
+                try b.applyMany(b.symbol(method, span), &.{ b.symbol(e, span), try b.apply(b.symbol(select, span), b.symbol(x, span), span) }, span),
+            }, span);
+            const cons = try b.applyMany(b.symbol(env.datatypes.consConstructor().symbol, span), &.{ member, b.symbol(k, span) }, span);
+            const step = try b.abstract(&.{ label, e, select, k }, cons);
+            const members = try b.applyMany(fold, &.{ step, b.symbol(env.datatypes.nilConstructor().symbol, span), b.symbol(d, span) }, span);
+            return try b.lambda(x, try b.apply(b.symbol(env.datatypes.jsonConstructor(.JObject).symbol, span), members, span), span);
+        },
+        .derive_functor, .derive_foldable, .derive_traversable => unreachable,
+    }
+}

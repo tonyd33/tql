@@ -357,17 +357,21 @@ pub const MessageNames = struct {
         return null;
     }
 
-    /// Format class `id`, spelled `spelling`, qualified when this message
-    /// qualifies it.
-    pub fn class(self: *const MessageNames, id: classes.ClassId, spelling: []const u8) ClassName {
-        return .{ .module = self.moduleOf(.{ .class = id }), .spelling = spelling };
+    /// Format class `id` as `registry` declares it, qualified when this
+    /// message qualifies it.
+    pub fn class(self: *const MessageNames, registry: *const classes.Registry, id: classes.ClassId) ClassName {
+        const named = registry.named(id);
+        return .{ .all = named != id, .module = self.moduleOf(.{ .class = named }), .spelling = registry.spelling(named) };
     }
 
     pub const ClassName = struct {
+        /// Whether it is `All` of the class named.
+        all: bool,
         module: ?[]const u8,
         spelling: []const u8,
 
         pub fn format(self: ClassName, w: *std.Io.Writer) std.Io.Writer.Error!void {
+            if (self.all) try w.writeAll("All ");
             if (self.module) |m| try w.print("{s}.", .{m});
             try w.writeAll(self.spelling);
         }
@@ -537,7 +541,8 @@ pub const Scheme = struct {
                 if (constraints.len > 1) try w.writeByte('(');
                 for (constraints, 0..) |c, i| {
                     if (i > 0) try w.writeAll(", ");
-                    try w.print("{s} {f}", .{ self.registry.spelling(c.class), c.type.operand() });
+                    const unqualified: MessageNames = .{};
+                    try w.print("{f} {f}", .{ unqualified.class(self.registry, c.class), c.type.operand() });
                 }
                 if (constraints.len > 1) try w.writeByte(')');
                 try w.writeAll(" => ");

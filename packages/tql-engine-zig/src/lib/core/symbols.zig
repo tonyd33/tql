@@ -68,6 +68,13 @@ pub const QualifiedName = struct {
     };
 };
 
+/// The tag of `E` spelled `spelling`, `%` included, as `Prim` names a
+/// primitive.
+pub fn primitiveNamed(comptime E: type, spelling: []const u8) ?E {
+    if (!std.mem.startsWith(u8, spelling, "%")) return null;
+    return std.meta.stringToEnum(E, spelling[1..]);
+}
+
 /// A symbol's identity and what it denotes.
 pub const Symbol = struct {
     spelling: []const u8,

@@ -17,6 +17,7 @@
 - Instances of `ToJson` may be written, and newtypes and `Ordering` can be output: `newtype Name = Name String deriving (ToJson);` writes `Name "a"` as `"a"`.
 - Added local signatures, `let { g :: a -> a; g x = x; } in g 1`, and type annotations, `([] :: [Int]) == []`.
 - `Functor`, `Foldable` and `Traversable` can be derived, over a datatype's last parameter: `data Tree a = Leaf | Node (Tree a) a (Tree a) deriving (Functor, Foldable, Traversable);`.
+- Records are ordered field by field in label order, and a context constrains every field of a row with `All`: `same :: All Eq r => {name: String | r} -> {name: String | r} -> Bool; same a b = a == b;`.
 
 ### Improvements
 

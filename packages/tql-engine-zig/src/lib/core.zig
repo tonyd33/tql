@@ -202,6 +202,7 @@ pub const Known = symbols.Known;
 pub const SymbolTable = symbols.SymbolTable;
 pub const Interner = symbols.Interner;
 pub const InsertError = symbols.InsertError;
+pub const primitiveNamed = symbols.primitiveNamed;
 
 const Allocator = std.mem.Allocator;
 

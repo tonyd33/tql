@@ -108,6 +108,7 @@ pub const Declaration = union(enum) {
     pattern_synonym: PatternSynonym,
     pattern_signature: PatternSignature,
     class_declaration: ClassDeclaration,
+    primitive_class: PrimitiveClass,
     instance_declaration: InstanceDeclaration,
 
     pub fn span(self: Declaration) diagnostic.Span {
@@ -173,6 +174,17 @@ pub const ClassDeclaration = struct {
         }
         for (self.derivers) |d| try w.print(" (deriving {s})", .{d.primitive});
         try w.writeByte(')');
+    }
+};
+
+/// `class All = %all;`
+pub const PrimitiveClass = struct {
+    name: Identifier,
+    representation: DataDeclaration.Representation,
+    span: diagnostic.Span = .unknown,
+
+    pub fn sexpr(self: PrimitiveClass, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(class {s} {s})", .{ self.name, self.representation.name });
     }
 };
 
@@ -242,12 +254,15 @@ fn sexprContext(w: *std.Io.Writer, context: []const ClassConstraint) std.Io.Writ
 /// instance's context.
 pub const ClassConstraint = struct {
     class: Identifier,
+    /// The class `All Eq r` names after `All`.
+    argument: ?Identifier = null,
     /// A type variable, or one applied to types.
     type: Type,
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: ClassConstraint, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.print("({s} ", .{self.class});
+        if (self.argument) |a| try w.print("{s} ", .{a});
         try self.type.sexpr(w);
         try w.writeByte(')');
     }

@@ -11,6 +11,7 @@ topdecl ::= "data" simpletype ("=" constrs)? deriving* ";"
           | "newtype" simpletype "=" con atype deriving* ";"
           | "type" simpletype "=" type ";"
           | "class" (context "=>")? cls tyvar "where" "{" (cdecl ";")* "}" ";"
+          | "class" cls "=" primitive ";"
           | "instance" (context "=>")? qcls inst "where" "{" (idecl ";")* "}" ";"
           | "pattern" con var* "<-" pat ";"
           | "pattern" con "::" sigtype ";"
@@ -131,6 +132,10 @@ the class has, at the type the class gives it, that satisfies `minimal`
 alone; otherwise it is an error, `invalid-class`. So is a `minimal` that
 an instance could satisfy while leaving a method without a default
 undefined. A default defined twice is `duplicate-definition`.
+
+`class All = %all;` binds a class to a primitive: the class takes the
+primitive's parameters, and the solver supplies its instances. Only a
+library module binds one.
 
 A class is represented by a dictionary type
 ([Elaboration](12-core.md#elaboration)).

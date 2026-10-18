@@ -1,0 +1,14 @@
+title: records are ordered field by field, in label order
+grammar: typescript
+asserts: values
+
+`a` sorts before `b`, so `a` decides both comparisons.
+
+--- tql ---
+main = pure [compare {b = 1, a = 2} {a = 3, b = 0}, compare {a = 1, b = 2} {a = 1, b = 1}, compare {a = 1} {a = 1}];
+
+--- source ---
+class A {}
+
+--- values ---
+[["LT","GT","EQ"]]

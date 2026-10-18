@@ -1,0 +1,18 @@
+title: an inferred comparison of open records is constrained by `All`
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+bigger r s = r > s and r.x == 1;
+main = pure [bigger {x = 1, y = 2} {x = 1, y = 1}];
+
+--- source ---
+class A {}
+
+--- values ---
+[[true]]
+
+--- types ---
+bigger :: All Ord a => {x: Int | a} -> {x: Int | a} -> Bool
+main :: Kleisli List Node [Bool]
+entry :: Node -> [Json]
