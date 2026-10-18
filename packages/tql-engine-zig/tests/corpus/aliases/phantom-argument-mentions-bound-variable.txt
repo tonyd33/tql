@@ -1,0 +1,25 @@
+title: a variable unified with an alias that mentions it only in a phantom argument
+grammar: typescript
+asserts: types, values
+
+`Tagged x` is `Int`, so unifying `x`'s type with it solves that type to `Int`.
+
+--- tql ---
+type Tagged t = Int;
+
+retag :: t -> Tagged t -> Int;
+retag tag n = n;
+
+f x = retag x x;
+
+main = pure (f 1);
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+--- types ---
+retag :: a -> Tagged a -> Int
+f :: Int -> Int
+main :: Filter Node Int

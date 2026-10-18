@@ -79,11 +79,10 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
     defer kinds.deinit(gpa);
     for (kind_names.items) |raw| {
         const name = if (std.mem.startsWith(u8, raw, ":")) raw[1..] else raw;
-        const id = language.idForNodeKind(name, true);
-        if (id == 0) {
+        const id = tql.kinds.resolve(language, name) orelse {
             try stderr.print("error[unknown-kind]: `{s}` is not a node kind in this grammar\n", .{name});
             return .invalid_args;
-        }
+        };
         try kinds.append(gpa, id);
     }
 
@@ -93,19 +92,19 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
         const ids = if (kinds.items.len > 0)
             try gpa.dupe(u16, kinds.items)
         else
-            try tql.inspect.namedKinds(gpa, language);
+            try tql.kinds.named(gpa, language);
         defer gpa.free(ids);
 
         switch (format) {
             .text => if (kinds.items.len == 0) {
-                try tql.inspect.writeKindList(language, ids, stdout);
+                try tql.inspect.writeKindList(gpa, language, ids, stdout);
             } else for (ids, 0..) |id, i| {
                 if (i > 0) try stdout.writeByte('\n');
-                try tql.inspect.writeKind(language, id, stdout);
+                try tql.inspect.writeKind(gpa, language, id, stdout);
             },
             .json => {
                 try jws.beginArray();
-                for (ids) |id| try tql.inspect.writeKindJson(language, id, &jws);
+                for (ids) |id| try tql.inspect.writeKindJson(gpa, language, id, &jws);
                 try jws.endArray();
                 try stdout.writeByte('\n');
             },
