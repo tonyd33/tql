@@ -10,7 +10,7 @@ of the same tree. Nodes have no order.
 
 | Operation | Type | Result |
 |---|---|---|
-| `text` | `Node -> String` | the node's source text; ill-formed UTF-8 becomes U+FFFD |
+| `text` | `Node -> String` | the node's source text, decoded as in [String](11-library.md#string) |
 | `kind` | `Node -> Kind` | the node's kind |
 | `kind_name` | `Node -> String` | the kind's name; an anonymous token's name is its spelling |
 | `is_named` | `Node -> Bool` | whether the node is named, not an anonymous token |
@@ -28,23 +28,27 @@ start and excludes its end.
 
 ## Kinds
 
-A kind literal `:k` names the named node kind `k` of the target grammar.
-A kind the grammar does not have is a compile error, `unknown-kind`.
-`:identifier` names the node kind, not an anonymous token spelled
-`identifier`.
+A kind literal `:k` names the named node kind `k` of the target grammar,
+so `:identifier` names the node kind, not an anonymous token spelled
+`identifier`. A kind the grammar does not have is an error,
+`unknown-kind`.
 
-`Kind` has `Eq` and `ToJSON`. `is_kind k n` is `kind n == k`, and
+`Kind` has `Eq` and `ToJson`. `is_kind k n` tests a node's kind, and
 `of_kind k` is the filter that keeps a node of kind `k`:
 
-```
-of_kind k = Kleisli (\n -> if is_kind k n then [n] else [])
+```tql
+is_kind :: Kind -> Node -> Bool;
+is_kind k n = kind n == k;
+
+of_kind :: Kind -> Filter Node Node;
+of_kind k = Kleisli $ \n -> if is_kind k n then [n] else [];
 ```
 
 ## Fields
 
 `n#f` is the list of `n`'s children in the grammar field `f`, in document
 order: empty when `n` has no such child, and every child when the field
-repeats. A field the grammar does not have is a compile error.
+repeats. A field the grammar does not have is an error, `unknown-field`.
 
 ## Navigation
 
@@ -61,11 +65,17 @@ data Axis
   | FollowingSibling
   | PrecedingSibling;
 
+data Test
+  = Any
+  | Named
+  | OfKind Kind;
+
 navigate :: Axis -> Test -> Node -> [Node];
 ```
 
 `navigate a t n` is the nodes on axis `a` from `n` that pass the node test
-`t`, in the axis's order:
+`t`, in the axis's order. `Any` passes every node, `Named` the named
+nodes, and `OfKind k` the nodes of kind `k`.
 
 | Axis | Nodes, in order |
 |---|---|
@@ -78,24 +88,23 @@ navigate :: Axis -> Test -> Node -> [Node];
 | `FollowingSibling` | the later siblings, nearest first |
 | `PrecedingSibling` | the earlier siblings, nearest first |
 
-`any` passes every node, and `kind k` passes the nodes of kind `k`.
-
 Each named axis of the library is `navigate` at one axis and one test,
 lifted to a filter:
 
 ```tql
 descendants_of_kind :: Kind -> Filter Node Node;
-descendants_of_kind k = Kleisli (navigate Descendant (kind k));
+descendants_of_kind k = Kleisli $ navigate Descendant $ OfKind k;
 ```
 
-The axes are lazy: a step yields its first node without walking the rest.
-`head (run (descendants_of_kind :k) n)` stops at the first match.
+The axes are lazy: an axis yields its first node without walking the rest,
+so `head $ run (descendants_of_kind :k) n` stops at the first match.
 
 ## Syntax errors
 
 A file that tree-sitter cannot parse cleanly still has a tree. Where the
 parser skipped text, the tree has an `ERROR` node; where it supplied a
-token the text lacked, it has a missing node.
+token the text lacked, it has a missing node. A missing node matches
+patterns as a real one of its kind does, and its text is `""`.
 
 | Operation | Type | Holds of |
 |---|---|---|
@@ -103,10 +112,8 @@ token the text lacked, it has a missing node.
 | `is_missing` | `Node -> Bool` | a missing node |
 | `has_error` | `Node -> Bool` | a node that is, or contains, an `ERROR` or missing node |
 
-A missing node matches patterns as a real one of its kind does, and its
-text is `""`. A program that should skip files with syntax errors says
-so:
+A program that should skip files with syntax errors says so:
 
 ```tql
-main = keep (\n -> not (has_error n)) | descendants_of_kind :debugger_statement;
+main = keep (\n -> not $ has_error n) | descendants_of_kind :debugger_statement;
 ```

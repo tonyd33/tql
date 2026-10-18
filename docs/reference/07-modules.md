@@ -5,9 +5,9 @@
 ```
 module  ::= header? import* topdecl*
 header  ::= "module" modid exports? grammars? ";"
-exports ::= "(" (export ("," export)*)? ","? ")"
+exports ::= "(" (export ("," export)*)? ")"
 export  ::= qvar | qtycon ("(" ".." ")")? | qcls ("(" ".." ")")? | "module" modid
-grammars ::= "for" name ("," name)*
+grammars ::= "for" lower ("," lower)*
 
 import  ::= "import" modid items? ("as" modid)? ";"
 items   ::= "(" (item ("," item)*)? ")" | "hiding" "(" (item ("," item)*)? ")"
@@ -15,10 +15,12 @@ item    ::= var | tycon ("(" ".." ")")? | cls ("(" ".." ")")?
 ```
 
 A module is one file. Its name is dotted, `Data.List`, and is found as the
-file `Data/List.tql`.
+file `Data/List.tql`. An import of a module that is not found is an
+error, `unresolved-module`.
 
 A module with no header is the program's entry module, `Main`. Every
-imported module has a header naming it.
+imported module has a header naming it, or it is an error,
+`module-name-mismatch`.
 
 ## Exports
 
@@ -37,8 +39,6 @@ makes. An export list names what it exports:
 An export list may name an imported entity. Two exports of one name that
 denote different entities are an error, `conflicting-export`.
 
-An operator's fixity is exported with it.
-
 ## Imports
 
 | Import | Brings into scope |
@@ -48,7 +48,8 @@ An operator's fixity is exported with it.
 | `import M hiding (x);` | everything `M` exports but `x`, unqualified |
 | `import M as Q;` | everything `M` exports, as `Q.x` only |
 
-`import M` does not bring `M.x` into scope. Several imports may share one
+`import M as Q` is the only qualified import; there is no `qualified`
+keyword. `import M` does not bring `M.x` into scope. Several imports may share one
 qualifier. Imports are not transitive: importing `A`, which imports `B`,
 does not bring `B`'s names into scope.
 
@@ -57,25 +58,27 @@ implicitly, unless it imports `Prelude` itself, as in
 `import Prelude hiding (map);`.
 
 Instances are not imported by name. A program sees every instance of
-every module it links ([Instances](04-declarations.md#instances)).
+every module it links ([Instance](05-declarations.md#instance)).
 
 ## Name resolution
 
-An unqualified name resolves to:
+An unqualified name resolves in the first of these layers that binds it:
 
-1. the nearest enclosing local binding of that name;
-2. otherwise, the module's own top-level declaration of it;
-3. otherwise, the entity that the module's unqualified imports bring in
-   under that name.
+1. the nearest enclosing local binding;
+2. the module's own top-level declarations;
+3. the entities its unqualified imports list by name, `import M (x)`;
+4. the entities its other unqualified imports bring in, `import M` and
+   `import M hiding (y)`;
+5. the implicit `Prelude`.
 
-A name that is none of these is an error, `unresolved-name`. A name that
-two imports bring in for different entities is an error,
-`ambiguous-name`, at each use; a name imported twice for one entity is
-not ambiguous. A module's own declaration hides an import of the same
-name without error.
+A layer hides every layer below it without error. A name bound by no
+layer is an error, `unresolved-name`. A name that one layer binds to two
+different entities is an error, `ambiguous-name`, at each use; a name
+bound twice to one entity is not ambiguous.
 
 A qualified name `Q.x` resolves only through the imports under `Q`, and
-never to the module's own declaration.
+never to the module's own declaration; otherwise it is an error,
+`unresolved-name`.
 
 There are two namespaces. Variables and constructors share the value
 namespace; types, synonyms and classes share the type namespace.
@@ -104,14 +107,16 @@ twice.
 A target grammar is named by a `for` clause. A module with a `for` clause
 may use the kind literals and fields of its grammars. A module without one
 is generic: it may not name kinds or fields, and it imports only generic
-modules. A program whose modules name different grammars is an error,
-`grammar-mismatch`.
+modules. A generic module that names a kind, a field or a module with a
+`for` clause, or a program whose modules name different grammars, is an
+error, `grammar-mismatch`.
 
 ## The library
 
 The standard library is a set of modules bundled with the engine, found
-after the program's own search path. A program module may not take a
-library module's name. `Prim` holds the primitive types and operations,
-bound by `%` names; only `Prim` may name a primitive. The `Prelude`
+after the program's own search path. A program module that takes a
+library module's name is an error, `ambiguous-module`. `Prim` holds the
+primitive types and operations, bound by `%` names; a primitive named
+outside `Prim` is an error, `unresolved-name`. The `Prelude`
 re-exports the common parts of the library. The modules and their contents
-are in [The standard library](11-library.md).
+are in [Predefined types and classes](11-library.md).

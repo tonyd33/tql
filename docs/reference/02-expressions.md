@@ -5,17 +5,17 @@
 ```
 exp     ::= lexp (qop lexp)*
 
-lexp    ::= "\" apat+ "->" exp
+lexp    ::= blockexp | fexp
+blockexp ::= "\" apat+ "->" exp
           | "let" binds "in" exp
           | "if" exp "then" exp "else" exp
           | "case" exp "of" "{" (alt ";")* "}"
-          | "do" "{" (stmt ";")* exp ";"? "}"
-          | fexp
+          | "do" "{" (stmt ";")* exp ";" "}"
 
 fexp    ::= fexp arg | aexp
-arg     ::= aexp | "\" ... | "let" ... | "if" ... | "case" ... | "do" ...
+arg     ::= aexp | blockexp
 
-aexp    ::= qvar | qcon | literal
+aexp    ::= qvar | qcon | primitive | literal
           | "(" exp ")"
           | "(" exp ("," exp)+ ")"   |   "(" ")"
           | "[" (exp ("," exp)*)? "]"
@@ -28,8 +28,8 @@ aexp    ::= qvar | qcon | literal
           | "#" field
 
 alt     ::= pat ("if" exp)? "->" exp
-stmt    ::= exp | pat "<-" exp | "let" binds
-binds   ::= "{" (bind ";")* "}" | bind (";" bind)*
+stmt    ::= exp | pat "<-" exp | "let" "{" (decl ";")* "}" | "let" decl (";" decl)*
+binds   ::= "{" (decl ";")* "}" | (decl ";")+
 ```
 
 A lambda, `let`, `if` or `case` extends as far to the right as it can. Any
@@ -40,15 +40,43 @@ Application is left-associative and binds tighter than every operator.
 Field selection `x.f` and field navigation `n#f` bind tighter than
 application, so `range n.start` is `range (n.start)`.
 
+## The expression kernel
+
+Every expression translates to a kernel expression:
+
+```
+e ::= x                                   variable
+    | lit                                 literal
+    | \x -> e                             abstraction
+    | e e                                 application
+    | let { x = e; ... } in e             recursive binding group
+    | case e of { p -> e; ... }           match over kernel patterns
+    | (e :: σ)                            annotation
+```
+
+A kernel expression is written in source syntax. A variable `x` includes
+the kernel constants the translations introduce, `record_L`, `select_l`
+and `field_f`, and the primitives. Without those, a kernel expression is
+a program fragment. Kernel patterns are in
+[The pattern kernel](03-patterns.md#the-pattern-kernel), the typing rules
+in [Static semantics](06-static-semantics.md), and the meaning in
+[Evaluation](10-evaluation.md).
+
+A source construct is well typed exactly when its translation is, and
+means what its translation means. The checker reads the source as
+written, so it reports an error at the construct, not at its
+translation.
+
 ## Variables, constructors and literals
 
 A variable or constructor denotes its binding in scope
 ([Name resolution](07-modules.md#name-resolution)). A literal denotes its
 value at its type ([Literals](01-lexical.md#literals)).
 
-## Operators
+## Operator application
 
-An operator application is the application of the operator's binding:
+`(op)` names the operator's binding as a variable. An operator
+application applies it:
 
 ```
 e1 op e2     =   (op) e1 e2
@@ -63,8 +91,8 @@ A chain `e1 op1 e2 op2 ... en` is grouped by the operators' fixities:
 - At one level, left-associative operators group to the left and
   right-associative ones to the right.
 - Two operators at one level that are non-associative, or whose
-  associativities differ, are an error. `a < b < c` and `a && b <|> c`
-  are errors; bracket one side.
+  associativities differ, are a parse error. `a < b < c` and
+  `a && b <|> c` are parse errors; bracket one side.
 
 The operators of the standard library, tightest first:
 
@@ -77,31 +105,30 @@ The operators of the standard library, tightest first:
 | `:` | `infixr 5` | the list constructor `Cons` |
 | `==` `!=` | `infix 4` | `Eq` methods |
 | `<` `<=` `>` `>=` | `infix 4` | `Ord` methods |
-| `~` `!~` | `infix 4` | regex match, and its negation |
+| `~` `!~` | `infix 4` | `Data.Regex`: match, and its negation |
 | `&&` | `infixr 3` | `Data.Bool`: conjunction |
 | `<\|>` | `infixl 3` | `Alternative`: `alt` |
 | `\|\|` | `infixr 2` | `Data.Bool`: disjunction |
 | `>>` | `infixl 1` | `Control.Monad`: sequencing |
 | `$` | `infixr 0` | `Data.Function`: application |
-| `\|` | left, looser than every other operator | `Control.Category`: composition left to right |
+| `\|` | `infixl -1` | `Control.Category`: composition left to right |
 
 `&&` and `||` are ordinary functions, defined by `case`, so each is lazy
 in its right operand. TQL has no `/` and no negation; see
-[Integers](10-evaluation.md#integers).
+[Int](11-library.md#int).
 
-## Sections
+## Section
 
 ```
-(op)      =   \x y -> x op y
-(e op)    =   let v = e in \y -> v op y
-(op e)    =   let v = e in \x -> x op v
+(e op)    =   let { v = e; } in \y -> (op) v y
+(op e)    =   let { v = e; } in \x -> (op) x v
 ```
 
 `e` is evaluated at most once, however often the section is applied.
 
 A left section `(e op)` is legal when `e op x` groups as `(e) op x`, and
 a right section `(op e)` when `x op e` groups as `x op (e)`. So
-`(* 2 + 3)` is an error, and `(+ 2 * 3)` is `\x -> x + 2 * 3`.
+`(* 2 + 3)` is a parse error, and `(+ 2 * 3)` is `\x -> x + 2 * 3`.
 
 `(- e)` is a right section of subtraction: `(- 1) 5` is `4`.
 
@@ -111,23 +138,24 @@ kind literal.
 ## Lambda abstraction
 
 ```
-\p1 ... pn -> e   =   \x1 -> ... \xn -> case (x1, ..., xn) of { (p1, ..., pn) -> e }
+\p1 ... pn -> e   =   \x1 -> ... \xn -> case (x1, ..., xn) of { (p1, ..., pn) -> e; }
 ```
 
 When every `pi` is a variable, the `case` is left out. Each `pi` must be
 exhaustive by the [coverage judgement](03-patterns.md#coverage), or the
-lambda is an error. A variable bound twice among `p1 ... pn` is an error.
+lambda is an error, `non-exhaustive`. A variable bound twice among
+`p1 ... pn` is an error, `duplicate-definition`.
 
-## Conditionals
-
-```
-if e1 then e2 else e3   =   case e1 of { True -> e2; False -> e3 }
-```
-
-## Case
+## Conditional expression
 
 ```
-case e of { p1 if g1 -> e1; ...; pn -> en }
+if e1 then e2 else e3   =   case e1 of { True -> e2; False -> e3; }
+```
+
+## Case expression
+
+```
+case e of { p1 if g1 -> e1; ...; pn -> en; }
 ```
 
 The alternatives are tried in order. The first whose pattern matches and
@@ -135,44 +163,46 @@ whose guard, if it has one, is `True` gives the result. A guard that is
 `False` passes the value on to the next alternative. The meaning of a
 match is in [Patterns](03-patterns.md#meaning).
 
-A `case` whose alternatives do not cover every value is an error
-(`non-exhaustive`), and so is one with an alternative no value can reach
-(`redundant-alternative`). See [Coverage](03-patterns.md#coverage).
+A `case` whose alternatives do not cover every value is an error,
+`non-exhaustive`, and one with an alternative no value can reach is an
+error, `redundant-alternative` ([Coverage](03-patterns.md#coverage)).
 
-## Let
+## Let expression
 
 ```
-let { b1; ...; bn } in e
-let b1; ...; bn in e
+let { b1; ...; bn; } in e
+let b1; ...; bn; in e
 ```
 
-The two forms are the same. The bindings are one recursive group: each
-`bi` is in scope in every `bj` and in `e`. The group is split by
-dependency before it is typed ([Binding groups](04-declarations.md#binding-groups)).
-A name bound twice in one group is an error.
+The two forms are the same. The bindings are recursive: each `bi` is in
+scope in every `bj` and in `e`. They are split into binding groups by
+dependency and typed group by group
+([Binding group](05-declarations.md#binding-group)).
+A name bound twice in one `let` is an error, `duplicate-definition`.
 
 A binding `f p1 ... pn = e` is `f = \p1 ... pn -> e`. Several adjacent
 clauses of one name form one definition
-([Function bindings](04-declarations.md#function-bindings)).
+([Function binding](05-declarations.md#function-binding)).
 
 A pattern binding `p = e` binds lazily:
 
 ```
-let { p = e; bs } in e'   =   let { t = e; x1 = case t of { p -> x1 }; ...; xk = case t of { p -> xk }; bs } in e'
+let { p = e; bs } in e'   =   let { t = e; x1 = case t of { p -> x1; }; ...; xk = case t of { p -> xk; }; bs } in e'
 ```
 
-where `x1 ... xk` are the variables of `p`. `p` must be exhaustive.
+where `x1 ... xk` are the variables of `p`. `p` must be exhaustive, or
+the binding is an error, `non-exhaustive`.
 
-## Do
+## Do expression
 
 `do` works in any monad.
 
 ```
-do { e }               =   e
-do { e; ss }           =   e >> do { ss }
-do { p <- e; ss }      =   bind e (\x -> case x of { p -> do { ss }; _ -> empty })
-do { p <- e; ss }      =   bind e (\x -> case x of { p -> do { ss } })        if p is exhaustive
-do { let bs; ss }      =   let bs in do { ss }
+do { e; }              =   e
+do { e; ss }           =   (>>) e (do { ss })
+do { p <- e; ss }      =   bind e (\x -> case x of { p -> do { ss }; _ -> empty; })
+do { p <- e; ss }      =   bind e (\x -> case x of { p -> do { ss }; })        if p is exhaustive
+do { let bs; ss }      =   let { bs } in do { ss }
 ```
 
 A bind whose pattern can fail falls through to `empty`, so it requires
@@ -191,58 +221,63 @@ main = do {
 };
 ```
 
-Both statements read the root, not the class. To run a step on a bound
-node, pipe it: `n <- pure c | descendants_of_kind :method_definition;`.
+Both statements read the root, not the class. To run a filter on a
+bound node, pipe it: `n <- pure c | descendants_of_kind :method_definition;`.
 
-## Pipelines
+## Pipeline
 
 ```
-p | q   =   (|) p q
+e1 | e2   =   (|) e1 e2
 ```
 
 `(|) :: Category k => k a b -> k b c -> k a c` is composition left to
-right. At `Filter`, the composite runs `q` on each output of `p` and
+right. At `Filter`, the composite runs `e2` on each output of `e1` and
 concatenates the results in order:
 
 ```
-run (p | q) x   =   concat_map (run q) (run p x)
+run (e1 | e2) x   =   concat_map (run e2) (run e1 x)
 ```
 
-## Lists and tuples
+## List and tuple
 
 ```
-[e1, ..., en]      =   e1 : ... : en : []
+[e1, ..., en]      =   Cons e1 (... (Cons en Nil))
 (e1, ..., en)      =   (,...,) e1 ... en          2 ≤ n ≤ 255
 ```
 
-`[]` is `Nil` and `:` is `Cons`. `()` is the unit value. There are no
-one-tuples, tuple sections, arithmetic sequences or list comprehensions.
+`[]` is `Nil` and `:` is `Cons`. `()` is the tuple of no components, the
+unit. There are no one-tuples, tuple sections, arithmetic sequences or
+list comprehensions.
 
-## Records
+## Record
 
 ```
-{l1 = e1, ..., ln = en}     a record with fields l1 ... ln
-e.l                         the field l of e
+{l1 = e1, ..., ln = en}     =   record_{l1 ... ln} e1 ... en      l1 < ... < ln
+e.l                         =   select_l e
 (.l1. ... .ln)              =   \r -> r.l1. ... .ln
 ```
 
-Field order does not matter: `{a = 1, b = 2}` and `{b = 2, a = 1}` are
-the same value. A label repeated in one literal is an error. `{}` is the
-empty record. Record types are in [Records and rows](05-types.md#records-and-rows).
+A literal's fields are sorted by label first, so `{a = 1, b = 2}` and
+`{b = 2, a = 1}` are the same value. A label repeated in one literal is
+an error, `duplicate-definition`. `{}` is the empty record. `record_L`
+and `select_l` are kernel constants, one for each set of labels and each
+label; a program cannot name them. Their types are in
+[Records and rows](04-types.md#records-and-rows).
 
 ## Field navigation
 
-`n#f` is the list of `n`'s children in the grammar field `f`, in document
-order. `#f` on its own is the filter of that step:
-
 ```
-#f   =   Kleisli (\n -> n#f)
+n#f   =   field_f n
+#f    =   Kleisli field_f
 ```
 
-So `descendants_of_kind :call_expression | #function` yields each call's
-callee. See [Fields](09-tree.md#fields).
+`field_f :: Node -> [Node]` is a kernel constant, one for each field of
+the target grammar, giving a node's children in field `f`
+([Fields](09-tree.md#fields)). A program cannot name it.
+`descendants_of_kind :call_expression | #function` yields each call's
+callee.
 
-## Type annotations
+## Type annotation
 
 ```
 (e :: σ)

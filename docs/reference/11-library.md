@@ -1,10 +1,10 @@
-# The standard library
+# Predefined types and classes
 
-This chapter gives the library's classes, the laws every instance must
-satisfy, and the instances the library provides. The laws are equations
-between meanings, `⊥` included. The library and the optimiser rely on
-them ([Typed Core and the optimiser](13-core.md)); an instance that breaks
-one gets results the laws do not predict.
+This chapter gives the standard types, their operations, and each class
+with its laws and the library's instances of it. A law is an equation between meanings, `⊥` included, that every
+instance must satisfy. The library and the [optimiser](12-core.md)
+rely on the laws: an instance that breaks one gets results they do not
+predict.
 
 ## Modules
 
@@ -15,20 +15,97 @@ one gets results the laws do not predict.
 | `Data.Bool` | `not`, `&&`, `\|\|`, `and`, `or` |
 | `Data.Int` | `+`, `-`, `*`, `div`, `mod`, `quot`, `rem`, `subtract`, `toint` |
 | `Data.Ord` | `Ord` and its functions |
-| `Data.List` | list functions, `Sized` |
+| `Data.List` | list functions, `foldl'`, `Sized` |
 | `Data.Maybe` | `Maybe` functions |
-| `Data.Tuple` | `fst`, `snd` |
-| `Data.Function` | `$`, `identity`, `.` |
+| `Data.Tuple` | `fst`, `snd`, `swap` |
+| `Data.Function` | `$`; `identity` and `.`, re-exported from `Control.Category` |
+| `Data.Regex` | `~`, `!~` |
 | `Data.Functor` | `Functor` |
 | `Data.Foldable` | `Foldable` and its functions |
 | `Data.Traversable` | `Traversable`, `sequence` |
 | `Data.Monoid` | `Semigroup`, `Monoid` |
 | `Data.Filter` | `Filter`, `run`, `collect`, `keep`, `has`, `or_else` |
 | `Data.Node` | the tree operations and axes |
-| `Control.Category` | `Category`, `\|` |
+| `Control.Category` | `Category`, `.`, `\|` |
 | `Control.Arrow` | `Arrow`, `ArrowZero`, `ArrowPlus`, `Kleisli` |
 | `Control.Applicative` | `Applicative`, `Alternative`, `<\|>`, `guard` |
 | `Control.Monad` | `Monad`, `>>`, `join`, `kleisli`, `mfilter` |
+
+## Standard types
+
+| Type | Values |
+|---|---|
+| `Int` | 64-bit two's complement integers |
+| `String` | well-formed UTF-8 text |
+| `Regex` | compiled regular expressions; only literals |
+| `Node` | nodes of a target file's syntax tree ([The tree](09-tree.md)) |
+| `Kind` | node kinds of the target grammar ([Kinds](09-tree.md#kinds)) |
+| `Bool` | `False`, `True` |
+| `Ordering` | `LT`, `EQ`, `GT` |
+| `List a` | `Nil`, `Cons a (List a)` |
+| `Maybe a` | `Nothing`, `Just a` |
+| `(a1, ..., an)` | tuples of n components, n = 0 or 2 ≤ n ≤ 255; `()` is the unit |
+| `Json` | `JNull`, `JBool Bool`, `JNumber Int`, `JString String`, `JArray [Json]`, `JObject [(String, Json)]` |
+
+There is no character type.
+
+```tql
+fst :: (a, b) -> a;
+fst p = case p of { (a, _) -> a; };
+
+snd :: (a, b) -> b;
+snd p = case p of { (_, b) -> b; };
+
+swap :: (a, b) -> (b, a);
+swap p = (snd p, fst p);
+```
+
+`swap` takes its pair lazily.
+
+## Int
+
+`Int` is 64-bit two's complement. Every operation is total:
+
+- `+`, `-` and `*` wrap: `9223372036854775807 + 1` is
+  `-9223372036854775808`.
+- `div` and `mod` round the quotient toward negative infinity; `quot` and
+  `rem` round it toward zero. `mod (-7) 3` is `2`; `rem (-7) 3` is `-1`.
+- A zero divisor gives quotient `0` and remainder the dividend: `div 7 0`
+  is `0` and `mod 7 0` is `7`.
+- The least `Int` divided by `-1` wraps to itself, with remainder `0`.
+
+So `q * b + r == a` holds for every `a` and `b`, for each pair.
+
+`toint :: String -> Maybe Int` reads decimal digits with an optional
+leading `-`, and gives `Nothing` for anything else or a number out of
+range.
+
+## String
+
+A `String` is well-formed UTF-8 text, not a list. Text read from outside
+the program, a node's source or a file name, is decoded with each maximal
+ill-formed subsequence replaced by U+FFFD.
+
+## Regex
+
+```tql
+(~) :: String -> Regex -> Bool;
+(!~) :: String -> Regex -> Bool;
+```
+
+`s ~ re` holds when `re` matches somewhere in `s`, and `s !~ re` when it
+does not. Matching takes time linear in the length of `s`, for every
+pattern, and never fails.
+
+The dialect:
+
+- matches over code points;
+- `\d`, `\w` and `\s` are ASCII;
+- `(?i)` folds case;
+- has no backreferences, lookaround, recursion, possessive quantifiers,
+  atomic groups or backtracking verbs.
+
+A pattern outside the dialect is an error, `invalid-regex`.
 
 ## Eq and Ord
 
@@ -36,6 +113,9 @@ one gets results the laws do not predict.
 class Eq a where {
   (==) :: a -> a -> Bool;
   (!=) :: a -> a -> Bool;
+  x == y = not (x != y);
+  x != y = not (x == y);
+  minimal (==) | (!=);
 };
 
 class Eq a => Ord a where {
@@ -46,13 +126,16 @@ class Eq a => Ord a where {
   (>=) :: a -> a -> Bool;
   max :: a -> a -> a;
   min :: a -> a -> a;
+  compare x y = if x == y then EQ else if x <= y then LT else GT;
+  x <= y = compare x y != GT;
+  x < y = compare x y == LT;
+  x > y = compare x y == GT;
+  x >= y = compare x y != LT;
+  max x y = if x <= y then y else x;
+  min x y = if x <= y then x else y;
+  minimal compare | (<=);
 };
 ```
-
-An `Eq` instance defines `==` or `!=`, and an `Ord` instance `compare` or
-`<=`; the other methods have defaults.
-
-Laws:
 
 ```
 x == x                                        reflexivity
@@ -68,10 +151,26 @@ compare x y == LT  =  compare y x == GT
 x < y  =  compare x y == LT     and likewise for <=, >, >=
 ```
 
-Instances: `Int` and `String` (by code point) have both. `Node` and
-`Kind` have `Eq` only. `List` (lexicographic, a prefix first), `Bool`
-(`False < True`), `Ordering`, `Maybe` (`Nothing` first), every tuple and
-every record have both. No function type has either.
+Instances:
+
+```
+Eq Int                                    Ord Int
+Eq String                                 Ord String
+Eq Bool                                   Ord Bool
+Eq Ordering                               Ord Ordering
+Eq a => Eq [a]                            Ord a => Ord [a]
+Eq a => Eq (Maybe a)                      Ord a => Ord (Maybe a)
+(Eq a1, ..., Eq an) => Eq (a1, ..., an)   (Ord a1, ..., Ord an) => Ord (a1, ..., an)
+All Eq ρ => Eq (Record ρ)                 All Ord ρ => Ord (Record ρ)
+Eq Node
+Eq Kind
+```
+
+`String` is ordered by code point, `Bool` with `False < True`, lists
+lexicographically with a prefix first, and `Maybe` with `Nothing` first.
+The tuple instances hold for every n, `()` included. Records are in
+[Classes over rows](04-types.md#classes-over-rows). No function type has
+either class.
 
 ## Semigroup and Monoid
 
@@ -90,8 +189,16 @@ append (append x y) z  =  append x (append y z)
 append mempty x  =  x  =  append x mempty
 ```
 
-Instances: lists (concatenation), `()`, and `Ordering` (the first
-non-`EQ`).
+Instances:
+
+```
+Semigroup [a]          Monoid [a]
+Semigroup ()           Monoid ()
+Semigroup Ordering     Monoid Ordering
+```
+
+`append` on lists is concatenation, and on `Ordering` it takes the first
+non-`EQ`.
 
 ## Functor, Applicative, Monad and Alternative
 
@@ -135,19 +242,37 @@ alt (alt x y) z  =  alt x (alt y z)
 bind empty f  =  empty
 ```
 
-The last law is what makes a failing `do` bind ([Do](02-expressions.md#do))
-mean what it says.
+The last law is what makes a failing `do` bind
+([Do expression](02-expressions.md#do-expression)) mean what it says.
+
+Derived from the methods:
+
+```tql
+(<|>) :: Alternative f => f a -> f a -> f a;
+x <|> y = alt x y;
+
+(>>) :: Monad m => m a -> m b -> m b;
+x >> y = bind x $ \_ -> y;
+
+return :: Applicative f => a -> f a;
+return = pure;
+
+guard :: Alternative f => Bool -> f ();
+guard b = if b then pure () else empty;
+
+kleisli :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c;
+kleisli p q x = bind (p x) q;
+```
+
+Instances, for each class `C` of the four:
 
 ```
-x <|> y   =  alt x y
-x >> y    =  bind x (\_ -> y)
-return    =  pure
-guard b   =  if b then pure () else empty
-kleisli p q x  =  bind (p x) q
+C List
+C Maybe
+C m => C (Kleisli m a)
 ```
 
-Instances: `List`, `Maybe`, `Kleisli m a` when `m` has the instance, and
-so `Filter a`. At lists, `ap` is the Cartesian product, function-major,
+So `Filter a` has all four. At lists, `ap` is the Cartesian product, function-major,
 and `alt` is concatenation. At `Kleisli m a`, every component reads the
 same input:
 
@@ -162,6 +287,8 @@ class Foldable t where {
   foldr :: (a -> b -> b) -> b -> t a -> b;
   null :: t a -> Bool;
   to_list :: t a -> [a];
+  null xs = foldr (\_ _ -> False) True xs;
+  to_list xs = foldr Cons Nil xs;
 };
 
 class (Functor t, Foldable t) => Traversable t where {
@@ -179,9 +306,16 @@ foldr f z . map g  =  foldr (f . g) z
 traverse pure  =  pure
 ```
 
-Instances: `List` and `Maybe`. The folds over them are lazy in the
-accumulator, so `any`, `all` and `null` stop at the first element that
-decides them.
+Instances:
+
+```
+Foldable List      Traversable List
+Foldable Maybe     Traversable Maybe
+```
+
+The folds over them are lazy in the accumulator, so `any`, `all` and
+`null` stop at the first element that decides them. The left fold is
+`foldl'`, strict in its accumulator; there is no lazy `foldl`.
 
 ## Sized
 
@@ -191,7 +325,14 @@ class Sized a where {
 };
 ```
 
-Instances: lists, and `String`, which counts code points.
+Instances:
+
+```
+Sized [a]
+Sized String
+```
+
+`String` counts code points.
 
 ## Category and Arrow
 
@@ -207,6 +348,10 @@ class Category k => Arrow k where {
   second :: k a b -> k (c, a) (c, b);
   split :: k a b -> k c d -> k (a, c) (b, d);
   fanout :: k a b -> k a c -> k a (b, c);
+  second f = compose (arr swap) $ compose (first f) $ arr swap;
+  split f g = compose (second g) $ first f;
+  fanout f g = compose (split f g) $ arr $ \x -> (x, x);
+  minimal arr, first;
 };
 
 class Arrow k => ArrowZero k where {
@@ -218,10 +363,15 @@ class ArrowZero k => ArrowPlus k where {
 };
 ```
 
-```
-f . g      =  compose f g
-p | q      =  compose q p
+```tql
+(.) :: Category k => k b c -> k a b -> k a c;
+f . g = compose f g;
 
+(|) :: Category k => k a b -> k b c -> k a c;
+p | q = compose q p;
+```
+
+```
 compose identity f  =  f  =  compose f identity
 compose f (compose g h)  =  compose (compose f g) h
 
@@ -235,34 +385,86 @@ plus zero_arrow f  =  f  =  plus f zero_arrow
 plus (plus f g) h  =  plus f (plus g h)
 ```
 
-Instances: `(->)`, and `Kleisli m` for a monad `m`, so `Filter`. At
-`Kleisli m`, composition is Kleisli composition:
+Instances:
+
+```
+Category (->)                                  Arrow (->)
+Monad m => Category (Kleisli m)                Monad m => Arrow (Kleisli m)
+(Monad m, Alternative m) => ArrowZero (Kleisli m)
+(Monad m, Alternative m) => ArrowPlus (Kleisli m)
+```
+
+So `Filter` has all four. At `Kleisli m`, composition is Kleisli
+composition:
 
 ```
 run_kleisli (p | q)  =  kleisli (run_kleisli p) (run_kleisli q)
 ```
 
-`ArrowZero` and `ArrowPlus` hold at `Kleisli m` when `m` is also
-`Alternative`. `first` and `second` take their pair lazily.
+`first` and `second` take their pair lazily.
 
-## ToJSON
+## ToJson
 
 ```tql
-class ToJSON a where {
+class ToJson a where {
   to_json :: a -> Json;
 };
 ```
 
-The instances and the derived encoding are in [Output](08-programs.md#output).
+Instances:
+
+| Instance | JSON |
+|---|---|
+| `ToJson Int` | a number |
+| `ToJson String` | a string |
+| `ToJson Bool` | `true` or `false` |
+| `ToJson Ordering`, derived | its constructor's name, a string |
+| `(ToJson a1, ..., ToJson an) => ToJson (a1, ..., an)` | an array of the components; `()` is `[]` |
+| `ToJson a => ToJson [a]` | an array |
+| `ToJson a => ToJson (Maybe a)` | `null` for `Nothing`, the value for `Just x` |
+| `All ToJson ρ => ToJson (Record ρ)` | an object with one member per field ([Classes over rows](04-types.md#classes-over-rows)) |
+| `ToJson Kind` | its name, a string |
+| `ToJson Node` | `{"kind", "text", "start_byte", "end_byte", "start_point", "end_point"}`, each point `{"row", "column"}` |
+| `ToJson Json` | itself |
+
+`Regex` and function types have no instance. A derived instance encodes
+by the datatype's shape ([Deriving](05-declarations.md#deriving)), and a
+program's output is written by `to_json`
+([Encoding](08-programs.md#encoding)).
 
 ## Filters
 
+```tql
+newtype Kleisli m a b = Kleisli (a -> m b);
+type Filter = Kleisli List;
+
+run_kleisli :: Kleisli m a b -> a -> m b;
+run_kleisli (Kleisli f) = f;
 ```
-run          =  run_kleisli
-keep f       =  Kleisli (\x -> if f x then [x] else [])
-collect p    =  Kleisli (\x -> [run p x])
-has p x      =  not (null (run p x))
-or_else p q  =  Kleisli (\x -> case run p x of { [] -> run q x; ys -> ys; })
+
+A filter from `a` to `b` takes an `a` to a list of `b`s. `Filter` is a
+synonym, so a filter is a `Kleisli List` arrow and has its instances. The
+pipeline operator `|` composes filters, and `do` sequences them
+([Pipeline](02-expressions.md#pipeline)).
+
+```tql
+run :: Filter a b -> a -> [b];
+run = run_kleisli;
+
+keep :: (a -> Bool) -> Filter a a;
+keep f = Kleisli $ \x -> if f x then [x] else [];
+
+collect :: Filter a b -> Filter a [b];
+collect p = Kleisli $ \x -> [run p x];
+
+has :: Filter a b -> a -> Bool;
+has p x = not $ null $ run p x;
+
+or_else :: Filter a b -> Filter a b -> Filter a b;
+or_else p q = Kleisli $ \x -> case run p x of {
+  [] -> run q x;
+  ys -> ys;
+};
 ```
 
 `or_else` falls back only when its first filter yields nothing, where `<|>`
