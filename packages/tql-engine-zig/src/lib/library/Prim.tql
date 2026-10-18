@@ -68,6 +68,15 @@ is_named = %is_named;
 is_extra :: Node -> Bool;
 is_extra = %is_extra;
 
+is_error :: Node -> Bool;
+is_error = %is_error;
+
+is_missing :: Node -> Bool;
+is_missing = %is_missing;
+
+has_error :: Node -> Bool;
+has_error = %has_error;
+
 range :: Node -> Range;
 range = %range;
 

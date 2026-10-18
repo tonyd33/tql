@@ -254,6 +254,12 @@ pub const Lowerer = struct {
                             "`{s}` uses a backreference, which tql regexes do not support",
                             .{r},
                         ),
+                        error.Unsupported => try self.sink.report(
+                            .invalid_regex,
+                            e.span,
+                            "`{s}` uses `{s}`, which tql regexes do not support",
+                            .{ r, pcre2.unsupported(r).? },
+                        ),
                     }
                     return error.DesugarFailed;
                 };

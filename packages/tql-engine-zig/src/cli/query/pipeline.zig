@@ -126,14 +126,15 @@ const FileResult = struct {
     arena: *std.heap.ArenaAllocator,
     gpa: std.mem.Allocator,
     filename: []const u8,
-    /// The file's outputs, already rendered as a JSON array. Serialization
-    /// happens on the worker, while the parsed tree a node value borrows is
-    /// still alive.
-    values: []const u8,
+    /// The file's outputs, already rendered as a JSON array, or null when the
+    /// file was not run. Serialization happens on the worker, while the
+    /// parsed tree a node value borrows is still alive.
+    values: ?[]const u8,
     count: usize,
     syntax_errors: []const tql.SyntaxError = &.{},
     stats: FileStats,
-    /// Why the file produced no outputs, when reading or running it failed.
+    /// Why reading the file failed, or why running it stopped after
+    /// `values`.
     failure: ?tql.Failure = null,
 
     fn deinit(self: FileResult) void {
@@ -217,7 +218,7 @@ fn failedResult(ctx: *SharedContext, entry: PathEntry, failure: tql.Failure) Fil
         .arena = entry.arena,
         .gpa = ctx.allocator,
         .filename = entry.path,
-        .values = "",
+        .values = null,
         .count = 0,
         .stats = .{},
         .failure = failure,
@@ -271,21 +272,23 @@ fn walkerThread(ctx: *SharedContext) !void {
 fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer, stderr: *Stderr) !void {
     while (try ctx.result_queue.pop()) |result| {
         defer result.deinit();
-        if (result.failure) |failure| {
-            try stderr.lock.lock(ctx.io);
-            defer stderr.lock.unlock(ctx.io);
-            try common.reportFailure(stderr.writer, result.filename, failure);
-            try stderr.writer.flush();
-            continue;
-        }
         if (result.syntax_errors.len > 0) {
             try stderr.lock.lock(ctx.io);
             defer stderr.lock.unlock(ctx.io);
             try warnSyntaxErrors(stderr.writer, result.filename, result.syntax_errors, ctx.grammar.name);
             try stderr.writer.flush();
         }
-        if (result.count == 0) continue;
-        try stdout.print("{s}: {s}\n", .{ result.filename, result.values });
+        if (result.count > 0) {
+            try stdout.print("{s}: {s}\n", .{ result.filename, result.values.? });
+            // The failure that follows goes to stderr, after these outputs.
+            if (result.failure != null) try stdout.flush();
+        }
+        if (result.failure) |failure| {
+            try stderr.lock.lock(ctx.io);
+            defer stderr.lock.unlock(ctx.io);
+            try common.reportFailure(stderr.writer, result.filename, failure);
+            try stderr.writer.flush();
+        }
     }
 }
 
@@ -305,15 +308,6 @@ fn warnSyntaxErrors(w: *std.Io.Writer, filename: []const u8, errors: []const tql
     });
 }
 
-/// Write `filename` as a JSON string, with each ill-formed UTF-8 sequence
-/// replaced by U+FFFD.
-fn writeFilename(jws: *std.json.Stringify, gpa: std.mem.Allocator, filename: []const u8) !void {
-    if (std.unicode.utf8ValidateSlice(filename)) return jws.write(filename);
-    const decoded = try std.fmt.allocPrint(gpa, "{f}", .{std.unicode.fmtUtf8(filename)});
-    defer gpa.free(decoded);
-    try jws.write(decoded);
-}
-
 fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
     var totals: FileStats = .{};
     try jws.beginObject();
@@ -321,29 +315,33 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
     try jws.beginArray();
     while (try ctx.result_queue.pop()) |result| {
         defer result.deinit();
-        if (result.failure) |failure| {
+        const values = result.values orelse {
             try jws.beginObject();
             try jws.objectField("file");
-            try writeFilename(jws, ctx.allocator, result.filename);
+            try jws.write(tql.utf8.Lossy{ .bytes = result.filename });
             try jws.objectField("failure");
-            try jws.write(failure);
+            try jws.write(result.failure.?);
             try jws.endObject();
             continue;
-        }
+        };
         totals.read_time = std.Io.Duration.fromNanoseconds(totals.read_time.nanoseconds + result.stats.read_time.nanoseconds);
         totals.parse_time = std.Io.Duration.fromNanoseconds(totals.parse_time.nanoseconds + result.stats.parse_time.nanoseconds);
         totals.query_time = std.Io.Duration.fromNanoseconds(totals.query_time.nanoseconds + result.stats.query_time.nanoseconds);
         try jws.beginObject();
         try jws.objectField("file");
-        try writeFilename(jws, ctx.allocator, result.filename);
+        try jws.write(tql.utf8.Lossy{ .bytes = result.filename });
         try jws.objectField("values");
         try jws.beginWriteRaw();
-        try jws.writer.writeAll(result.values);
+        try jws.writer.writeAll(values);
         jws.endWriteRaw();
         try jws.objectField("syntax_errors");
         try jws.write(result.syntax_errors);
         try jws.objectField("stats");
         try writeStats(jws, result.stats, null, null);
+        if (result.failure) |failure| {
+            try jws.objectField("failure");
+            try jws.write(failure);
+        }
         try jws.endObject();
     }
     try jws.endArray();
@@ -471,6 +469,7 @@ fn queryFile(ctx: *SharedContext, entry: PathEntry, scratch: std.mem.Allocator) 
         entry.arena.allocator(),
         scratch,
     ) catch |err| return failedResult(ctx, entry, .ofRun(err));
+    if (run_result.failure != null) _ = ctx.progress.failed.fetchAdd(1, .monotonic);
 
     return .{
         .arena = entry.arena,
@@ -478,6 +477,7 @@ fn queryFile(ctx: *SharedContext, entry: PathEntry, scratch: std.mem.Allocator) 
         .filename = entry.path,
         .values = run_result.json,
         .count = run_result.count,
+        .failure = run_result.failure,
         .syntax_errors = run_result.syntax_errors,
         .stats = .{
             .read_time = read_time,

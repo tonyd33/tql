@@ -568,15 +568,15 @@ pub const Inference = struct {
     /// `Gen(Gamma, tau_i)` for every member of a group checked together.
     ///
     /// Each member quantifies the metavariables free in its own type but not
-    /// in the environment. A constraint with built-in evidence goes to each
-    /// member whose own metavariables it mentions.
+    /// in the environment.
     ///
-    /// Constraints with dictionary evidence are the group's one context: each
-    /// is reduced through instances to constraints in head-normal form,
-    /// exact duplicates and those a superclass of another implies are
-    /// dropped, and every member takes what remains, quantifying the
-    /// metavariables it mentions. A residual on a metavariable no member
-    /// quantifies is still owed by an enclosing scope.
+    /// The group has one context: each constraint is reduced through
+    /// instances to constraints in head-normal form, exact duplicates and
+    /// those a superclass of another implies are dropped, and every member
+    /// takes what remains, quantifying the metavariables it mentions. A
+    /// residual on a metavariable no member quantifies is still owed by an
+    /// enclosing scope. Only the constraints with dictionary evidence become
+    /// parameters.
     ///
     /// Fails on a member whose type does not mention a metavariable its
     /// context quantifies. See Ambiguity in type_check.zig.
@@ -634,6 +634,12 @@ pub const Inference = struct {
         const context = try self.groupContext(taken.items, quantified.items, known.items);
         defer self.gpa.free(context);
 
+        var dictionaries: std.ArrayList(types.TypeClassConstraint) = .empty;
+        defer dictionaries.deinit(self.gpa);
+        for (context) |c| {
+            if (self.env.classes.evidenceOf(c.class) == .dictionary) try dictionaries.append(self.gpa, c);
+        }
+
         // A scheme's constraints drop their origin span: the scheme outlives
         // the term that raised them, and a use site that violates one reports
         // at its own span instead.
@@ -655,12 +661,6 @@ pub const Inference = struct {
                 }
                 try bare.append(self.gpa, c);
             }
-            for (taken.items) |c| {
-                if (self.env.classes.evidenceOf(c.class) != .builtin) continue;
-                if (!try self.subst.mentionsAny(c.type, mentioned)) continue;
-                if (try self.implied(c, context)) continue;
-                try bare.append(self.gpa, .{ .class = c.class, .type = c.type });
-            }
             const scheme = self.subst.quantify(t, own.items, bare.items) catch |err| switch (err) {
                 error.TooManyVariables => return self.fail(.limit, span, .{
                     .too_many_variables = own.items.len,
@@ -674,7 +674,7 @@ pub const Inference = struct {
             member.* = .{
                 .scheme = scheme,
                 .metas = try self.builder.dupeSlice(types.Meta, own.items),
-                .dictionaries = try self.builder.dupeSlice(types.TypeClassConstraint, context),
+                .dictionaries = try self.builder.dupeSlice(types.TypeClassConstraint, dictionaries.items),
             };
         }
     }
@@ -687,10 +687,10 @@ pub const Inference = struct {
         }
     }
 
-    /// The group context `taken` reduces to: each constraint with dictionary
-    /// evidence in head-normal form, mentioning one of `quantified`, without
-    /// duplicates or constraints another's superclasses imply, in order of
-    /// first appearance. Residuals mentioning none go back to `undecided`.
+    /// The group context `taken` reduces to: each constraint in head-normal
+    /// form, mentioning one of `quantified`, without duplicates or
+    /// constraints another's superclasses imply, in order of first
+    /// appearance. Residuals mentioning none go back to `undecided`.
     /// Fails on a constraint, or a residual, that mentions a metavariable
     /// outside `known`. The caller owns the result.
     fn groupContext(
@@ -705,10 +705,6 @@ pub const Inference = struct {
         defer residuals.deinit(self.gpa);
 
         for (taken) |c| {
-            if (self.env.classes.evidenceOf(c.class) != .dictionary) {
-                if (!try self.subst.within(c.type, known)) return self.failAmbiguous(c.class, c.type, c.origin);
-                continue;
-            }
             residuals.clearRetainingCapacity();
             if (try constraints.reduce(self.subst, c.class, c.type, &residuals, self.gpa)) |culprit| {
                 return self.fail(.unsatisfied_constraint, c.origin, .{ .violation = .{
@@ -732,12 +728,6 @@ pub const Inference = struct {
 
         context.shrinkRetainingCapacity(self.env.classes.pruneEntailed(context.items));
         return try context.toOwnedSlice(self.gpa);
-    }
-
-    /// Whether `c`, a constraint with built-in evidence, is implied by a
-    /// superclass of a constraint in `context`.
-    fn implied(self: *Inference, c: constraints.Constraint, context: []const types.TypeClassConstraint) Error!bool {
-        return self.env.classes.entailedBy(context, .{ .class = c.class, .type = try self.subst.resolveDeep(c.type) });
     }
 
     /// Infers one strongly connected component of the definition graph

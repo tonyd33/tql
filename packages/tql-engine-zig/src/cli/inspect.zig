@@ -143,7 +143,7 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
             .json => {
                 try jws.beginObject();
                 try jws.objectField("file");
-                try jws.write(path);
+                try jws.write(tql.utf8.Lossy{ .bytes = path });
                 try jws.objectField("failure");
                 try jws.write(failure);
                 try jws.endObject();
@@ -208,7 +208,7 @@ const InspectTarget = struct {
             .json => {
                 try self.jws.beginObject();
                 try self.jws.objectField("file");
-                try self.jws.write(path);
+                try self.jws.write(tql.utf8.Lossy{ .bytes = path });
                 try self.jws.objectField("nodes");
                 if (self.kinds.len == 0) {
                     try tql.inspect.writeJson(rows.items, self.jws);
