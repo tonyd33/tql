@@ -476,8 +476,6 @@ pub fn parameterCount(t: types.Type) u8 {
 /// A `solve` sink that builds no evidence, by what it makes of a leaf no
 /// given solves.
 pub const Check = union(enum) {
-    /// Solved, for asking only whether a constraint is refuted.
-    assume,
     /// Stuck, for asking whether the givens alone solve a constraint.
     refuse,
     /// Solved, and appended to `out`.
@@ -496,7 +494,6 @@ pub const Check = union(enum) {
 
     pub fn leaf(self: Check, class: ClassId, t: types.Type) Error!?void {
         switch (self) {
-            .assume => return {},
             .refuse => return null,
             .collect => |c| {
                 try c.out.append(c.gpa, .{ .class = class, .type = t });

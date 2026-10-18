@@ -37,6 +37,9 @@ kind    ::= "Type" | "Row" | kind "->" kind | "(" kind ")"
 variables are quantified at the outside of its signature. There is no
 `forall`.
 
+A constraint's type is a type variable, possibly applied to types. A
+constraint on any other type is an error, `invalid-class`.
+
 ## Kinds
 
 `Ψ ⊢ τ : κ` reads: in `Ψ`, `τ` has kind `κ`. The rules are named `K-`.

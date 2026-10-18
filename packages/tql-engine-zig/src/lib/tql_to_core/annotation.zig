@@ -651,23 +651,12 @@ const Translator = struct {
 
     /// Translates `c`, whose type must have its class parameter's kind.
     fn constraint(self: *Translator, c: cst.ClassConstraint) Error!types.TypeClassConstraint {
-        const env = self.scope.env;
         const class = try constraintClass(self.scope, c, self.sink);
-        const parameter = self.classKind(class);
-        const t = try self.type(c.type, parameter);
-        const solution = try classes.solve(self.gpa, &env.classes, class, t, classes.Bound{}, &.{}, classes.Check{ .assume = {} });
-        if (solution == .refuted) {
-            const culprit = solution.refuted;
-            var names = try env.messageNames(self.gpa, &.{culprit}, &.{class});
-            defer names.deinit(self.gpa);
-            try self.sink.report(.unsatisfied_constraint, c.span, .{ diagnostic.code(.{ names.class(&env.classes, class), " ", culprit.namedOperand(&names) }), " is never satisfied" });
-            return error.BadAnnotation;
-        }
-        if (types.recordArgument(t)) |argument| if (argument == .row and argument.row.tail != null) return .{ .class = class, .type = t };
+        const t = try self.type(c.type, self.classKind(class));
         var head = t;
         while (head == .application) head = head.application.head;
         if (head != .variable) {
-            try self.sink.report(.invalid_class, c.type.span, .{"a constraint must be on a type variable, one applied to types, or an open record"});
+            try self.sink.report(.invalid_class, c.type.span, .{"a constraint must be on a type variable or one applied to types"});
             return error.BadAnnotation;
         }
         return .{ .class = class, .type = t };

@@ -6,7 +6,7 @@ Both arguments are records with `name` and the same other fields.
 
 --- tql ---
 
-same :: Eq {name: String | r} => {name: String | r} -> {name: String | r} -> Bool;
+same :: All Eq r => {name: String | r} -> {name: String | r} -> Bool;
 same a b = a == b;
 main = pure $ same {name = "a", n = 1} {name = "a", n = 1};
 
@@ -17,6 +17,6 @@ class A {}
 [true]
 
 --- types ---
-same :: Eq {name: String | a} => {name: String | a} -> {name: String | a} -> Bool
+same :: All Eq a => {name: String | a} -> {name: String | a} -> Bool
 main :: Kleisli List Node Bool
 entry :: Node -> [Json]

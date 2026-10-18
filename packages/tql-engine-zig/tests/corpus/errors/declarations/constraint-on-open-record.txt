@@ -1,0 +1,18 @@
+title: a constraint on an open record
+grammar: typescript
+asserts: error
+
+A constraint's type is a type variable, possibly applied to types
+(Types: Grammar). An open record's fields are constrained through `All`.
+
+--- tql ---
+f :: Eq {x: Int | r} => {x: Int | r} -> Bool;
+f a = True;
+main = pure 1;
+
+--- error ---
+error[invalid-class]: a constraint must be on a type variable or one applied to types
+ --> 1:9
+  |
+1 | f :: Eq {x: Int | r} => {x: Int | r} -> Bool;
+  |         ^^^^^^^^^^^^

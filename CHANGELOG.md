@@ -10,6 +10,7 @@
 - `main` errors use the ordinary categories: a `main` that is not a filter from nodes is a `type-mismatch`, and an undetermined output an `ambiguous-constraint` on `ToJson`.
 - `Serial` is replaced by `ToJson`, whose `to_json :: a -> Json` gives an output's JSON: a derived instance writes `Rect 2 3` as `{"tag":"Rect","contents":[2,3]}`, an all-nullary constructor as its name, and a one-field constructor as its field, and `Maybe` writes `Nothing` as `null` and `Just x` as `x`.
 - Writing an `Int` past 2^53 - 1 in magnitude is a runtime error, `int-out-of-range`, so every number written is exact in every JSON reader.
+- A constraint's type is a type variable, possibly applied to types: write `All Eq r =>` for the fields of `{name: String | r}`, not `Eq {name: String | r} =>`.
 
 ### New Features
 
