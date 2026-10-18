@@ -166,6 +166,7 @@ const primitives = @import("../primitives.zig");
 const stg = @import("terms.zig");
 const core = @import("../core.zig");
 const value = @import("value.zig");
+const location = @import("../location.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -987,7 +988,7 @@ pub const Machine = struct {
                 },
                 .range => {
                     const subject = try self.nodeArgument(arguments);
-                    return try self.rangeRecord(rangeOf(subject));
+                    return try self.rangeRecord(.ofNode(subject));
                 },
 
                 .is_kind => {
@@ -1140,7 +1141,7 @@ pub const Machine = struct {
     }
 
     /// `range`'s record in one block: its four fields, then each point's two.
-    fn rangeRecord(self: *Machine, r: value.Range) Error!value.Value {
+    fn rangeRecord(self: *Machine, r: location.Range) Error!value.Value {
         note(.range_fields, 8 * (@sizeOf(value.Thunk) + @sizeOf(value.Field)));
         const thunks = try self.arena.alloc(value.Thunk, 8);
         const fields = try self.arena.alloc(value.Field, 8);
@@ -1536,26 +1537,13 @@ pub const Machine = struct {
                 try jws.write(inner.kind());
                 try jws.objectField("text");
                 try jws.write(try self.nodeText(inner));
-                try writeLocation(rangeOf(inner), jws);
+                try location.Range.ofNode(inner).jsonFields(jws);
                 try jws.endObject();
             },
             else => return error.TypeError,
         }
     }
 };
-
-/// The location fields a node and a range share, in the order the public
-/// encoding fixes. Starts are inclusive and ends exclusive.
-fn writeLocation(r: value.Range, jws: *std.json.Stringify) !void {
-    try jws.objectField("start_byte");
-    try jws.write(r.start_byte);
-    try jws.objectField("end_byte");
-    try jws.write(r.end_byte);
-    try jws.objectField("start_point");
-    try jws.write(r.start_point);
-    try jws.objectField("end_point");
-    try jws.write(r.end_point);
-}
 
 /// Move `t.cursor` to the next node `t` keeps, reporting whether one exists.
 ///
@@ -1603,17 +1591,6 @@ fn advancePreOrder(cursor: *ts.TreeCursor) bool {
 
 fn orderLabel(label: []const u8, field: value.Field) std.math.Order {
     return core.types.Type.Field.order(label, field.label);
-}
-
-fn rangeOf(n: ts.Node) value.Range {
-    const start = n.startPoint();
-    const end = n.endPoint();
-    return .{
-        .start_byte = n.startByte(),
-        .end_byte = n.endByte(),
-        .start_point = .{ .row = start.row, .column = start.column },
-        .end_point = .{ .row = end.row, .column = end.column },
-    };
 }
 
 /// An optional leading `-` and one or more ASCII decimal digits, fitting an

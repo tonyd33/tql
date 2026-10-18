@@ -352,7 +352,7 @@ pub fn main(init: std.process.Init) !u8 {
     var library_sink = tql.diagnostic.Sink.init(gpa);
     defer library_sink.deinit();
     var library = tql.Library.init(gpa, &library_sink) catch |err| {
-        for (library_sink.items()) |d| try stdout.print("library: {s}\n", .{d.message});
+        for (library_sink.items()) |d| try stdout.print("library: {f}\n", .{d.message()});
         return err;
     };
     defer library.deinit();

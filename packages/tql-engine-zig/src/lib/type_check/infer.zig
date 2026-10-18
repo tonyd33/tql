@@ -393,7 +393,11 @@ pub const Inference = struct {
         if (first.*) |f| {
             // Alternatives are checked in constructor order. Of two that
             // disagree, blame the one later in the source.
-            if (span.start_byte >= f.span.start_byte) {
+            const later = if (span.range) |r|
+                if (f.span.range) |first_range| r.start_byte >= first_range.start_byte else true
+            else
+                f.span.range == null;
+            if (later) {
                 try self.expect(body, f.type, span);
             } else {
                 try self.expect(f.type, body, f.span);
@@ -1137,9 +1141,6 @@ pub fn check(
         error.TypeError => {
             const failure = inference.failure.?;
 
-            var buf: std.Io.Writer.Allocating = .init(sink.allocator);
-            defer buf.deinit();
-
             const env = &program.env;
             switch (failure.detail) {
                 .mismatch => |m| {
@@ -1147,44 +1148,37 @@ pub fn check(
                     const found = try subst.resolveDeep(m.found);
                     var names = try env.messageNames(gpa, &.{ expected, found }, &.{});
                     defer names.deinit(gpa);
-                    try buf.writer.print("Expected `{f}`, found `{f}`.", .{ expected.named(&names), found.named(&names) });
+                    try sink.report(failure.category, failure.span, .{ "Expected ", diagnostic.code(expected.named(&names)), ", found ", diagnostic.code(found.named(&names)), "." });
                 },
                 .violation => |v| {
                     const t = try subst.resolveDeep(v.type);
                     var names = try env.messageNames(gpa, &.{t}, &.{v.class});
                     defer names.deinit(gpa);
-                    try buf.writer.print("`{f} {f}` is not satisfied.", .{ names.class(v.class, env.classes.spelling(v.class)), t.namedOperand(&names) });
+                    try sink.report(failure.category, failure.span, .{ diagnostic.code(.{ names.class(v.class, env.classes.spelling(v.class)), " ", t.namedOperand(&names) }), " is not satisfied." });
                 },
                 .ambiguous => |c| {
                     const t = try subst.resolveDeep(c.type);
                     var names = try env.messageNames(gpa, &.{t}, &.{c.class});
                     defer names.deinit(gpa);
-                    try buf.writer.print("`{f} {f}` is ambiguous: nothing determines its type.", .{ names.class(c.class, env.classes.spelling(c.class)), t.namedOperand(&names) });
+                    try sink.report(failure.category, failure.span, .{ diagnostic.code(.{ names.class(c.class, env.classes.spelling(c.class)), " ", t.namedOperand(&names) }), " is ambiguous: nothing determines its type." });
                 },
                 inline .over_application, .view_not_function, .not_a_function, .ambiguous_output => |shown, tag| {
                     const t = try subst.resolveDeep(shown);
                     var names = try env.messageNames(gpa, &.{t}, &.{});
                     defer names.deinit(gpa);
-                    const message = switch (tag) {
-                        .over_application => "`{f}` has no argument left to take.",
-                        .view_not_function => "The expression of a view pattern must be a function; found `{f}`.",
-                        .not_a_function => "`{f}` is not a function.",
-                        .ambiguous_output => "`main`'s output `{f}` is ambiguous: nothing determines its type.",
+                    const shown_code = diagnostic.code(t.named(&names));
+                    try sink.report(failure.category, failure.span, switch (tag) {
+                        .over_application => .{ shown_code, " has no argument left to take." },
+                        .view_not_function => .{ "The expression of a view pattern must be a function; found ", shown_code, "." },
+                        .not_a_function => .{ shown_code, " is not a function." },
+                        .ambiguous_output => .{ diagnostic.code("main"), "'s output ", shown_code, " is ambiguous: nothing determines its type." },
                         else => comptime unreachable,
-                    };
-                    try buf.writer.print(message, .{t.named(&names)});
+                    });
                 },
-                .unbound => |id| try buf.writer.print(
-                    "`{s}` is not defined.",
-                    .{env.interner.spelling(id)},
-                ),
-                .too_many_variables => |n| try buf.writer.print(
-                    "The type has {d} variables, more than the {d} a scheme can quantify.",
-                    .{ n, std.math.maxInt(types.TypeVar) },
-                ),
+                .unbound => |id| try sink.report(failure.category, failure.span, .{ diagnostic.code(env.interner.spelling(id)), " is not defined." }),
+                .too_many_variables => |n| try sink.report(failure.category, failure.span, .{ "The type has ", n, " variables, more than the ", std.math.maxInt(types.TypeVar), " a scheme can quantify." }),
             }
 
-            try sink.report(failure.category, failure.span, "{s}", .{buf.written()});
             return error.TypeCheckFailed;
         },
         else => |e| return e,

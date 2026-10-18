@@ -297,11 +297,9 @@ fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer, stderr: *Stderr
 /// Preconditions:
 /// - `errors` is not empty
 fn warnSyntaxErrors(w: *std.Io.Writer, filename: []const u8, errors: []const tql.SyntaxError, grammar: []const u8) !void {
-    const first = errors[0].start_point;
-    try w.print("{s}:{d}:{d}: warning: {d} syntax error{s} under the {s} grammar; findings may be incomplete\n", .{
+    try w.print("{s}:{f}: warning: {d} syntax error{s} under the {s} grammar; findings may be incomplete\n", .{
         filename,
-        first.row + 1,
-        first.column + 1,
+        errors[0].range.start_point,
         errors.len,
         if (errors.len == 1) "" else "s",
         grammar,

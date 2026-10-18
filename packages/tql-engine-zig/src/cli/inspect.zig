@@ -196,8 +196,7 @@ const InspectTarget = struct {
                     if (self.written) try self.stdout.writeByte('\n');
                     self.written = true;
                     if (self.kinds.len > 0) {
-                        const p = rows.items[start].start_point;
-                        try self.stdout.print("{s}:{d}:{d}\n", .{ path, p.row + 1, p.column + 1 });
+                        try self.stdout.print("{s}:{f}\n", .{ path, rows.items[start].range.start_point });
                     } else if (self.headed) {
                         try self.stdout.print("{s}\n", .{path});
                     }

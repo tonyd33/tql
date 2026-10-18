@@ -1,17 +1,10 @@
 //! Spans and diagnostics, shared by the surface AST and everything downstream.
 
 const std = @import("std");
+const location = @import("location.zig");
 
-/// A position as a fixture writes it: zero-based internally, rendered
-/// one-based.
-pub const Point = struct {
-    row: u32,
-    column: u32,
-
-    pub fn format(self: Point, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("{d}:{d}", .{ self.row + 1, self.column + 1 });
-    }
-};
+const Point = location.Point;
+const Range = location.Range;
 
 /// Which source text a span indexes into. The query being compiled is
 /// `entry`; every other id is assigned by whoever parsed that source.
@@ -58,67 +51,39 @@ pub const Sources = struct {
     }
 };
 
-/// A source range, half-open in bytes: `[start_byte, end_byte)`.
-///
-/// Points are carried alongside the byte offsets because error fixtures pin
-/// `line:col`, and recovering that from a byte offset alone would mean
-/// re-scanning the source at every diagnostic.
+/// A range of the source `source` names.
 pub const Span = struct {
-    start_byte: u32,
-    end_byte: u32,
-    start_point: Point,
-    end_point: Point,
+    /// Null for nodes that no source range corresponds to.
+    range: ?Range,
     source: SourceId = .entry,
 
-    /// For nodes that no source range corresponds to.
-    pub const unknown: Span = .{
-        .start_byte = 0,
-        .end_byte = 0,
-        .start_point = .{ .row = 0, .column = 0 },
-        .end_point = .{ .row = 0, .column = 0 },
-    };
+    pub const unknown: Span = .{ .range = null };
 
-    pub fn isUnknown(self: Span) bool {
-        return std.meta.eql(self, unknown);
-    }
-
-    /// Write the offsets and points, without the source.
+    /// Write the range, without the source.
     pub fn jsonStringify(self: Span, jws: anytype) !void {
-        try jws.write(.{
-            .start_byte = self.start_byte,
-            .end_byte = self.end_byte,
-            .start_point = self.start_point,
-            .end_point = self.end_point,
-        });
+        try jws.write(self.range);
     }
 
-    /// The `line:col-line:col` form the error fixtures are written in.
+    /// Write the range, or `?` when there is none.
     pub fn format(self: Span, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try self.start_point.format(w);
-        try w.writeByte('-');
-        try self.end_point.format(w);
+        if (self.range) |range| try range.format(w) else try w.writeByte('?');
     }
 
-    /// Byte offsets only, for the AST s-expression goldens.
+    /// Write the range's byte offsets, or `?` when there is none.
     pub fn sexpr(self: Span, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("{d}:{d}", .{ self.start_byte, self.end_byte });
+        if (self.range) |range| try range.sexpr(w) else try w.writeByte('?');
     }
 
-    /// The smallest span covering both operands.
+    /// The smallest span covering both operands. A span with no range
+    /// covers nothing.
     ///
     /// Preconditions:
-    /// - `a` and `b` are in the same source.
+    /// - `a` and `b` are in the same source, or one has no range.
     pub fn join(a: Span, b: Span) Span {
+        const ra = a.range orelse return b;
+        const rb = b.range orelse return a;
         std.debug.assert(a.source == b.source);
-        const start_first = a.start_byte <= b.start_byte;
-        const end_first = a.end_byte >= b.end_byte;
-        return .{
-            .start_byte = if (start_first) a.start_byte else b.start_byte,
-            .end_byte = if (end_first) a.end_byte else b.end_byte,
-            .start_point = if (start_first) a.start_point else b.start_point,
-            .end_point = if (end_first) a.end_point else b.end_point,
-            .source = a.source,
-        };
+        return .{ .range = ra.join(rb), .source = a.source };
     }
 };
 
@@ -206,32 +171,46 @@ pub const Category = enum {
     }
 };
 
-/// One reported problem. `message` is commentary and should not be treated as
-/// part of the stable API.
+/// A run of a diagnostic message.
+pub const Part = union(enum) {
+    text: []const u8,
+    /// Quoted code, without delimiters.
+    code: []const u8,
+};
+
+/// One reported problem. Its message is commentary and should not be treated
+/// as part of the stable API.
 pub const Diagnostic = struct {
     category: Category,
     span: Span,
-    message: []const u8,
+    /// The message, in order.
+    parts: []const Part,
 
     pub fn deinit(self: Diagnostic, allocator: std.mem.Allocator) void {
-        allocator.free(self.message);
+        freeRuns(allocator, self.parts);
+        allocator.free(self.parts);
+    }
+
+    /// The message as plain text, with code in backticks.
+    pub fn message(self: Diagnostic) Plain {
+        return .{ .parts = self.parts };
     }
 
     /// Write the diagnostic followed by the lines of `source` its span covers,
     /// with the span underlined. `source` must be the one the span's
     /// `source` names.
     ///
-    /// A span equal to `Span.unknown` gets neither location nor excerpt.
+    /// A span with no range gets neither location nor excerpt.
     pub fn render(
         self: Diagnostic,
         w: *std.Io.Writer,
         source: Source,
     ) std.Io.Writer.Error!void {
-        try w.print("error[{s}]: {s}\n", .{ self.category.name(), self.message });
-        if (self.span.isUnknown()) return;
+        try w.print("error[{s}]: {f}\n", .{ self.category.name(), self.message() });
+        const range = self.span.range orelse return;
 
-        const start = self.span.start_point;
-        var end = self.span.end_point;
+        const start = range.start_point;
+        var end = range.end_point;
         // A span ending at column 0 stops at the end of the line before it.
         if (end.row > start.row and end.column == 0) {
             end.row -= 1;
@@ -299,6 +278,141 @@ fn isContinuationByte(c: u8) bool {
     return c & 0b1100_0000 == 0b1000_0000;
 }
 
+fn freeRuns(allocator: std.mem.Allocator, parts: []const Part) void {
+    for (parts) |part| switch (part) {
+        inline else => |run| allocator.free(run),
+    };
+}
+
+/// Formats a message as plain text, each code part fenced as a CommonMark
+/// code span: one backtick more than its longest run of backticks, padded
+/// with a space when it starts or ends with one.
+const Plain = struct {
+    parts: []const Part,
+
+    pub fn format(self: Plain, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        for (self.parts) |part| switch (part) {
+            .text => |text| try w.writeAll(text),
+            .code => |quoted| {
+                const fence = longestBacktickRun(quoted) + 1;
+                const pad = quoted.len > 0 and (quoted[0] == '`' or quoted[quoted.len - 1] == '`');
+                try w.splatByteAll('`', fence);
+                if (pad) try w.writeByte(' ');
+                try w.writeAll(quoted);
+                if (pad) try w.writeByte(' ');
+                try w.splatByteAll('`', fence);
+            },
+        };
+    }
+
+    fn longestBacktickRun(text: []const u8) usize {
+        var longest: usize = 0;
+        var run: usize = 0;
+        for (text) |c| {
+            run = if (c == '`') run + 1 else 0;
+            longest = @max(longest, run);
+        }
+        return longest;
+    }
+};
+
+/// Mark `value` as code in a message. A tuple is one part, its elements
+/// written in turn.
+pub fn code(value: anytype) Code(@TypeOf(value)) {
+    return .{ .value = value };
+}
+
+fn Code(comptime T: type) type {
+    return struct { value: T };
+}
+
+/// A diagnostic message under construction.
+pub const Message = struct {
+    allocator: std.mem.Allocator,
+    parts: std.ArrayList(Part) = .empty,
+    /// Text written since the last part ended.
+    run: std.Io.Writer.Allocating,
+
+    pub fn init(allocator: std.mem.Allocator) Message {
+        return .{ .allocator = allocator, .run = .init(allocator) };
+    }
+
+    pub fn deinit(self: *Message) void {
+        freeRuns(self.allocator, self.parts.items);
+        self.parts.deinit(self.allocator);
+        self.run.deinit();
+    }
+
+    /// Append each of the tuple `parts`: a `code` value as code, anything
+    /// else as text. Text is a string, an integer, or a value with a `format`
+    /// method.
+    pub fn append(self: *Message, parts: anytype) std.mem.Allocator.Error!void {
+        inline for (parts) |part| {
+            if (comptime isCode(@TypeOf(part))) {
+                try self.end(.text);
+                try self.write(part.value);
+                try self.end(.code);
+            } else {
+                try self.write(part);
+            }
+        }
+    }
+
+    /// Hands over the parts, leaving the message empty.
+    pub fn toOwnedSlice(self: *Message) std.mem.Allocator.Error![]Part {
+        try self.end(.text);
+        return self.parts.toOwnedSlice(self.allocator);
+    }
+
+    fn write(self: *Message, value: anytype) std.mem.Allocator.Error!void {
+        const T = @TypeOf(value);
+        if (comptime isTuple(T)) {
+            inline for (value) |element| try self.write(element);
+            return;
+        }
+        self.run.writer.print(comptime spec(T), .{value}) catch return error.OutOfMemory;
+    }
+
+    /// End the run as a part of `kind`. An empty run is dropped.
+    fn end(self: *Message, kind: std.meta.Tag(Part)) std.mem.Allocator.Error!void {
+        if (self.run.written().len == 0) return;
+        try self.parts.ensureUnusedCapacity(self.allocator, 1);
+        const run = try self.run.toOwnedSlice();
+        self.parts.appendAssumeCapacity(switch (kind) {
+            .text => .{ .text = run },
+            .code => .{ .code = run },
+        });
+    }
+
+    fn isCode(comptime T: type) bool {
+        return @typeInfo(T) == .@"struct" and @hasField(T, "value") and T == Code(@FieldType(T, "value"));
+    }
+
+    fn isTuple(comptime T: type) bool {
+        return @typeInfo(T) == .@"struct" and @typeInfo(T).@"struct".is_tuple;
+    }
+
+    fn spec(comptime T: type) []const u8 {
+        switch (@typeInfo(T)) {
+            .int, .comptime_int => return "{d}",
+            .pointer => |p| {
+                const elem = switch (p.size) {
+                    .slice => p.child,
+                    .one => switch (@typeInfo(p.child)) {
+                        .array => |array| array.child,
+                        else => void,
+                    },
+                    else => void,
+                };
+                if (elem == u8) return "{s}";
+            },
+            .@"struct", .@"union", .@"enum" => if (@hasDecl(T, "format")) return "{f}",
+            else => {},
+        }
+        @compileError("a message part must be a string, an integer or formattable, found " ++ @typeName(T));
+    }
+};
+
 /// Collects diagnostics so a pass can report every problem it finds rather than
 /// failing at the first.
 pub const Sink = struct {
@@ -314,28 +428,41 @@ pub const Sink = struct {
         self.diagnostics.deinit(self.allocator);
     }
 
-    pub fn report(
-        self: *Sink,
-        category: Category,
-        span: Span,
-        comptime format: []const u8,
-        args: anytype,
-    ) !void {
-        const message = try std.fmt.allocPrint(self.allocator, format, args);
-        errdefer self.allocator.free(message);
-        try self.diagnostics.append(self.allocator, .{
-            .category = category,
-            .span = span,
-            .message = message,
-        });
+    /// Report the message the tuple `parts` spells, as `Message.append` reads it.
+    pub fn report(self: *Sink, category: Category, span: Span, parts: anytype) !void {
+        var message: Message = .init(self.allocator);
+        defer message.deinit();
+        try message.append(parts);
+        try self.add(category, span, &message);
+    }
+
+    /// Report what `message` holds, taking it over and leaving it empty.
+    ///
+    /// Preconditions:
+    /// - `message` allocates with this sink's allocator.
+    pub fn add(self: *Sink, category: Category, span: Span, message: *Message) !void {
+        try self.diagnostics.ensureUnusedCapacity(self.allocator, 1);
+        const parts = try message.toOwnedSlice();
+        self.diagnostics.appendAssumeCapacity(.{ .category = category, .span = span, .parts = parts });
     }
 
     /// Reports each of `diagnostics` again, here.
     pub fn extend(self: *Sink, diagnostics: []const Diagnostic) !void {
         for (diagnostics) |d| {
-            const message = try self.allocator.dupe(u8, d.message);
-            errdefer self.allocator.free(message);
-            try self.diagnostics.append(self.allocator, .{ .category = d.category, .span = d.span, .message = message });
+            try self.diagnostics.ensureUnusedCapacity(self.allocator, 1);
+            const parts = try self.allocator.alloc(Part, d.parts.len);
+            var copied: usize = 0;
+            errdefer {
+                freeRuns(self.allocator, parts[0..copied]);
+                self.allocator.free(parts);
+            }
+            for (d.parts, parts) |part, *copy| {
+                copy.* = switch (part) {
+                    inline else => |run, tag| @unionInit(Part, @tagName(tag), try self.allocator.dupe(u8, run)),
+                };
+                copied += 1;
+            }
+            self.diagnostics.appendAssumeCapacity(.{ .category = d.category, .span = d.span, .parts = parts });
         }
     }
 
@@ -363,8 +490,8 @@ fn expectRender(
 ) !void {
     const d: Diagnostic = .{
         .category = .type_mismatch,
-        .span = .{ .start_byte = 1, .end_byte = 1, .start_point = start, .end_point = end },
-        .message = "Expected `Int`, found `String`.",
+        .span = .{ .range = .{ .start_byte = 1, .end_byte = 1, .start_point = start, .end_point = end } },
+        .parts = &.{ .{ .text = "Expected " }, .{ .code = "Int" }, .{ .text = ", found " }, .{ .code = "String" }, .{ .text = "." } },
     };
     var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer buf.deinit();
@@ -384,9 +511,43 @@ test "render stops a span ending at column 0 on the line before" {
 }
 
 test "render omits location and excerpt for an unknown span" {
-    const d: Diagnostic = .{ .category = .missing_main, .span = .unknown, .message = "No `main`." };
+    const d: Diagnostic = .{ .category = .missing_main, .span = .unknown, .parts = &.{ .{ .text = "No " }, .{ .code = "main" }, .{ .text = "." } } };
     var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer buf.deinit();
     try d.render(&buf.writer, .{ .name = null, .text = "f = 1;" });
     try std.testing.expectEqualStrings("error[missing-main]: No `main`.\n", buf.written());
+}
+
+fn expectParts(message: *Message, expected: []const Part) !void {
+    const parts = try message.toOwnedSlice();
+    defer (Diagnostic{ .category = .parse, .span = .unknown, .parts = parts }).deinit(std.testing.allocator);
+    try std.testing.expectEqual(expected.len, parts.len);
+    for (expected, parts) |want, got| {
+        try std.testing.expectEqual(std.meta.activeTag(want), std.meta.activeTag(got));
+        switch (want) {
+            inline else => |run, tag| try std.testing.expectEqualStrings(run, @field(got, @tagName(tag))),
+        }
+    }
+}
+
+test "append keeps text and code apart, with a backtick in code as content" {
+    var message: Message = .init(std.testing.allocator);
+    defer message.deinit();
+    try message.append(.{ code("`("), " is not a valid regular expression" });
+    try expectParts(&message, &.{ .{ .code = "`(" }, .{ .text = " is not a valid regular expression" } });
+}
+
+test "append joins text across calls and writes integers and code tuples" {
+    var message: Message = .init(std.testing.allocator);
+    defer message.deinit();
+    try message.append(.{ "takes ", 2 });
+    try message.append(.{ " arguments, as in ", code(.{ "f", " ", 1 }) });
+    try expectParts(&message, &.{ .{ .text = "takes 2 arguments, as in " }, .{ .code = "f 1" } });
+}
+
+test "message fences code holding backticks with a longer run" {
+    const d: Diagnostic = .{ .category = .parse, .span = .unknown, .parts = &.{ .{ .code = "`(" }, .{ .text = " or " }, .{ .code = "a `div` b" } } };
+    const message = try std.fmt.allocPrint(std.testing.allocator, "{f}", .{d.message()});
+    defer std.testing.allocator.free(message);
+    try std.testing.expectEqualStrings("`` `( `` or ``a `div` b``", message);
 }

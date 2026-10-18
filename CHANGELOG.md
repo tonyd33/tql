@@ -9,6 +9,8 @@
 ### New Features
 
 - `is_error`, `is_missing` and `has_error` test the nodes tree-sitter's error recovery made: `descendants | keep is_missing` finds an inserted `;`, and `keep (\n -> not (has_error n))` keeps only a file that parsed.
+- The playground underlines each diagnostic's span in the query editor.
+- `tql-js` diagnostics carry `parts`, their message as runs of text and quoted code: `[{"text": "Expected "}, {"code": "Int"}]`.
 
 ### Bug Fixes
 

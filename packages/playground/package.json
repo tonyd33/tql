@@ -27,6 +27,7 @@
 		"@codemirror/lang-javascript": "^6.2.5",
 		"@codemirror/lang-python": "^6.2.1",
 		"@codemirror/lang-rust": "^6.0.2",
+		"@codemirror/lint": "^6.9.6",
 		"@codemirror/state": "^6.6.0",
 		"codemirror": "^6.0.2",
 		"tql": "workspace:*"

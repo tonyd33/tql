@@ -101,13 +101,13 @@ pub fn collect(
         };
 
         if (declarations.find(name)) |_| {
-            try sink.report(.duplicate_definition, span, "`{s}` is defined more than once", .{name});
+            try sink.report(.duplicate_definition, span, .{ diagnostic.code(name), " is defined more than once" });
             continue;
         }
 
         const declaration = intern(interner, module, decl) catch |err| switch (err) {
             error.Collision => {
-                try sink.report(.symbol_collision, span, "`{s}` collides with an existing symbol", .{name});
+                try sink.report(.symbol_collision, span, .{ diagnostic.code(name), " collides with an existing symbol" });
                 continue;
             },
             else => |e| return e,
@@ -124,10 +124,10 @@ pub fn collect(
 
         const target = declarations.find(name) orelse {
             if (interner.lookup(module, name)) |_| {
-                try sink.report(.symbol_collision, span, "`{s}` collides with an existing symbol", .{name});
+                try sink.report(.symbol_collision, span, .{ diagnostic.code(name), " collides with an existing symbol" });
                 continue;
             }
-            try sink.report(.orphan_signature, span, "`{s}` has a signature but no {s}", .{ name, noun });
+            try sink.report(.orphan_signature, span, .{ diagnostic.code(name), " has a signature but no ", noun });
             continue;
         };
 
@@ -138,7 +138,7 @@ pub fn collect(
             else => unreachable,
         };
         if (!attached) {
-            try sink.report(.duplicate_signature, span, "`{s}` has more than one signature", .{name});
+            try sink.report(.duplicate_signature, span, .{ diagnostic.code(name), " has more than one signature" });
         }
     }
 

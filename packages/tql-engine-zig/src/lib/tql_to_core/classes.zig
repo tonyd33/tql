@@ -73,7 +73,7 @@ pub const Linker = struct {
                 }
             }
             if (self.scope.declaredType(self.module(), declared.name) != null) {
-                try self.sink.report(.duplicate_definition, declared.span, "`{s}` is declared more than once", .{declared.name});
+                try self.sink.report(.duplicate_definition, declared.span, .{ diagnostic.code(declared.name), " is declared more than once" });
                 self.failed = true;
                 try ids.append(self.arena(), null);
                 continue;
@@ -143,12 +143,7 @@ pub const Linker = struct {
         // Once superclasses have unified every class's kind.
         for (registered.items) |r| {
             if (group.inference.resolve(group.classes.get(r.id).?) == .row) {
-                try self.sink.report(
-                    .invalid_class,
-                    r.declared.span,
-                    "`{s}`, the parameter of `{s}`, is a row; a class ranges over types",
-                    .{ r.declared.parameter, r.declared.name },
-                );
+                try self.sink.report(.invalid_class, r.declared.span, .{ diagnostic.code(r.declared.parameter), ", the parameter of ", diagnostic.code(r.declared.name), ", is a row; a class ranges over types" });
                 self.failed = true;
             }
         }
@@ -159,12 +154,7 @@ pub const Linker = struct {
         for (declared.superclasses, out) |written, *slot| {
             slot.* = try annotation.resolveClass(self.scope, written.class, written.span, self.sink);
             if (!std.mem.eql(u8, written.variableName() orelse "", declared.parameter)) {
-                try self.sink.report(
-                    .invalid_class,
-                    written.span,
-                    "`{s}` constrains something other than `{s}`, the parameter of `{s}`",
-                    .{ written.class, declared.parameter, declared.name },
-                );
+                try self.sink.report(.invalid_class, written.span, .{ diagnostic.code(written.class), " constrains something other than ", diagnostic.code(declared.parameter), ", the parameter of ", diagnostic.code(declared.name) });
                 return error.BadAnnotation;
             }
         }
@@ -179,17 +169,7 @@ pub const Linker = struct {
             const kind = group.classKind(super, &self.env.classes);
             if (group.inference.unify(own, kind)) continue;
             var names: types.KindNames = .{};
-            try self.sink.report(
-                .kind_mismatch,
-                written.span,
-                "`{s}` ranges over kind `{f}`, but `{s}` over kind `{f}`",
-                .{
-                    written.class,
-                    (try group.inference.zonk(kind, null)).named(&names),
-                    r.declared.name,
-                    (try group.inference.zonk(own, null)).named(&names),
-                },
-            );
+            try self.sink.report(.kind_mismatch, written.span, .{ diagnostic.code(written.class), " ranges over kind ", diagnostic.code((try group.inference.zonk(kind, null)).named(&names)), ", but ", diagnostic.code(r.declared.name), " over kind ", diagnostic.code((try group.inference.zonk(own, null)).named(&names)) });
             self.failed = true;
         }
     }
@@ -226,7 +206,7 @@ pub const Linker = struct {
             if (!core.components.cyclic(group, edges)) continue;
             const reported_index = std.mem.min(u32, group);
             const r = members[reported_index];
-            try self.sink.report(.invalid_class, r.declared.span, "`{s}` is its own superclass", .{r.declared.name});
+            try self.sink.report(.invalid_class, r.declared.span, .{ diagnostic.code(r.declared.name), " is its own superclass" });
             for (group) |m| {
                 self.env.classes.getMut(members[m].id).superclasses = &.{};
                 members[m].superclasses_resolved = false;
@@ -250,7 +230,7 @@ pub const Linker = struct {
                 .index = @intCast(index),
             } }) catch |err| switch (err) {
                 error.Collision => {
-                    try self.sink.report(.symbol_collision, signature.span, "`{s}` collides with an existing symbol", .{signature.name});
+                    try self.sink.report(.symbol_collision, signature.span, .{ diagnostic.code(signature.name), " collides with an existing symbol" });
                     return error.BadAnnotation;
                 },
                 else => |e| return e,
@@ -318,12 +298,7 @@ pub const Linker = struct {
         const class_id = try annotation.resolveClass(self.scope, declared.class, declared.span, self.sink);
         const class = self.env.classes.get(class_id);
         if (self.env.classes.evidenceOf(class_id) == .builtin) {
-            try self.sink.report(
-                .invalid_instance,
-                declared.span,
-                "`{s}` is built in and takes no instances",
-                .{class.name.name},
-            );
+            try self.sink.report(.invalid_instance, declared.span, .{ diagnostic.code(class.name.name), " is built in and takes no instances" });
             return error.BadAnnotation;
         }
 
@@ -332,19 +307,7 @@ pub const Linker = struct {
         const head_name = head_datatype.name;
         const head_module = head_datatype.module;
         if (self.module() != class.name.module.? and self.module() != head_module) {
-            try self.sink.report(
-                .orphan_instance,
-                declared.span,
-                "`{s} {s}` must be declared in `{s}`, which declares `{s}`, or in `{s}`, which declares `{s}`",
-                .{
-                    class.name.name,
-                    head_name,
-                    self.env.interner.moduleName(class.name.module.?),
-                    class.name.name,
-                    self.env.interner.moduleName(head_module),
-                    head_name,
-                },
-            );
+            try self.sink.report(.orphan_instance, declared.span, .{ diagnostic.code(.{ class.name.name, " ", head_name }), " must be declared in ", diagnostic.code(self.env.interner.moduleName(class.name.module.?)), ", which declares ", diagnostic.code(class.name.name), ", or in ", diagnostic.code(self.env.interner.moduleName(head_module)), ", which declares ", diagnostic.code(head_name) });
             return error.BadAnnotation;
         }
 
@@ -355,28 +318,18 @@ pub const Linker = struct {
             const index = for (class.methods, 0..) |method, i| {
                 if (std.mem.eql(u8, self.env.interner.spelling(method), definition.name)) break i;
             } else {
-                try self.sink.report(
-                    .invalid_instance,
-                    definition.span,
-                    "`{s}` is not a method of `{s}`",
-                    .{ definition.name, class.name.name },
-                );
+                try self.sink.report(.invalid_instance, definition.span, .{ diagnostic.code(definition.name), " is not a method of ", diagnostic.code(class.name.name) });
                 return error.BadAnnotation;
             };
             if (defined[index] != null) {
-                try self.sink.report(.duplicate_definition, definition.span, "`{s}` is defined more than once", .{definition.name});
+                try self.sink.report(.duplicate_definition, definition.span, .{ diagnostic.code(definition.name), " is defined more than once" });
                 return error.BadAnnotation;
             }
             defined[index] = definition;
         }
         for (class.methods, defined) |method, definition| {
             if (definition != null) continue;
-            try self.sink.report(
-                .invalid_instance,
-                declared.span,
-                "`{s} {s}` does not define `{s}`",
-                .{ class.name.name, head_name, self.env.interner.spelling(method) },
-            );
+            try self.sink.report(.invalid_instance, declared.span, .{ diagnostic.code(.{ class.name.name, " ", head_name }), " does not define ", diagnostic.code(self.env.interner.spelling(method)) });
             return error.BadAnnotation;
         }
 
@@ -405,12 +358,7 @@ pub const Linker = struct {
         return switch (try self.env.declareInstance(declared)) {
             .added => |id| id,
             .existing => |first| {
-                try self.sink.report(
-                    .duplicate_instance,
-                    declared.span,
-                    "`{s} {s}` is already declared in `{s}`",
-                    .{ self.env.classes.spelling(declared.class), self.env.datatypes.get(declared.head()).name, self.env.interner.moduleName(self.env.classes.instance(first).module) },
-                );
+                try self.sink.report(.duplicate_instance, declared.span, .{ diagnostic.code(.{ self.env.classes.spelling(declared.class), " ", self.env.datatypes.get(declared.head()).name }), " is already declared in ", diagnostic.code(self.env.interner.moduleName(self.env.classes.instance(first).module)) });
                 return error.BadAnnotation;
             },
         };
@@ -476,7 +424,7 @@ pub const Linker = struct {
         const class_id = try annotation.resolveClass(self.scope, derived.class, derived.span, self.sink);
         for (earlier) |e| {
             if (!std.mem.eql(u8, e.class, derived.class)) continue;
-            try self.sink.report(.invalid_deriving, derived.span, "`{s}` is derived more than once", .{derived.class});
+            try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(derived.class), " is derived more than once" });
             return error.BadAnnotation;
         }
         if (std.mem.indexOfScalar(classes.ClassId, &classes.derivable, class_id) == null) {
@@ -484,35 +432,15 @@ pub const Linker = struct {
             var names = try self.env.messageNames(self.gpa, &.{}, &shown);
             defer names.deinit(self.gpa);
             const registry = &self.env.classes;
-            try self.sink.report(
-                .invalid_deriving,
-                derived.span,
-                "`{f}` cannot be derived; only `{f}`, `{f}` and `{f}` can",
-                .{
-                    names.class(class_id, registry.spelling(class_id)),
-                    names.class(.eq, registry.spelling(.eq)),
-                    names.class(.ord, registry.spelling(.ord)),
-                    names.class(.serial, registry.spelling(.serial)),
-                },
-            );
+            try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(names.class(class_id, registry.spelling(class_id))), " cannot be derived; only ", diagnostic.code(names.class(.eq, registry.spelling(.eq))), ", ", diagnostic.code(names.class(.ord, registry.spelling(.ord))), " and ", diagnostic.code(names.class(.serial, registry.spelling(.serial))), " can" });
             return error.BadAnnotation;
         }
         if (declared.representation != null and self.env.classes.evidenceOf(class_id) == .dictionary) {
-            try self.sink.report(
-                .invalid_deriving,
-                derived.span,
-                "`{s}` cannot be derived for `{s}`, which the machine represents",
-                .{ derived.class, declared.name },
-            );
+            try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(derived.class), " cannot be derived for ", diagnostic.code(declared.name), ", which the machine represents" });
             return error.BadAnnotation;
         }
         if (declared.newtype and self.env.classes.evidenceOf(class_id) == .builtin) {
-            try self.sink.report(
-                .invalid_deriving,
-                derived.span,
-                "`{s}` cannot be derived for `{s}`, a `newtype`",
-                .{ derived.class, declared.name },
-            );
+            try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(derived.class), " cannot be derived for ", diagnostic.code(declared.name), ", a ", diagnostic.code("newtype") });
             return error.BadAnnotation;
         }
 
@@ -557,12 +485,7 @@ pub const Linker = struct {
                             var names = try self.env.messageNames(self.gpa, &.{ instance.type, culprit }, &.{});
                             defer names.deinit(self.gpa);
                             const class = self.env.classes.spelling(instance.class);
-                            try self.sink.report(.unsatisfied_constraint, written_field.span, "`{s} {f}` needs `{s} {f}`", .{
-                                class,
-                                instance.type.namedOperand(&names),
-                                class,
-                                culprit.namedOperand(&names),
-                            });
+                            try self.sink.report(.unsatisfied_constraint, written_field.span, .{ diagnostic.code(.{ class, " ", instance.type.namedOperand(&names) }), " needs ", diagnostic.code(.{ class, " ", culprit.namedOperand(&names) }) });
                             p.failed = true;
                             self.failed = true;
                             break :fields;
@@ -571,17 +494,7 @@ pub const Linker = struct {
                             if (leaf.type != .variable) {
                                 var names = try self.env.messageNames(self.gpa, &.{ instance.type, leaf.type }, &.{ instance.class, leaf.class });
                                 defer names.deinit(self.gpa);
-                                try self.sink.report(
-                                    .invalid_deriving,
-                                    written_field.span,
-                                    "`{f} {f}` needs `{f} {f}`, but a derived instance can only require a class of a type variable",
-                                    .{
-                                        names.class(instance.class, self.env.classes.spelling(instance.class)),
-                                        instance.type.namedOperand(&names),
-                                        names.class(leaf.class, self.env.classes.spelling(leaf.class)),
-                                        leaf.type.namedOperand(&names),
-                                    },
-                                );
+                                try self.sink.report(.invalid_deriving, written_field.span, .{ diagnostic.code(.{ names.class(instance.class, self.env.classes.spelling(instance.class)), " ", instance.type.namedOperand(&names) }), " needs ", diagnostic.code(.{ names.class(leaf.class, self.env.classes.spelling(leaf.class)), " ", leaf.type.namedOperand(&names) }), ", but a derived instance can only require a class of a type variable" });
                                 p.failed = true;
                                 self.failed = true;
                                 break :fields;
@@ -678,17 +591,7 @@ pub fn checkSuperclasses(gpa: Allocator, env: *const core.env.Env, sink: *diagno
             ok = false;
             var names = try env.messageNames(gpa, &.{ instance.type, needed.type }, &.{ instance.class, needed.class });
             defer names.deinit(gpa);
-            try sink.report(
-                .invalid_instance,
-                instance.span,
-                "`{f} {f}` needs `{f} {f}`",
-                .{
-                    names.class(instance.class, class.name.name),
-                    instance.type.namedOperand(&names),
-                    names.class(needed.class, env.classes.spelling(needed.class)),
-                    needed.type.namedOperand(&names),
-                },
-            );
+            try sink.report(.invalid_instance, instance.span, .{ diagnostic.code(.{ names.class(instance.class, class.name.name), " ", instance.type.namedOperand(&names) }), " needs ", diagnostic.code(.{ names.class(needed.class, env.classes.spelling(needed.class)), " ", needed.type.namedOperand(&names) }) });
         }
     }
     return ok;
