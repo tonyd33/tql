@@ -17,7 +17,7 @@ class A {}
 --- types ---
 add :: Int -> Int -> Int
 main :: Kleisli List Node Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]
 
 --- core ---
 add = \x -> \y -> op[+] x y

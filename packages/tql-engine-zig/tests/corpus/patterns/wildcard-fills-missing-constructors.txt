@@ -19,7 +19,7 @@ class A {}
 --- types ---
 first_or_zero :: [Int] -> Int
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]
 
 --- core ---
 first_or_zero = \xs -> case xs of

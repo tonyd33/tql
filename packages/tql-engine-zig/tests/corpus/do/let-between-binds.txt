@@ -32,4 +32,4 @@ entry = run_main main
 
 --- types ---
 main :: Kleisli List Node String
-entry :: Node -> [String]
+entry :: Node -> [Json]

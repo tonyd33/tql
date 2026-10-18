@@ -19,7 +19,7 @@ class A {}
 --- simplified ---
 f = \x -> \_ -> Cons (op[+] x 3) (Cons (op[*] x 3) Nil)
 main = f 2
-entry = main
+entry = \root -> map[List] JNumber (main root)
 
 --- core ---
 f = \x ->

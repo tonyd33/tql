@@ -1,4 +1,4 @@
-title: a regex output is not serializable
+title: a regex output has no `ToJson`
 grammar: typescript
 asserts: error
 
@@ -8,7 +8,7 @@ Compiled `regex` values intentionally have no JSON encoding.
 main = pure r"^abc";
 
 --- error ---
-error[unsatisfied-constraint]: `Serial Regex` is not satisfied.
+error[unsatisfied-constraint]: `ToJson Regex` is not satisfied.
  --> 1:1
   |
 1 | main = pure r"^abc";

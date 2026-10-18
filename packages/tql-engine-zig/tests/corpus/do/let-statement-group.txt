@@ -23,7 +23,7 @@ class A {}
 
 --- types ---
 main :: Kleisli List Node {k: Kind, n: String}
-entry :: Node -> [{k: Kind, n: String}]
+entry :: Node -> [Json]
 
 --- core ---
 main = bind (children_of_kind :class_declaration) (

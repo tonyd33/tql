@@ -11,7 +11,7 @@ const Allocator = std.mem.Allocator;
 pub const ClassId = enum(u16) {
     eq,
     ord,
-    serial,
+    to_json,
     _,
 };
 
@@ -19,20 +19,16 @@ pub const ClassId = enum(u16) {
 pub const InstanceId = enum(u32) { _ };
 
 /// The classes `deriving` accepts.
-pub const derivable = [_]ClassId{ .eq, .ord, .serial };
+pub const derivable = [_]ClassId{ .eq, .ord, .to_json };
+
+pub fn isDerivable(class: ClassId) bool {
+    return std.mem.indexOfScalar(ClassId, &derivable, class) != null;
+}
 
 /// Whether a record has an instance of `class` when each of its fields does.
 pub fn coversRecords(class: ClassId) bool {
-    return class == .eq or class == .serial;
+    return class == .eq or class == .to_json;
 }
-
-/// How a class's constraint is discharged at run time.
-pub const Evidence = enum {
-    /// Handled by the machine on the value. No dictionary exists.
-    builtin,
-    /// Entailed by an instance, and passed as a dictionary.
-    dictionary,
-};
 
 pub const Class = struct {
     name: symbols.QualifiedName,
@@ -46,10 +42,10 @@ pub const Class = struct {
     /// Which methods an instance must define.
     minimal: Minimal = .{ .all = &.{} },
     /// `dict[C]`, the constructor of this class's dictionaries: one field per
-    /// selector, then one per method. Null for a class with built-in
-    /// evidence, and for a reservation `Prim` has not filled in.
+    /// selector, then one per method. Null for a reservation `Prim` has not
+    /// filled in.
     constructor: ?symbols.SymbolId = null,
-    /// One per superclass with dictionary evidence, in `superclasses` order.
+    /// One per superclass, in `superclasses` order.
     selectors: []const Selector = &.{},
     span: diagnostic.Span = .unknown,
 };
@@ -97,14 +93,13 @@ pub const Instance = struct {
     class: ClassId,
     /// A datatype applied to distinct variables, bound in order from 0.
     type: types.Type,
-    /// Those with dictionary evidence are the dictionary's parameters, in
-    /// order.
+    /// The dictionary's parameters, in order.
     context: []const Requirement,
     /// Each method's implementation, in class method order.
     methods: []const symbols.SymbolId,
-    /// `instance[C,T]`, the global holding this instance's dictionary. Null
-    /// when its class has built-in evidence. Set by `Env.declareInstance`.
-    dictionary: ?symbols.SymbolId,
+    /// `instance[C,T]`, the global holding this instance's dictionary. Set by
+    /// `Env.declareInstance`.
+    dictionary: symbols.SymbolId,
     module: symbols.ModuleId,
     span: diagnostic.Span = .unknown,
 
@@ -140,10 +135,9 @@ pub const Registry = struct {
     }
 
     /// Reserves the classes `ClassId` names, in `Prim`, at the ids it names
-    /// them by. `Serial` is complete. `Prim`'s own declarations of `Eq` and
-    /// `Ord` fill in the rest.
+    /// them by. `Prim`'s own declarations fill them in.
     pub fn reserveBuiltins(self: *Registry) Allocator.Error!void {
-        for ([_][]const u8{ "Eq", "Ord", "Serial" }, 0..) |name, i| {
+        for ([_][]const u8{ "Eq", "Ord", "ToJson" }, 0..) |name, i| {
             const id = try self.declare(.{ .name = .{ .module = .prim, .name = name } });
             std.debug.assert(@intFromEnum(id) == i);
         }
@@ -175,20 +169,13 @@ pub const Registry = struct {
         return self.by_name.get(.{ .module = module, .name = name });
     }
 
-    pub fn evidenceOf(_: *const Registry, id: ClassId) Evidence {
-        return switch (id) {
-            .serial => .builtin,
-            else => .dictionary,
-        };
-    }
-
     /// The reservation `Prim`'s declaration of `name` fills in, if it is
     /// one and nothing has filled it yet.
     pub fn reservation(self: *const Registry, name: []const u8) ?ClassId {
         const id = self.lookup(.prim, name) orelse return null;
         switch (id) {
-            .eq, .ord => {},
-            else => return null,
+            .eq, .ord, .to_json => {},
+            _ => return null,
         }
         if (self.get(id).constructor != null) return null;
         return id;
@@ -217,16 +204,6 @@ pub const Registry = struct {
 
     pub fn instanceFor(self: *const Registry, class: ClassId, head: symbols.TypeId) ?InstanceId {
         return self.by_head.get(.{ .class = class, .head = head });
-    }
-
-    /// How many constraints of `context`, each with a `class`, have
-    /// dictionary evidence.
-    pub fn dictionaryCount(self: *const Registry, context: anytype) usize {
-        var count: usize = 0;
-        for (context) |c| {
-            if (self.evidenceOf(c.class) == .dictionary) count += 1;
-        }
-        return count;
     }
 
     /// Whether `from`, or a superclass of it at any depth, is `to`.
@@ -283,7 +260,6 @@ pub fn Solution(comptime E: type) type {
 ///   each requirement of its context, in order
 /// - `record(class, fields, evidence) !Evidence`: a closed record's, from
 ///   each field's
-/// - `builtin(class) Evidence`: for a class the machine handles
 /// - `leaf(class, t) !?Evidence`: for a leaf no given solves, or null when
 ///   it is stuck
 pub fn solve(
@@ -301,7 +277,6 @@ pub fn solve(
         for (givens) |g| {
             if (!registry.entails(g.class, class)) continue;
             if (!types.eql(try view.resolveDeep(g.type), wanted)) continue;
-            if (registry.evidenceOf(class) == .builtin) return .{ .solved = sink.builtin(class) };
             return .{ .solved = try superclass(registry, g.class, class, g.evidence, sink) };
         }
     }
@@ -334,7 +309,6 @@ pub fn solve(
                     if (solution != .solved) return solution;
                     slot.* = solution.solved;
                 }
-                if (registry.evidenceOf(class) == .builtin) return .{ .solved = sink.builtin(class) };
                 return .{ .solved = try sink.record(class, r.fields, evidence) };
             }
             // An open record's known fields can refute it, and the rest is
@@ -403,7 +377,6 @@ pub const Check = union(enum) {
     pub fn select(_: Check, _: symbols.SymbolId, _: void) Error!void {}
     pub fn instance(_: Check, _: InstanceId, _: []const void) Error!void {}
     pub fn record(_: Check, _: ClassId, _: []const types.Type.Field, _: []const void) Error!void {}
-    pub fn builtin(_: Check, _: ClassId) void {}
 
     pub fn leaf(self: Check, class: ClassId, t: types.Type) Error!?void {
         switch (self) {

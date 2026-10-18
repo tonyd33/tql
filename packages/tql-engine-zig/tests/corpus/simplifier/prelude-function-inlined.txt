@@ -15,7 +15,7 @@ class A {}
 [1]
 
 --- simplified ---
-entry = \x -> Cons 1 Nil
+entry = \root -> map[List] JNumber (Cons 1 Nil)
 
 --- core ---
 main = bind (guard True) (\_ -> return 1)

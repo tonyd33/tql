@@ -36,7 +36,7 @@ f = \xs ->
   in
   jump go xs
 main = \_ -> Cons (f (Cons 1 (Cons 3 Nil))) (Cons (f (Cons 4 Nil)) Nil)
-entry = main
+entry = \root -> map[List] JString (main root)
 
 --- stg ---
 f = {} \u {} ->
@@ -83,4 +83,13 @@ main = {} \u {} ->
       Cons t3@1 t8@2
   in
   t9@0
-entry = {} \u {} -> main
+entry = {} \u {} ->
+  let
+    t3 = {} \n {root} ->
+      let
+        t1 = {} \n {f0} -> JString f0@0
+        t2 = {root@0} \u {} -> main root@0
+      in
+      map[List] t1@1 t2@2
+  in
+  t3@0

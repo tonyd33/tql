@@ -19,7 +19,7 @@ size = \xs -> case xs of
     Nil -> 1
     Cons _ _ -> length[List] xs
 main = \_ -> map[List] size (Cons (Cons 1 Nil) (Cons (Cons 1 (Cons 2 Nil)) Nil))
-entry = main
+entry = \root -> map[List] JNumber (main root)
 
 --- core ---
 size = \xs ->

@@ -19,4 +19,4 @@ f = \b -> \x ->
     False -> jump t
     True -> jump t
 main = \_ -> Cons (f True 1) (Cons (f False 2) Nil)
-entry = main
+entry = \root -> map[List] JNumber (main root)

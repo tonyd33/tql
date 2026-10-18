@@ -15,17 +15,8 @@ class A {}
 class B {}
 
 --- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class B {}",
-    "start_byte": 11,
-    "end_byte": 21,
-    "start_point": { "row": 1, "column": 0 },
-    "end_point": { "row": 1, "column": 10 }
-  }
-]
+[{"kind":"class_declaration","text":"class B {}","start_byte":11,"end_byte":21,"start_point":{"column":0,"row":1},"end_point":{"column":10,"row":1}}]
 
 --- types ---
 main :: Kleisli List Node Node
-entry :: Node -> [Node]
+entry :: Node -> [Json]

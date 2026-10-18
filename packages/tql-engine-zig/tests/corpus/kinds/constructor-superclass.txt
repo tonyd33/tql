@@ -32,4 +32,4 @@ class A {}
 --- types ---
 bumped :: Pointed a => Int -> a Int
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

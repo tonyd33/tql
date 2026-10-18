@@ -38,4 +38,4 @@ named_kids = \x -> bind[List] (%children_of_kind :class_declaration x) (\y -> Co
 all = \x -> bind[List] (%descendants_of_kind :class_declaration x) (\y -> Cons (%text y) Nil)
 named_all = \x -> bind[List] (%descendants_of_kind :class_declaration x) (\y -> Cons (%text y) Nil)
 main = \x -> append[List] (append[List] (append[List] (kids x) (named_kids x)) (all x)) (named_all x)
-entry = main
+entry = \root -> map[List] JString (main root)

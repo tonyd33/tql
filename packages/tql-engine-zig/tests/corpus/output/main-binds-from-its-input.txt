@@ -18,4 +18,4 @@ class A {}
 
 --- types ---
 main :: Filter Node (String, String)
-entry :: Node -> [(String, String)]
+entry :: Node -> [Json]

@@ -21,9 +21,9 @@ class A {}
 --- simplified ---
 unname = \n -> n
 main = \_ -> map[List] unname (map[List] (\x -> x) (Cons "a" (Cons "b" Nil)))
-entry = main
+entry = \root -> map[List] JString (main root)
 
 --- types ---
 unname :: Name -> String
 main :: Kleisli List a String
-entry :: Node -> [String]
+entry :: Node -> [Json]

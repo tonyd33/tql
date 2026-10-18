@@ -9,7 +9,7 @@ data S = S Int deriving (Sized);
 main = const [];
 
 --- error ---
-error[invalid-deriving]: `Sized` cannot be derived; only `Eq`, `Ord` and `Serial` can
+error[invalid-deriving]: `Sized` cannot be derived; only `Eq`, `Ord` and `ToJson` can
  --> 3:26
   |
 3 | data S = S Int deriving (Sized);

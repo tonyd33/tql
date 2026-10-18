@@ -16,7 +16,7 @@ main =
   let s = "ab" in
   let y = op[+] (%string_length s) (%string_length s) in
   \_ -> Cons y Nil
-entry = main
+entry = \root -> map[List] JNumber (main root)
 
 --- core ---
 main =

@@ -1,15 +1,15 @@
-title: a derived `Serial` needs its parameter's
+title: a derived `ToJson` needs its parameter's
 grammar: typescript
 asserts: error
 
 `Box a` encodes when `a` does, and a function does not.
 
 --- tql ---
-data Box a = Box a deriving (Serial);
+data Box a = Box a deriving (ToJson);
 main = pure (Box (\x -> x + 1));
 
 --- error ---
-error[unsatisfied-constraint]: `Serial (Int -> Int)` is not satisfied.
+error[unsatisfied-constraint]: `ToJson (Int -> Int)` is not satisfied.
  --> 2:1
   |
 2 | main = pure (Box (\x -> x + 1));

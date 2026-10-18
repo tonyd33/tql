@@ -33,4 +33,13 @@ main = {} \u {} ->
       Cons y@0 c3@2
   in
   t4@1
-entry = {} \u {} -> main
+entry = {} \u {} ->
+  let
+    t2 = {} \n {root} ->
+      let
+        t0 = {} \u {} -> to_json[List] instance[ToJson,Int]
+        t1 = {root@0} \u {} -> main root@0
+      in
+      map[List] t0@1 t1@2
+  in
+  t2@0

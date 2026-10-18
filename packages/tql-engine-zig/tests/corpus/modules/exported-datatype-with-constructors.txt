@@ -26,4 +26,4 @@ let x = 1;
 --- types ---
 perimeter :: Shape -> Int
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

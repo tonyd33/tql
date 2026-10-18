@@ -23,4 +23,4 @@ class A {}
 --- types ---
 second :: Pair -> Int
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

@@ -18,4 +18,4 @@ let x = 1;
 depth :: Stack -> Int
 size :: [a] -> Int
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

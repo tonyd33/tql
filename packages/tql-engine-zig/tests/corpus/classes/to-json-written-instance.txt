@@ -1,0 +1,21 @@
+title: a written `ToJson` instance encodes its type's outputs
+grammar: typescript
+asserts: values
+
+--- tql ---
+data Shape = Circle Int | Square Int;
+
+instance ToJson Shape where {
+  to_json s = case s of {
+    Circle r -> JObject [("radius", to_json r)];
+    Square n -> JObject [("side", to_json n)];
+  };
+};
+
+main = pure [Circle 1, Square 2];
+
+--- source ---
+class A {}
+
+--- values ---
+[[{"radius":1},{"side":2}]]

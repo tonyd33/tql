@@ -15,7 +15,7 @@ class A {}
 main =
   let a = op[*] 2 3 in
   \_ -> map[List] (\x -> op[+] x a) (Cons 1 (Cons 2 Nil))
-entry = main
+entry = \root -> map[List] JNumber (main root)
 
 --- core ---
 main =

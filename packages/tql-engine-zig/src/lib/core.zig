@@ -94,10 +94,10 @@
 //! `up (\d_1 -> .. up (\d_n -> up (C d_1 .. d_n)) ..)`, and a primitive means
 //! the function its `PrimOp` describes.
 //!
-//! `main` is a `Filter Node t`, which erasure has turned into a function from
-//! a node to a list. Run on a file, the program means `[[main]] env0 root`:
-//! the query's results, in order. Printing a result forces all of it, so a
-//! `_|_` anywhere inside one makes the whole run `_|_`.
+//! `entry` is a function from a node to a list of `Json`. Run on a file, the
+//! program means `[[entry]] env0 root`: the query's results, in order.
+//! Printing a result forces all of it, so a `_|_` anywhere inside one makes
+//! the whole run `_|_`.
 //!
 //! ## Lifted functions
 //!
@@ -558,6 +558,39 @@ pub const Builder = struct {
             alternative.* = .{ .constructor = declared.orderingConstructor(o).symbol, .binders = &.{}, .body = body };
         }
         return try self.case(order, alternatives, span);
+    }
+
+    /// `[items]`.
+    pub fn list(self: Builder, declared: *const datatypes.Registry, items: []const Term, span: diagnostic.Span) !Term {
+        var result = self.symbol(declared.nilConstructor().symbol, span);
+        var i = items.len;
+        while (i > 0) {
+            i -= 1;
+            result = try self.applyMany(self.symbol(declared.consConstructor().symbol, span), &.{ items[i], result }, span);
+        }
+        return result;
+    }
+
+    /// `JString text`.
+    pub fn jsonString(self: Builder, declared: *const datatypes.Registry, text: []const u8, span: diagnostic.Span) !Term {
+        return try self.apply(self.symbol(declared.jsonConstructor(.JString).symbol, span), self.literal(.{ .string = text }, span), span);
+    }
+
+    /// `JArray [items]`.
+    pub fn jsonArray(self: Builder, declared: *const datatypes.Registry, items: []const Term, span: diagnostic.Span) !Term {
+        return try self.apply(self.symbol(declared.jsonConstructor(.JArray).symbol, span), try self.list(declared, items, span), span);
+    }
+
+    pub const Member = struct { key: []const u8, value: Term };
+
+    /// `JObject [(key_1, value_1), ...]`.
+    pub fn jsonObject(self: Builder, declared: *const datatypes.Registry, members: []const Member, span: diagnostic.Span) !Term {
+        const pair = self.symbol(declared.pairConstructor().symbol, span);
+        const items = try self.slice(Term, members.len);
+        for (members, items) |m, *item| {
+            item.* = try self.applyMany(pair, &.{ self.literal(.{ .string = m.key }, span), m.value }, span);
+        }
+        return try self.apply(self.symbol(declared.jsonConstructor(.JObject).symbol, span), try self.list(declared, items, span), span);
     }
 
     pub fn let(

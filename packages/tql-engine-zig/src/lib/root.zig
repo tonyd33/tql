@@ -11,7 +11,7 @@
 //! - `core_to_core.zig`: the simplifier.
 //! - `core_to_stg.zig`: lowering to the terms the machine runs.
 //! - `stg/eval.zig`: the machine, which applies `entry` to the target's root
-//!   node and serializes what it returns.
+//!   node and writes the `Json` it returns.
 //!
 //! `core.zig` says what a Core term means, and every stage after desugaring
 //! is held to it. Start there.
@@ -303,7 +303,7 @@ pub const CompiledQuery = struct {
     /// Run against one in-memory target buffer.
     ///
     /// `target` must outlive the returned values: a node points into the tree
-    /// parsed from it, and serializing one slices it for `text`.
+    /// parsed from it, and `text` slices it.
     ///
     /// `scratch` is the machine's arena. The caller resets it between files.
     /// A run that allocates more than `run_scratch_limit` from it fails with
@@ -358,7 +358,7 @@ pub const CompiledQuery = struct {
         const root = try scratch.create(stg.Thunk);
         root.* = stg.Thunk.value(.{ .node = .{ .inner = tree.rootNode() } });
 
-        // Serialized here, while the tree is alive. A node value borrows it,
+        // Written here, while the tree is alive. A node value borrows it,
         // so it cannot outlive this call.
         var w: std.Io.Writer.Allocating = .init(result_allocator);
         errdefer w.deinit();
@@ -398,8 +398,7 @@ fn writeOutputs(
             const mark = w.written().len;
             errdefer w.shrinkRetainingCapacity(mark);
             if (count.* > 0) try w.writer.writeByte(',');
-            var jws: std.json.Stringify = .{ .writer = &w.writer };
-            try machine.serialize(try machine.force(cell.head), &jws);
+            try machine.encode(try machine.force(cell.head), &w.writer);
         }
         count.* += 1;
         current = try machine.force(cell.tail);
@@ -478,6 +477,7 @@ pub const Failure = union(enum) {
     cyclic_value,
     memory_limit,
     regex_failed,
+    int_out_of_range,
     target_parse_failed,
     incompatible_grammar,
     /// The error from opening or reading the target.
@@ -492,6 +492,7 @@ pub const Failure = union(enum) {
             error.Cycle => .cyclic_value,
             error.OutOfMemory => .memory_limit,
             error.RegexFailed => .regex_failed,
+            error.IntOutOfRange => .int_out_of_range,
             error.TargetParseFailed => .target_parse_failed,
             error.IncompatibleLanguage => .incompatible_grammar,
             error.WriteFailed => .output_failed,
@@ -513,6 +514,7 @@ pub const Failure = union(enum) {
             .cyclic_value => "cyclic-value",
             .memory_limit => "memory-limit",
             .regex_failed => "regex-failed",
+            .int_out_of_range => "int-out-of-range",
             .target_parse_failed => "target-parse-failed",
             .incompatible_grammar => "incompatible-grammar",
             .unreadable_target => "unreadable-target",
@@ -527,6 +529,7 @@ pub const Failure = union(enum) {
             .cyclic_value => "a value depends on itself",
             .memory_limit => "the query exceeded its memory limit",
             .regex_failed => "a regex reached a construct the matcher cannot run",
+            .int_out_of_range => "an `Int` past 2^53 - 1 in magnitude cannot be written as JSON",
             .target_parse_failed => "tree-sitter could not parse the target",
             .incompatible_grammar => "the grammar was built for another tree-sitter version",
             .unreadable_target => |err| readProblem(err),

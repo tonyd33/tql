@@ -34,4 +34,4 @@ class A {}
 ["circle"]
 
 --- simplified ---
-entry = \_ -> describe[List] instance[Describe,Shape] (Cons (Circle 1) Nil)
+entry = \root -> map[List] JString (describe[List] instance[Describe,Shape] (Cons (Circle 1) Nil))

@@ -30,4 +30,4 @@ class A {}
 --- types ---
 list :: Proxy List
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

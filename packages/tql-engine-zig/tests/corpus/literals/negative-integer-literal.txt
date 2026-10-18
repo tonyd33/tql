@@ -14,7 +14,7 @@ class A {}
 
 --- types ---
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]
 
 --- core ---
 main = Kleisli (\_ -> Cons (-7) (Cons (op[-] 0 7) Nil))

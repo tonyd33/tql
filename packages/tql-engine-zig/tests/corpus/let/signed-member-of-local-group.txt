@@ -4,7 +4,7 @@ asserts: values
 
 `evens` and `odds` call each other, but a use of the signed `evens` is no
 dependency, so `odds` is generalized on its own and used at two types
-(Declarations: Binding groups).
+(Declarations: Binding group).
 
 --- tql ---
 f x = let {

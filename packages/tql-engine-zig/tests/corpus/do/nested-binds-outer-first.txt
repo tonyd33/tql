@@ -24,7 +24,7 @@ class A {}
 --- types ---
 sums :: [Int]
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]
 
 --- core ---
 sums = bind (Cons 10 (Cons 20 Nil)) (\l -> bind (Cons 1 (Cons 2 Nil)) (\r -> return (op[+] l r)))

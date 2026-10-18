@@ -25,4 +25,4 @@ class B {}
 --- types ---
 class_record :: Kleisli List Node {methods: [String], name: String}
 main :: Filter Node [{methods: [String], name: String}]
-entry :: Node -> [[{methods: [String], name: String}]]
+entry :: Node -> [Json]

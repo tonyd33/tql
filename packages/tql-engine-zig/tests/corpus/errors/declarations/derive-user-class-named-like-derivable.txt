@@ -10,7 +10,7 @@ data T = A | B deriving (Eq);
 main = pure 1;
 
 --- error ---
-error[invalid-deriving]: `Main.Eq` cannot be derived; only `Prim.Eq`, `Ord` and `Serial` can
+error[invalid-deriving]: `Main.Eq` cannot be derived; only `Prim.Eq`, `Ord` and `ToJson` can
  --> 4:26
   |
 4 | data T = A | B deriving (Eq);

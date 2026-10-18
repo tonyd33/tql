@@ -24,7 +24,7 @@ class Store {}
 
 --- types ---
 main :: Kleisli List Node String
-entry :: Node -> [String]
+entry :: Node -> [Json]
 
 --- core ---
 main = bind (children_of_kind :class_declaration) (\class_decl -> bind (compose_flipped (pure class_decl) (Kleisli field[name])) (\name -> bind (guard (op[~] (text name) r"^S")) (\_ -> bind (guard (op[~] (text name) r"e$")) (\_ -> return (text name)))))

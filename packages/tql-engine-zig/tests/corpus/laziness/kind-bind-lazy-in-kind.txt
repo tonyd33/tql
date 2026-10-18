@@ -22,4 +22,4 @@ bot = bot
 main =
   let k = %descendants_of_kind :number in
   \x -> bind[List] (k x) (\y -> bind[List] (%descendants_of_kind bot y) (\y -> Cons (%text y) Nil))
-entry = main
+entry = \root -> map[List] JString (main root)

@@ -17,4 +17,4 @@ class A {}
 
 --- types ---
 main :: Kleisli List a Bool
-entry :: Node -> [Bool]
+entry :: Node -> [Json]

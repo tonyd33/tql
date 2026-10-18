@@ -34,4 +34,4 @@ class A {}
 bottom :: Int
 p :: Filter Node Int
 main :: Kleisli List Node (Bool, Bool, [Int])
-entry :: Node -> [(Bool, Bool, [Int])]
+entry :: Node -> [Json]

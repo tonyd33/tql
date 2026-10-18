@@ -21,4 +21,4 @@ y = a === b;
 
 --- types ---
 main :: Kleisli List Node {children: Int, kind: Kind, parent: [Kind]}
-entry :: Node -> [{children: Int, kind: Kind, parent: [Kind]}]
+entry :: Node -> [Json]

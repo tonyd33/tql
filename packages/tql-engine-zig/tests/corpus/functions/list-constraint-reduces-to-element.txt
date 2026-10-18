@@ -18,4 +18,4 @@ class A {}
 --- types ---
 same :: Eq a => [a] -> [a] -> Int
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

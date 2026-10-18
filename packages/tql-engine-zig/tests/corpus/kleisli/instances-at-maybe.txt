@@ -42,7 +42,7 @@ main = Kleisli $ \_ -> [
 class A {}
 
 --- values ---
-[{"tag":"Just","fields":[6]},{"tag":"Nothing","fields":[]},{"tag":"Just","fields":[9]},{"tag":"Just","fields":[0]},{"tag":"Just","fields":[6]},{"tag":"Just","fields":[2]},{"tag":"Nothing","fields":[]},{"tag":"Just","fields":[5]},{"tag":"Nothing","fields":[]}]
+[6,null,9,0,6,2,null,5,null]
 
 --- types ---
 positive :: Kleisli Maybe Int Int
@@ -52,4 +52,4 @@ fallback :: Kleisli Maybe Int Int
 chained :: Kleisli Maybe Int Int
 halve :: Kleisli Maybe Int Int
 main :: Kleisli List a (Maybe Int)
-entry :: Node -> [Maybe Int]
+entry :: Node -> [Json]

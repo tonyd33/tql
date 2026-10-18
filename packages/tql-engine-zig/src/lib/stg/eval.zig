@@ -143,7 +143,7 @@
 //! the whole arena when the run ends was the simplest thing that worked, and
 //! a collector hasn't been written yet. The cost is real, though: a query
 //! producing a long lazy list peaks at the whole list, even though each cell
-//! is dead once it's been serialized. Collecting during a run needs
+//! is dead once it's been written. Collecting during a run needs
 //! reference counting or tracing, since thunks are mutable and can refer to
 //! each other in cycles. It's planned as a future improvement.
 //!
@@ -209,6 +209,8 @@ pub const Error = Allocator.Error || std.Io.Writer.Error || error{
     /// A regex reached a construct the matcher cannot run: a recursion that
     /// consumes nothing before recursing.
     RegexFailed,
+    /// An `Int` written as JSON had a magnitude past 2^53 - 1.
+    IntOutOfRange,
 };
 
 /// Whether each environment slot records the name it was bound under, and
@@ -961,9 +963,9 @@ pub const Machine = struct {
                     const subject = try self.nodeArgument(arguments);
                     return .{ .kind = .{ .name = subject.kind(), .id = subject.kindId() } };
                 },
-                .kind_name => {
-                    const subject = try self.nodeArgument(arguments);
-                    return .{ .string = subject.kind() };
+                .kind_spelling => {
+                    if (arguments.len != 1) return error.TypeError;
+                    return .{ .string = (try self.kindArgument(arguments[0])).name };
                 },
                 .is_named => {
                     const subject = try self.nodeArgument(arguments);
@@ -1071,7 +1073,7 @@ pub const Machine = struct {
                     const subject = try self.nodeArgument(arguments[1..]);
                     if (subject.childCount() == 0) return try self.nil();
                     const move: value.Traversal.Move = if (primop == .descendants_of_kind) .preorder else .sibling;
-                    return try self.walk(subject, move, .{ .kind = try self.kindArgument(arguments[0]) });
+                    return try self.walk(subject, move, .{ .kind = (try self.kindArgument(arguments[0])).id });
                 },
             },
         }
@@ -1099,13 +1101,13 @@ pub const Machine = struct {
         arguments: []const *value.Thunk,
     ) Error!struct { kind_id: u16, subject: ts.Node } {
         if (arguments.len != 2) return error.TypeError;
-        const kind_id = try self.kindArgument(arguments[0]);
+        const kind_id = (try self.kindArgument(arguments[0])).id;
         return .{ .kind_id = kind_id, .subject = try self.nodeArgument(arguments[1..]) };
     }
 
-    fn kindArgument(self: *Machine, argument: *value.Thunk) Error!u16 {
+    fn kindArgument(self: *Machine, argument: *value.Thunk) Error!core.Literal.Kind {
         return switch (try self.force(argument)) {
-            .kind => |k| k.id,
+            .kind => |k| k,
             else => error.TypeError,
         };
     }
@@ -1465,10 +1467,7 @@ pub const Machine = struct {
     /// Returns the head and tail of a forced list cell, both unforced, or
     /// null at `Nil`.
     pub fn uncons(self: *const Machine, list: value.Value) Error!?Cell {
-        const c = switch (list) {
-            .constructed => |k| k,
-            else => return error.TypeError,
-        };
+        const c = try constructedOf(list);
         if (c.tag == self.program.structural.nil.tag) return null;
         if (c.len != 2) return error.TypeError;
         const fields = c.fields();
@@ -1477,84 +1476,76 @@ pub const Machine = struct {
 
     pub const Cell = struct { head: *value.Thunk, tail: *value.Thunk };
 
-    /// Write a forced list as a JSON array, forcing its spine and every
-    /// element.
-    fn serializeList(self: *Machine, list: value.Value, jws: *std.json.Stringify) Error!void {
-        try jws.beginArray();
-        var current = list;
-        while (try self.uncons(current)) |cell| {
-            try self.serialize(try self.force(cell.head), jws);
-            current = try self.force(cell.tail);
+    /// A `JArray` or `JObject` being written, and the rest of its list.
+    const Open = struct { rest: *value.Thunk, object: bool, first: bool };
+
+    /// Write a forced `Json` to `w`, forcing everything it writes. Nesting
+    /// lives on a stack in the arena, so only memory bounds the depth.
+    ///
+    /// Returns error.IntOutOfRange on a `JNumber` whose magnitude exceeds
+    /// 2^53 - 1.
+    pub fn encode(self: *Machine, json: value.Value, w: *std.Io.Writer) Error!void {
+        var open: std.ArrayList(Open) = .empty;
+        var current = json;
+        while (true) {
+            const c = try constructedOf(current);
+            switch (std.enums.fromInt(core.datatypes.Json, c.tag) orelse return error.TypeError) {
+                .JNull => try w.writeAll("null"),
+                .JBool => {
+                    const b = try constructedOf(try self.force(c.fields()[0]));
+                    try w.writeAll(if (b.tag == self.program.structural.true_.tag) "true" else "false");
+                },
+                .JNumber => {
+                    const n = switch (try self.force(c.fields()[0])) {
+                        .number => |n| n,
+                        else => return error.TypeError,
+                    };
+                    if (@abs(n) > max_exact_int) return error.IntOutOfRange;
+                    try w.print("{d}", .{n});
+                },
+                .JString => try self.encodeString(c.fields()[0], w),
+                .JArray, .JObject => |t| {
+                    try w.writeByte(if (t == .JArray) '[' else '{');
+                    try open.append(self.arena, .{ .rest = c.fields()[0], .object = t == .JObject, .first = true });
+                },
+            }
+            current = while (open.items.len > 0) {
+                const top = &open.items[open.items.len - 1];
+                const cell = try self.uncons(try self.force(top.rest)) orelse {
+                    try w.writeByte(if (top.object) '}' else ']');
+                    _ = open.pop();
+                    continue;
+                };
+                top.rest = cell.tail;
+                if (!top.first) try w.writeByte(',');
+                top.first = false;
+                if (!top.object) break try self.force(cell.head);
+                const member = try constructedOf(try self.force(cell.head));
+                if (member.len != 2) return error.TypeError;
+                try self.encodeString(member.fields()[0], w);
+                try w.writeByte(':');
+                break try self.force(member.fields()[1]);
+            } else return;
         }
-        try jws.endArray();
     }
 
-    /// Write a forced value as JSON. This is the `Serial` boundary: it forces
-    /// everything it writes, and a list is written by walking its spine.
-    ///
-    /// Returns error.TypeError on a value with no encoding. The checker
-    /// refuses those, so reaching one is a bug rather than a bad query.
-    pub fn serialize(self: *Machine, v: value.Value, jws: *std.json.Stringify) Error!void {
-        try self.checkStack();
-        switch (v) {
-            .number => |n| try jws.write(n),
-            .string => |s| try jws.write(s),
-            .kind => |k| try jws.write(k.name),
-            .record => |fields| {
-                try jws.beginObject();
-                for (fields) |field| {
-                    try jws.objectField(field.label);
-                    try self.serialize(try self.force(field.thunk), jws);
-                }
-                try jws.endObject();
-            },
-            .constructed => |c| {
-                const structural = self.program.structural;
-                if (c.constructor == structural.true_.symbol or c.constructor == structural.false_.symbol) {
-                    try jws.write(c.constructor == structural.true_.symbol);
-                } else if (c.constructor == structural.nil.symbol or c.constructor == structural.cons.symbol) {
-                    try self.serializeList(v, jws);
-                } else if (self.program.tuples.contains(c.constructor)) {
-                    try jws.beginArray();
-                    for (c.fields()) |field| try self.serialize(try self.force(field), jws);
-                    try jws.endArray();
-                } else {
-                    try jws.beginObject();
-                    try jws.objectField("tag");
-                    try jws.write(self.program.spellings.get(c.constructor) orelse return error.TypeError);
-                    try jws.objectField("fields");
-                    try jws.beginArray();
-                    for (c.fields()) |field| try self.serialize(try self.force(field), jws);
-                    try jws.endArray();
-                    try jws.endObject();
-                }
-            },
-            .node => |n| {
-                const inner = n.inner;
-                try jws.beginObject();
-                try jws.objectField("kind");
-                try jws.write(inner.kind());
-                try jws.objectField("text");
-                try jws.write(try self.nodeText(inner));
-                try writeLocation(rangeOf(inner), jws);
-                try jws.endObject();
-            },
+    fn encodeString(self: *Machine, thunk: *value.Thunk, w: *std.Io.Writer) Error!void {
+        switch (try self.force(thunk)) {
+            .string => |text| try std.json.Stringify.encodeJsonString(text, .{}, w),
             else => return error.TypeError,
         }
     }
 };
 
-/// The location fields a node and a range share, in the order the public
-/// encoding fixes. Starts are inclusive and ends exclusive.
-fn writeLocation(r: value.Range, jws: *std.json.Stringify) !void {
-    try jws.objectField("start_byte");
-    try jws.write(r.start_byte);
-    try jws.objectField("end_byte");
-    try jws.write(r.end_byte);
-    try jws.objectField("start_point");
-    try jws.write(r.start_point);
-    try jws.objectField("end_point");
-    try jws.write(r.end_point);
+/// The largest magnitude every JSON reader holds exactly: a double's
+/// integer precision.
+const max_exact_int = (1 << 53) - 1;
+
+fn constructedOf(v: value.Value) Error!value.Constructed {
+    return switch (v) {
+        .constructed => |c| c,
+        else => error.TypeError,
+    };
 }
 
 /// Move `t.cursor` to the next node `t` keeps, reporting whether one exists.

@@ -231,8 +231,8 @@ pub const Builtin = struct {
     tag: u32,
 };
 
-/// The constructors of `List`, `Bool`, `Ordering` and `Maybe`, which primitives build
-/// directly and serialization encodes specially.
+/// The constructors of `List`, `Bool`, `Ordering` and `Maybe`, which
+/// primitives build directly.
 pub const Structural = struct {
     nil: Builtin,
     cons: Builtin,
@@ -262,12 +262,6 @@ pub const Program = struct {
     definitions: []const Definition,
     entry: core.SymbolId,
     structural: Structural,
-    /// Each constructor's spelling, which a value of a declared type encodes
-    /// as its `tag`.
-    spellings: std.AutoHashMapUnmanaged(core.SymbolId, []const u8),
-    /// The tuple constructors, whose values encode as an array of their
-    /// fields.
-    tuples: std.AutoHashMapUnmanaged(core.SymbolId, void),
     /// An evaluated `Nil`, shared the way a literal atom's thunk is.
     nil: *value.Thunk,
     arena: *std.heap.ArenaAllocator,

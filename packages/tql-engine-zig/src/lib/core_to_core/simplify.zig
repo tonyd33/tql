@@ -555,7 +555,7 @@ pub const Simplifier = struct {
         const instance = self.env.classes.instance(id);
         const constructor = self.env.classes.get(instance.class).constructor orelse return false;
         var body = value;
-        for (0..self.env.classes.dictionaryCount(instance.context)) |_| {
+        for (0..instance.context.len) |_| {
             if (body.kind != .lambda) return false;
             body = body.kind.lambda.body;
         }

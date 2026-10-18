@@ -2,7 +2,7 @@ title: `Eq` on a regex
 grammar: typescript
 asserts: error
 
-`regex` has none of `Eq`, `Ord`, or `Serial`.
+`regex` has none of `Eq`, `Ord`, or `ToJson`.
 
 --- tql ---
 main = pure (r"a" == r"a");

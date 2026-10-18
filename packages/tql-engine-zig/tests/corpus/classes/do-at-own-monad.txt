@@ -5,7 +5,7 @@ asserts: types, values
 A variable pattern cannot fail, so the block needs only `Monad`.
 
 --- tql ---
-data Counted a = Counted Int a deriving (Serial);
+data Counted a = Counted Int a deriving (ToJson);
 
 instance Functor Counted where {
   map f c = case c of {
@@ -45,9 +45,9 @@ main = pure twice;
 class A {}
 
 --- values ---
-[{"tag":"Counted","fields":[3,2]}]
+[[3,2]]
 --- types ---
 tick :: a -> Counted a
 twice :: Counted Int
 main :: Kleisli List Node (Counted Int)
-entry :: Node -> [Counted Int]
+entry :: Node -> [Json]

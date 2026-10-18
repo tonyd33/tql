@@ -9,19 +9,10 @@ main = Kleisli $ \root -> run (descendants | of_kind :class_declaration | #name)
 class A {}
 
 --- values ---
-[
-  {
-    "kind": "type_identifier",
-    "text": "A",
-    "start_byte": 6,
-    "end_byte": 7,
-    "start_point": { "row": 0, "column": 6 },
-    "end_point": { "row": 0, "column": 7 }
-  }
-]
+[{"kind":"type_identifier","text":"A","start_byte":6,"end_byte":7,"start_point":{"column":6,"row":0},"end_point":{"column":7,"row":0}}]
 
 --- simplified ---
-entry = \root -> bind[List] (%descendants_of_kind :class_declaration root) field[name]
+entry = \root -> map[List] to_json[Node] (bind[List] (%descendants_of_kind :class_declaration root) field[name])
 
 --- core ---
 main = Kleisli (\root -> run (compose_flipped (compose_flipped descendants (of_kind :class_declaration)) (Kleisli field[name])) root)

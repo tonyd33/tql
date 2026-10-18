@@ -16,4 +16,4 @@ class A {}
 
 --- types ---
 main :: Kleisli List Node Kind
-entry :: Node -> [Kind]
+entry :: Node -> [Json]

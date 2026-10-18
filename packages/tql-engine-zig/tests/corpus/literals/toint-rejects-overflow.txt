@@ -7,14 +7,17 @@ asserts: types, values
 --- tql ---
 import Data.Int (toint);
 
-main = pure $ map toint ["9223372036854775807", "9223372036854775808"];
+main = pure [
+  toint "9223372036854775807" == Just 9223372036854775807,
+  toint "9223372036854775808" == Nothing
+];
 
 --- source ---
 class A {}
 
 --- values ---
-[[{"tag":"Just","fields":[9223372036854775807]},{"tag":"Nothing","fields":[]}]]
+[[true,true]]
 
 --- types ---
-main :: Kleisli List Node [Maybe Int]
-entry :: Node -> [[Maybe Int]]
+main :: Kleisli List Node [Bool]
+entry :: Node -> [Json]

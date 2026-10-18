@@ -31,16 +31,21 @@ rev = {} \u {} ->
   t2@0
 entry = {} \u {} ->
   let
-    t3 = {} \n {_} ->
+    t6 = {} \n {root} ->
       let
-        t2 = {} \u {} ->
+        t1 = {} \n {f0} -> JNumber f0@0
+        t5 = {} \u {} ->
           let
-            t1 = {} \u {} ->
-              let c0 = Nil in
-              Cons 2 c0@0
+            t4 = {} \u {} ->
+              let
+                t3 = {} \u {} ->
+                  let c2 = Nil in
+                  Cons 2 c2@0
+              in
+              Cons 1 t3@0
           in
-          Cons 1 t1@0
+          rev t4@0
       in
-      rev t2@1
+      map[List] t1@1 t5@2
   in
-  t3@0
+  t6@0

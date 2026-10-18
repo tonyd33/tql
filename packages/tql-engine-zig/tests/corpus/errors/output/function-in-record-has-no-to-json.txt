@@ -1,14 +1,14 @@
-title: a filter nested in a record is not serializable
+title: a filter nested in a record has no `ToJson`
 grammar: typescript
 asserts: error
 
-`Serial` fails recursively through a record.
+`ToJson` fails recursively through a record.
 
 --- tql ---
 main = pure { name = "n", f = children };
 
 --- error ---
-error[unsatisfied-constraint]: `Serial (Filter Node Node)` is not satisfied.
+error[unsatisfied-constraint]: `ToJson (Filter Node Node)` is not satisfied.
  --> 1:1
   |
 1 | main = pure { name = "n", f = children };

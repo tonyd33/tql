@@ -26,7 +26,7 @@ main = pure {at_maybe = [checked (Just 1), checked (Just 2)], at_list = over_lis
 class A {}
 
 --- values ---
-[{"at_list":[11,11],"at_maybe":[{"tag":"Just","fields":[11]},{"tag":"Nothing","fields":[]}]}]
+[{"at_list":[11,11],"at_maybe":[11,null]}]
 --- simplified ---
 checked = \m -> case m of
   Nothing -> Nothing
@@ -41,4 +41,4 @@ over_list = \xs -> bind[List] xs (
 main =
   let y = record[at_list,at_maybe] (over_list (Cons 1 (Cons 2 (Cons 1 Nil)))) (Cons (checked (Just 1)) (Cons (checked (Just 2)) Nil)) in
   \_ -> Cons y Nil
-entry = main
+entry = run_main evidence main

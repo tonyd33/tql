@@ -24,7 +24,7 @@ class A {}
 label :: String
 main :: Kleisli List a String
 other :: String
-entry :: Node -> [String]
+entry :: Node -> [Json]
 
 --- core ---
 label = "global"

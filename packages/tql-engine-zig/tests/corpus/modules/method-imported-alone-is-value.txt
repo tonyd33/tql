@@ -22,4 +22,4 @@ class A {}
 --- types ---
 label :: Describe a => a -> [String]
 main :: Kleisli List a String
-entry :: Node -> [String]
+entry :: Node -> [Json]

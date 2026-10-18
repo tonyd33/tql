@@ -32,4 +32,4 @@ size = \d -> \xs -> op[+] (
   ) 3
 )
 main = \_ -> Cons (size instance[Sized,List] (Cons 1 Nil)) (Cons (size instance[Sized,String] "ab") Nil)
-entry = main
+entry = \root -> map[List] JNumber (main root)

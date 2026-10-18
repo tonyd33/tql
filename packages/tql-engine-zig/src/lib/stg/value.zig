@@ -34,8 +34,8 @@ pub const Range = struct {
 /// A node in the queried tree.
 ///
 /// Holds the tree-sitter node by value. The tree it points into must outlive
-/// every value the query produces, including thunks forced during
-/// serialization.
+/// every value the query produces, including thunks forced while its output
+/// is written.
 pub const Node = struct {
     inner: ts.Node,
 };
@@ -205,8 +205,6 @@ test "a thunk is run once and read thereafter" {
         .definitions = &.{},
         .entry = undefined,
         .structural = undefined,
-        .spellings = .empty,
-        .tuples = .empty,
         .nil = undefined,
         .arena = &arena,
     };

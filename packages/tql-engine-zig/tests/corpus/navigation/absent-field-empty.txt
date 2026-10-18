@@ -17,4 +17,4 @@ let a;
 
 --- types ---
 main :: Kleisli List Node String
-entry :: Node -> [String]
+entry :: Node -> [Json]

@@ -29,6 +29,7 @@ import Prim;
 import Prim (parent, ancestors, children, named_children, descendants, named_descendants, children_of_kind, descendants_of_kind) as P;
 import Data.Filter (Filter, run);
 import Control.Arrow (Kleisli(..));
+import Data.Functor (Functor(..));
 
 parent :: Filter Node Node;
 parent = Kleisli P.parent;
@@ -57,5 +58,5 @@ descendants_of_kind k = Kleisli $ P.descendants_of_kind k;
 of_kind :: Kind -> Filter Node Node;
 of_kind k = Kleisli $ \x -> if is_kind k x then [x] else [];
 
-run_main :: Serial t => Filter Node t -> Node -> [t];
-run_main = run;
+run_main :: ToJson t => Filter Node t -> Node -> [Json];
+run_main m root = map to_json $ run m root;

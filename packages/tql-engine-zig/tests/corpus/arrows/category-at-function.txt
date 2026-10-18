@@ -22,10 +22,10 @@ class A {}
 
 --- simplified ---
 main = \_ -> Cons 1 (Cons (op[*] (op[+] 1 1) 2) (Cons (op[*] (op[+] 1 1) 2) Nil))
-entry = main
+entry = \root -> map[List] JNumber (main root)
 
 --- types ---
 double :: Int -> Int
 next :: Int -> Int
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

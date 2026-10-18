@@ -21,5 +21,5 @@ main = \x -> bind[List] (
       False -> Nil
       True -> Cons x Nil
   )
-) (\x -> Cons (%kind_name x) Nil)
-entry = main
+) (\x -> Cons (%kind_spelling (%kind x)) Nil)
+entry = \root -> map[List] JString (main root)

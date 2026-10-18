@@ -1,0 +1,27 @@
+title: `swap` takes its pair lazily
+grammar: typescript
+asserts: types, values
+
+`swap` builds its pair without matching its argument, so a `case` that
+only takes the pair apart does not force a diverging argument.
+
+--- tql ---
+import Data.Tuple (swap);
+
+loop :: (Int, Int);
+loop = loop;
+
+main = pure $ case swap loop of {
+  (_, _) -> 1;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+
+--- types ---
+loop :: (Int, Int)
+main :: Kleisli List Node Int
+entry :: Node -> [Json]

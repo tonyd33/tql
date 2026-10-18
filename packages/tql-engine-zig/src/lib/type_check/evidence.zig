@@ -2,7 +2,7 @@
 //! them, and the Core their evidence becomes.
 //!
 //! Inference applies each use of a constrained name to one evidence variable
-//! per dictionary constraint, and raises a wanted for each in the frame it is
+//! per constraint, and raises a wanted for each in the frame it is
 //! in. A frame is one generalized body: its givens are the dictionaries it
 //! binds, and solving a wanted there binds its evidence variable with a
 //! `let` around the body, to a dictionary in scope, a superclass selected
@@ -23,16 +23,14 @@ const Allocator = std.mem.Allocator;
 pub const top: u32 = 0;
 
 /// A dictionary in scope: a parameter of an enclosing generalized body, or of
-/// an instance's dictionary. Its evidence is null for a class the machine
-/// handles.
-pub const Given = classes.Given(?core.SymbolId);
+/// an instance's dictionary.
+pub const Given = classes.Given(core.SymbolId);
 
 /// `class type`, owed by the frame it is in.
 pub const Wanted = struct {
     class: classes.ClassId,
     type: types.Type,
-    /// Null for a class the machine handles.
-    evidence: ?core.SymbolId,
+    evidence: core.SymbolId,
     origin: diagnostic.Span,
 };
 
@@ -54,8 +52,8 @@ pub const Frame = struct {
     wanteds: std.ArrayList(Wanted) = .empty,
     /// Evidence solved here, in the order it was solved.
     bindings: std.ArrayList(core.Letrec.Binding) = .empty,
-    /// Each constraint solved here with dictionary evidence, its type
-    /// settled, and its evidence variable.
+    /// Each constraint solved here, its type settled, and its evidence
+    /// variable.
     solved: std.ArrayList(Solved) = .empty,
     /// The definition whose signature the body is checked against, if any.
     signature: ?core.SymbolId = null,
@@ -139,21 +137,19 @@ pub const Table = struct {
         builder: core.Builder,
         at: u32,
         span: diagnostic.Span,
-        out: *std.ArrayList(classes.Given(?core.Term)),
+        out: *std.ArrayList(classes.Given(core.Term)),
     ) Allocator.Error!void {
         out.clearRetainingCapacity();
         var current: ?u32 = at;
         while (current) |f| : (current = self.frames.items[f].parent) {
             for (self.frames.items[f].givens.items) |g| {
-                const evidence = if (g.evidence) |e| builder.symbol(e, span) else null;
-                try out.append(self.gpa, .{ .class = g.class, .type = g.type, .evidence = evidence });
+                try out.append(self.gpa, .{ .class = g.class, .type = g.type, .evidence = builder.symbol(g.evidence, span) });
             }
         }
     }
 };
 
-/// A `solve` sink building Core evidence terms at `span`. Null evidence is a
-/// class the machine handles.
+/// A `solve` sink building Core evidence terms at `span`.
 pub fn Sink(comptime Leaf: type) type {
     return struct {
         builder: core.Builder,
@@ -163,44 +159,65 @@ pub fn Sink(comptime Leaf: type) type {
         leaves: Leaf,
 
         const Self = @This();
-        pub const Evidence = ?core.Term;
+        pub const Evidence = core.Term;
         pub const Error = Allocator.Error;
 
-        pub fn select(self: Self, selector: core.SymbolId, of: ?core.Term) Error!?core.Term {
-            return try self.builder.apply(self.builder.symbol(selector, self.span), of.?, self.span);
+        pub fn select(self: Self, selector: core.SymbolId, of: core.Term) Error!core.Term {
+            return try self.builder.apply(self.builder.symbol(selector, self.span), of, self.span);
         }
 
-        pub fn instance(self: Self, id: classes.InstanceId, context: []const ?core.Term) Error!?core.Term {
-            const declared = self.env.classes.instance(id);
-            const dictionary = declared.dictionary orelse return null;
-            var result = self.builder.symbol(dictionary, self.span);
-            for (context) |e| {
-                if (e) |argument| result = try self.builder.apply(result, argument, self.span);
-            }
-            return result;
+        pub fn instance(self: Self, id: classes.InstanceId, context: []const core.Term) Error!core.Term {
+            const dictionary = self.builder.symbol(self.env.classes.instance(id).dictionary, self.span);
+            return try self.builder.applyMany(dictionary, context, self.span);
         }
 
-        pub fn record(self: Self, _: classes.ClassId, fields: []const types.Type.Field, evidence: []const ?core.Term) Error!?core.Term {
-            return try recordDictionary(self.builder, self.env, fields, evidence, self.span);
+        pub fn record(self: Self, class: classes.ClassId, fields: []const types.Type.Field, evidence: []const core.Term) Error!core.Term {
+            return try recordDictionary(self.builder, self.env, class, fields, evidence, self.span);
         }
 
-        pub fn builtin(_: Self, _: classes.ClassId) ?core.Term {
-            return null;
-        }
-
-        pub fn leaf(self: Self, class: classes.ClassId, t: types.Type) Error!??core.Term {
+        pub fn leaf(self: Self, class: classes.ClassId, t: types.Type) Error!?core.Term {
             return try self.leaves.leaf(class, t, self.span);
         }
     };
 }
 
-/// `dict[Eq] (\x y -> ...)`, comparing a closed record's `fields` through
-/// `evidence`, each field's dictionary.
+/// The dictionary of `class` at a closed record of `fields`, from
+/// `evidence`, each field's: `dict[C]` at its first method, built over the
+/// fields, and its defaults for the rest.
+///
+/// Preconditions:
+/// - `class` covers records, has no superclass, and has a default for every
+///   method but its first.
 fn recordDictionary(
     b: core.Builder,
     env: *core.env.Env,
+    class: classes.ClassId,
     fields: []const types.Type.Field,
-    evidence: []const ?core.Term,
+    evidence: []const core.Term,
+    span: diagnostic.Span,
+) Allocator.Error!core.Term {
+    const declared = env.classes.get(class);
+    const first = switch (class) {
+        .eq => try recordEq(b, env, fields, evidence, span),
+        .to_json => try recordToJson(b, env, fields, evidence, span),
+        else => unreachable,
+    };
+    const itself = try env.interner.fresh("d");
+    var dictionary = try b.apply(b.symbol(declared.constructor.?, span), first, span);
+    for (declared.defaults[1..]) |default| {
+        dictionary = try b.apply(dictionary, try b.apply(b.symbol(default.?, span), b.symbol(itself, span), span), span);
+    }
+    if (declared.methods.len == 1) return dictionary;
+    const bindings = try b.dupeSlice(core.Letrec.Binding, &.{.{ .name = itself, .value = dictionary }});
+    return try b.letrec(bindings, b.symbol(itself, span), span);
+}
+
+/// `\x y -> ...`, comparing a closed record's fields left to right.
+fn recordEq(
+    b: core.Builder,
+    env: *core.env.Env,
+    fields: []const types.Type.Field,
+    evidence: []const core.Term,
     span: diagnostic.Span,
 ) Allocator.Error!core.Term {
     const eq = env.classes.get(.eq);
@@ -214,7 +231,7 @@ fn recordDictionary(
         i -= 1;
         const select = try primitives.selectSymbol(env, fields[i].label);
         const pair = try b.applyMany(b.symbol(eq.methods[0], span), &.{
-            evidence[i].?,
+            evidence[i],
             try b.apply(b.symbol(select, span), b.symbol(x, span), span),
             try b.apply(b.symbol(select, span), b.symbol(y, span), span),
         }, span);
@@ -223,8 +240,31 @@ fn recordDictionary(
         else
             pair;
     }
-    const method = try b.abstract(&.{ x, y }, result orelse b.symbol(declared.boolConstructor(true).symbol, span));
-    return try b.apply(b.symbol(eq.constructor.?, span), method, span);
+    return try b.abstract(&.{ x, y }, result orelse b.symbol(declared.boolConstructor(true).symbol, span));
+}
+
+/// `\r -> JObject [("l", to_json r.l), ...]`, one member per field.
+fn recordToJson(
+    b: core.Builder,
+    env: *core.env.Env,
+    fields: []const types.Type.Field,
+    evidence: []const core.Term,
+    span: diagnostic.Span,
+) Allocator.Error!core.Term {
+    const to_json = env.classes.get(.to_json).methods[0];
+    const r = try env.interner.fresh("r");
+    const members = try b.slice(core.Builder.Member, fields.len);
+    for (fields, evidence, members) |f, e, *member| {
+        const select = try primitives.selectSymbol(env, f.label);
+        member.* = .{
+            .key = f.label,
+            .value = try b.applyMany(b.symbol(to_json, span), &.{
+                e,
+                try b.apply(b.symbol(select, span), b.symbol(r, span), span),
+            }, span),
+        };
+    }
+    return try b.lambda(r, try b.jsonObject(&env.datatypes, members, span), span);
 }
 
 /// Each class's selectors, and each of `instances`' dictionary: a function
@@ -259,19 +299,18 @@ pub fn dictionaries(
             body = try builder.apply(body, try builder.applyMany(builder.symbol(implementation, span), arguments, span), span);
         }
         try out.append(gpa, .{
-            .symbol = instance.dictionary.?,
+            .symbol = instance.dictionary,
             .body = try builder.abstract(built.parameters, try table.wrap(builder, built.frame, body)),
             .span = span,
         });
     }
 }
 
-/// An instance with a dictionary, and the frame its superclasses are solved
-/// in.
+/// An instance, and the frame its superclasses are solved in.
 pub const Instance = struct {
     id: classes.InstanceId,
     frame: u32,
-    /// One per dictionary requirement of its context, in order.
+    /// One per requirement of its context, in order.
     parameters: []const core.SymbolId,
     /// One per selector of its class, in order.
     superclasses: []const core.SymbolId,

@@ -31,4 +31,4 @@ main = \x -> bind[List] (%descendants_of_kind :class_declaration x) (
       Nil -> Cons (%text cons0) Nil
       Cons _ _ -> Nil
 )
-entry = main
+entry = \root -> map[List] JString (main root)

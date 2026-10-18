@@ -880,6 +880,7 @@ fn runtimeError(failure: tql.Failure) anyerror {
         .cyclic_value => error.Cycle,
         .stack_overflow => error.StackOverflow,
         .regex_failed => error.RegexFailed,
+        .int_out_of_range => error.IntOutOfRange,
         else => error.UnexpectedRunFailure,
     };
 }
@@ -926,7 +927,7 @@ fn evaluate(
     allocator.free(outcome.syntax_errors);
     errdefer allocator.free(outcome.json);
     if (outcome.failure) |f| switch (f) {
-        .cyclic_value, .stack_overflow, .regex_failed => {},
+        .cyclic_value, .stack_overflow, .regex_failed, .int_out_of_range => {},
         .memory_limit => return error.OutOfMemory,
         .internal => |err| return err,
         else => return error.UnexpectedRunFailure,

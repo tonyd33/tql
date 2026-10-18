@@ -1,0 +1,18 @@
+title: an `Int` past 2^53 - 1 in magnitude cannot be written
+grammar: typescript
+asserts: values, runtime_error
+
+Every number written is exact in every JSON reader. The outputs before the
+one that fails are kept.
+
+--- tql ---
+main = Kleisli $ \_ -> [9007199254740991, 0 - 9007199254740991, 9007199254740992];
+
+--- source ---
+class A {}
+
+--- values ---
+[9007199254740991,-9007199254740991]
+
+--- runtime error ---
+error[int-out-of-range]: an `Int` past 2^53 - 1 in magnitude cannot be written as JSON

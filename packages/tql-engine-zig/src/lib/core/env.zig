@@ -143,13 +143,11 @@ pub const Env = struct {
     }
 
     /// The datatype of tuples with `arity` components, declared in `Prim`
-    /// the first time it is asked for with `Eq`, `Ord` and `Serial`, each
-    /// requiring its class of every component. Its constructor is spelled as
-    /// the type, and no name lookup finds it.
+    /// the first time it is asked for. Its constructor is spelled as the
+    /// type, and no name lookup finds it.
     ///
     /// Preconditions:
     /// - `arity` is not one.
-    /// - `Prim` has declared its classes.
     pub fn tuple(self: *Env, arity: types.TypeVar) Allocator.Error!symbols.TypeId {
         if (self.tuples[arity]) |id| return id;
 
@@ -170,7 +168,17 @@ pub const Env = struct {
             .tag = 0,
             .fields = fields,
         }}));
+        return id;
+    }
 
+    /// Declares the instances of tuple type `id`: one of each derivable
+    /// class, requiring its class of every component.
+    ///
+    /// Preconditions:
+    /// - `Prim` has declared its classes' members.
+    pub fn declareTupleInstances(self: *Env, id: symbols.TypeId) Allocator.Error!void {
+        const scratch = self.allocator();
+        const arity = self.datatypes.get(id).parameters.len;
         for (classes.derivable) |class| {
             const context = try scratch.alloc(classes.Requirement, arity);
             for (context, 0..) |*requirement, i| requirement.* = .{ .class = class, .variable = @intCast(i) };
@@ -183,7 +191,6 @@ pub const Env = struct {
                 .module = .prim,
             });
         }
-        return id;
     }
 
     /// Fill in the constructors of `id`, declared with none yet, and give
@@ -199,26 +206,23 @@ pub const Env = struct {
         }
     }
 
-    /// Adds `declared`, with a generated `instance[C,T]` dictionary when its
-    /// class takes one and a generated `m[T]` for each method `m`. Returns
+    /// Adds `declared`, with a generated `instance[C,T]` dictionary and a
+    /// generated `m[T]` for each method `m`. Returns
     /// the instance already declared for its class and head instead, adding
     /// nothing, when there is one.
     pub fn declareInstance(self: *Env, declared: classes.Instance) Allocator.Error!classes.Registry.Addition {
         var instance = declared;
-        instance.dictionary = switch (self.classes.evidenceOf(declared.class)) {
-            .builtin => null,
-            .dictionary => try self.interner.generate(
-                declared.module,
-                try std.fmt.allocPrint(self.allocator(), "instance[{s},{s}]", .{ self.classes.spelling(declared.class), self.datatypes.get(declared.head()).name }),
-                .vanilla,
-            ),
-        };
+        instance.dictionary = try self.interner.generate(
+            declared.module,
+            try std.fmt.allocPrint(self.allocator(), "instance[{s},{s}]", .{ self.classes.spelling(declared.class), self.datatypes.get(declared.head()).name }),
+            .vanilla,
+        );
         const addition = try self.classes.addInstance(instance);
         const id = switch (addition) {
             .added => |id| id,
             .existing => return addition,
         };
-        if (instance.dictionary) |dictionary| self.interner.setDetails(dictionary, .{ .instance = id });
+        self.interner.setDetails(instance.dictionary, .{ .instance = id });
         const class_methods = self.classes.get(declared.class).methods;
         const methods = try self.allocator().alloc(symbols.SymbolId, class_methods.len);
         for (class_methods, methods, 0..) |method, *symbol, i| {
@@ -248,10 +252,10 @@ pub const Env = struct {
         return self.always_inline.get(symbol) != null;
     }
 
-    /// The parameters `symbol` takes by its scheme: one per dictionary of its
+    /// The parameters `symbol` takes by its scheme: one per constraint of its
     /// context and one per arrow.
     pub fn typedArity(self: *const Env, symbol: symbols.SymbolId) ?usize {
         const scheme = self.schemeOf(symbol) orelse return null;
-        return self.classes.dictionaryCount(scheme.constraints) + types.arrowCount(scheme.type);
+        return scheme.constraints.len + types.arrowCount(scheme.type);
     }
 };

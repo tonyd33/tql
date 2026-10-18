@@ -42,4 +42,4 @@ class A {}
 --- types ---
 names :: [String]
 main :: Kleisli List a String
-entry :: Node -> [String]
+entry :: Node -> [Json]

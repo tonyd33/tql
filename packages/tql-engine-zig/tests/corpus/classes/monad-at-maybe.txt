@@ -23,9 +23,9 @@ main = Kleisli $ \_ -> [
 class A {}
 
 --- values ---
-[{"tag":"Just","fields":[2]},{"tag":"Nothing","fields":[]},{"tag":"Just","fields":[3]},{"tag":"Just","fields":[2]},{"tag":"Nothing","fields":[]},{"tag":"Just","fields":[4]},{"tag":"Nothing","fields":[]}]
+[2,null,3,2,null,4,null]
 
 --- types ---
 half :: Int -> Maybe Int
 main :: Kleisli List a (Maybe Int)
-entry :: Node -> [Maybe Int]
+entry :: Node -> [Json]

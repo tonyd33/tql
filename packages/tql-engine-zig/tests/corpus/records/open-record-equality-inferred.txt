@@ -16,4 +16,4 @@ class A {}
 --- types ---
 same_name :: Eq a => {name: a | b} -> {name: a | c} -> Bool
 main :: Kleisli List Node Bool
-entry :: Node -> [Bool]
+entry :: Node -> [Json]

@@ -23,4 +23,4 @@ main = \x -> bind[List] (%descendants_of_kind :class_declaration x) (
       Nil -> Cons (Cons (%text y) (Cons (%text n) Nil)) Nil
       Cons _ _ -> Nil
 )
-entry = main
+entry = \root -> map[List] (to_json[List] instance[ToJson,String]) (main root)

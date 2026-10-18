@@ -1,0 +1,17 @@
+title: a declared datatype that does not derive `ToJson` is not output
+grammar: typescript
+asserts: error
+
+`Maybe` does not derive `ToJson`, so it has no JSON encoding.
+
+--- tql ---
+data Maybe a = Just a | Nothing;
+
+main = pure (Just 1);
+
+--- error ---
+error[unsatisfied-constraint]: `ToJson (Maybe Int)` is not satisfied.
+ --> 3:1
+  |
+3 | main = pure (Just 1);
+  | ^^^^^^^^^^^^^^^^^^^^^

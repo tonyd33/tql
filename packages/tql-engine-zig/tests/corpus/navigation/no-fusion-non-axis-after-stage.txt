@@ -18,7 +18,7 @@ main = \x -> bind[List] (bind[List] (%children x) %parent) (
     False -> Nil
     True -> Cons x Nil
 )
-entry = main
+entry = \root -> map[List] to_json[Node] (main root)
 
 --- core ---
 main = compose_flipped (compose_flipped children parent) (of_kind :class_declaration)

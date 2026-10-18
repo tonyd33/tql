@@ -367,6 +367,12 @@ pub const Desugarer = struct {
         try self.declareTypes(&scope, source, &group, sink);
         try class_linker.declareMembers(source, &group);
         try group.commit(&self.env.?);
+        // Before deriving, which solves at tuple fields. `Prim` names the
+        // pair before its classes have methods, so no earlier.
+        for (self.env.?.tuples, tuples_before) |now, before| {
+            if (before == null) if (now) |id| try self.env.?.declareTupleInstances(id);
+        }
+        const tuples_declared = self.env.?.tuples;
         var methods: std.ArrayList(classes_mod.Method) = .empty;
         defer methods.deinit(self.allocator);
         try class_linker.defineDefaults(&methods);
@@ -449,8 +455,11 @@ pub const Desugarer = struct {
             try self.env.?.annotate(d.symbol, .{ .scheme = declared.scheme, .span = span, .names = declared.names });
         }
 
-        for (self.env.?.tuples, tuples_before) |now, before| {
-            if (before == null) if (now) |id| try class_linker.deriveTuple(id, &generated);
+        for (self.env.?.tuples, tuples_before, tuples_declared) |now, before, declared| {
+            if (before != null) continue;
+            const id = now orelse continue;
+            if (declared == null) try self.env.?.declareTupleInstances(id);
+            try class_linker.deriveTuple(id, &generated);
         }
         if (failed or sink.hasErrors()) return error.DesugarFailed;
 

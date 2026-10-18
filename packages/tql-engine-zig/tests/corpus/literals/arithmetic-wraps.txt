@@ -5,14 +5,18 @@ asserts: values
 `Int` is 64-bit two's complement in every build mode.
 
 --- tql ---
+largest = 9223372036854775807;
+
+least = 0 - largest - 1;
+
 main = pure [
-  9223372036854775807 + 1,
-  0 - 9223372036854775807 - 2,
-  4611686018427387904 * 2
+  largest + 1 == least,
+  0 - largest - 2 == largest,
+  4611686018427387904 * 2 == least
 ];
 
 --- source ---
 class A {}
 
 --- values ---
-[[-9223372036854775808, 9223372036854775807, -9223372036854775808]]
+[[true,true,true]]

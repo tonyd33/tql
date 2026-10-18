@@ -36,4 +36,4 @@ class A {}
 --- types ---
 f :: Twin a => a -> Bool
 main :: Kleisli List Node Bool
-entry :: Node -> [Bool]
+entry :: Node -> [Json]

@@ -34,28 +34,28 @@ entry = run_main main
 
 --- types ---
 main :: Kleisli List a Bool
-entry :: Node -> [Bool]
+entry :: Node -> [Json]
 
 --- stg ---
 main = {} \u {} ->
   letrec
-    is_odd = {is_even@1} \n {n} -> case %eq_int# n@1 0 of
+    is_even = {is_odd@1} \n {n} -> case %eq_int# n@1 0 of
       False ->
         let t0 = {n@1} \u {} -> op[-]# n@0 1 in
-        is_even@0 t0@2
+        is_odd@0 t0@2
       True ->
-        let c1 = False in
+        let c1 = True in
         c1@2
-    is_even = {is_odd@0} \n {n} -> case %eq_int# n@1 0 of
+    is_odd = {is_even@0} \n {n} -> case %eq_int# n@1 0 of
       False ->
         let t2 = {n@1} \u {} -> op[-]# n@0 1 in
-        is_odd@0 t2@2
+        is_even@0 t2@2
       True ->
-        let c3 = True in
+        let c3 = False in
         c3@2
   in
   let
-    t8 = {is_even@1} \n {_} ->
+    t8 = {is_even@0} \n {_} ->
       let
         t4 = {is_even@0} \u {} -> is_even@0 4
         t7 = {is_even@0} \u {} ->
@@ -68,4 +68,13 @@ main = {} \u {} ->
       Cons t4@2 t7@3
   in
   t8@2
-entry = {} \u {} -> main
+entry = {} \u {} ->
+  let
+    t3 = {} \n {root} ->
+      let
+        t1 = {} \n {f0} -> JBool f0@0
+        t2 = {root@0} \u {} -> main root@0
+      in
+      map[List] t1@1 t2@2
+  in
+  t3@0

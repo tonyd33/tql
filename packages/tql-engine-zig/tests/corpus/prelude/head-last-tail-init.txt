@@ -16,8 +16,8 @@ main = pure (
 class A {}
 
 --- values ---
-[[[{"tag":"Just","fields":[1]},{"tag":"Nothing","fields":[]}],[{"tag":"Just","fields":[3]},{"tag":"Just","fields":[1]},{"tag":"Nothing","fields":[]}],[{"tag":"Just","fields":[[2,3]]},{"tag":"Nothing","fields":[]}],[{"tag":"Just","fields":[[1,2]]},{"tag":"Just","fields":[[]]},{"tag":"Nothing","fields":[]}]]]
+[[[1,null],[3,1,null],[[2,3],null],[[1,2],[],null]]]
 
 --- types ---
 main :: Kleisli List Node ([Maybe Int], [Maybe Int], [Maybe [Int]], [Maybe [Int]])
-entry :: Node -> [([Maybe Int], [Maybe Int], [Maybe [Int]], [Maybe [Int]])]
+entry :: Node -> [Json]

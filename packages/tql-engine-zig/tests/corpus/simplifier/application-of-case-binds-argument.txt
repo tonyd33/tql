@@ -18,4 +18,4 @@ f = \b -> \x ->
     False -> op[*] a 2
     True -> op[+] a 1
 main = \_ -> map[List] (\g -> g 3) (map[List] f (Cons True (Cons False Nil)))
-entry = main
+entry = \root -> map[List] JNumber (main root)

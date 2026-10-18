@@ -20,7 +20,7 @@ class B {}
 
 --- types ---
 main :: Kleisli List Node Kind
-entry :: Node -> [Kind]
+entry :: Node -> [Json]
 
 --- core ---
 main = compose_flipped descendants (arr kind)
@@ -28,4 +28,4 @@ entry = run_main main
 
 --- simplified ---
 main = \x -> bind[List] (%descendants x) (\x -> Cons (%kind x) Nil)
-entry = main
+entry = \root -> map[List] to_json[Kind] (main root)

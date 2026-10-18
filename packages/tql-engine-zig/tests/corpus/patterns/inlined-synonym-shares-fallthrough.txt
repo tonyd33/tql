@@ -39,4 +39,4 @@ describe = \xs ->
 main =
   let k = %descendants_of_kind :arguments in
   \x -> bind[List] (k x) (\y -> Cons (describe (%children_of_kind :identifier y)) Nil)
-entry = main
+entry = \root -> map[List] JString (main root)

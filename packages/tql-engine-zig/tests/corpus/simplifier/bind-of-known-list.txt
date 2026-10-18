@@ -26,4 +26,4 @@ class A {}
 
 --- simplified ---
 main = \_ -> append[List] (Cons (op[+] 1 1) Nil) Nil
-entry = main
+entry = \root -> map[List] JNumber (main root)

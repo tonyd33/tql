@@ -36,4 +36,13 @@ main = {} \u {} ->
       Cons t0@2 t3@3
   in
   t4@1
-entry = {} \u {} -> main
+entry = {} \u {} ->
+  let
+    t3 = {} \n {root} ->
+      let
+        t1 = {} \n {f0} -> JNumber f0@0
+        t2 = {root@0} \u {} -> main root@0
+      in
+      map[List] t1@1 t2@2
+  in
+  t3@0

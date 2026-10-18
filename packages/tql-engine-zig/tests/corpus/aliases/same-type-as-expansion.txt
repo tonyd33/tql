@@ -20,4 +20,4 @@ class A {}
 f :: P -> Int
 g :: {x: Int} -> P
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

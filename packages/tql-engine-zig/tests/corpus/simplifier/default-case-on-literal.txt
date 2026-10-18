@@ -16,4 +16,4 @@ main = pure (seq 1 2)
 entry = run_main main
 
 --- simplified ---
-entry = \_ -> Cons 2 Nil
+entry = \root -> map[List] JNumber (Cons 2 Nil)

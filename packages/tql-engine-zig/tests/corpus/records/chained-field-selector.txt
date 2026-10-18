@@ -14,4 +14,4 @@ class B {}
 
 --- types ---
 main :: Kleisli List Node Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

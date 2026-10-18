@@ -106,6 +106,7 @@ export type FailureCategory =
   | "cyclic-value"
   | "memory-limit"
   | "regex-failed"
+  | "int-out-of-range"
   | "target-parse-failed"
   | "incompatible-grammar"
   | "unreadable-target"

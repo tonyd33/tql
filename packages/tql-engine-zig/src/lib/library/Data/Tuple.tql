@@ -11,6 +11,4 @@ snd p = case p of {
 };
 
 swap :: (a, b) -> (b, a);
-swap p = case p of {
-  (a, b) -> (b, a);
-};
+swap p = (snd p, fst p);

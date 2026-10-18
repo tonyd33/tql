@@ -3,11 +3,11 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-data Tree = Leaf | Node Tree Int Tree deriving (Serial);
+data Tree = Leaf | Node Tree Int Tree deriving (ToJson);
 main = pure $ Node (Node Leaf 1 Leaf) 2 Leaf;
 
 --- source ---
 class A {}
 
 --- values ---
-[{"tag":"Node","fields":[{"tag":"Node","fields":[{"tag":"Leaf","fields":[]},1,{"tag":"Leaf","fields":[]}]},2,{"tag":"Leaf","fields":[]}]}]
+[{"tag":"Node","contents":[{"tag":"Node","contents":[{"tag":"Leaf"},1,{"tag":"Leaf"}]},2,{"tag":"Leaf"}]}]

@@ -13,7 +13,7 @@ class A {}
 
 --- simplified ---
 main = \_ -> map[List] (\y -> op[+] (op[*] y 2) 1) (Cons 1 (Cons 2 Nil))
-entry = main
+entry = \root -> map[List] JNumber (main root)
 
 --- core ---
 main =

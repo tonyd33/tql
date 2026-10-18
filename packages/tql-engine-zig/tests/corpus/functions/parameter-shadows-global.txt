@@ -17,7 +17,7 @@ class A {}
 n :: Int
 shadowed :: Int -> Int
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]
 
 --- core ---
 n = 100
