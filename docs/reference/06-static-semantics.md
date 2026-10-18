@@ -3,13 +3,47 @@
 The checker is bidirectional and constraint-based, over rank-1 types. It
 reads each binding, generates constraints, and solves them.
 
+## Notation
+
+| Letter | Ranges over |
+|---|---|
+| `e` | expressions |
+| `x`, `f` | variables |
+| `lit` | literals |
+| `p` | patterns |
+| `g` | guards |
+| `bs` | sequences of bindings |
+| `τ` | types |
+| `σ` | type schemes |
+| `ρ` | rows |
+| `a` | type variables |
+| `α`, `β` | fresh type variables |
+| `T` | type constructors |
+| `C`, `S` | classes |
+| `l` | record labels |
+| `π` | class constraints |
+| `Q` | givens |
+| `W` | wanteds |
+| `d` | evidence |
+| `Γ`, `Γ'` | type environments |
+| `Δ` | the variables a pattern binds, with their types |
+
+A bar marks a sequence: `ā` is `a1 ... an`.
+
 ## Judgements
 
 ```
-Γ ⊢ e ⇒ τ  ⇝ W      e has type τ, provided W holds        (inference)
-Γ ⊢ e ⇐ τ  ⇝ W      e checks against τ, provided W holds  (checking)
-Q ⊩ π  ⇝ d          the givens Q entail π, with evidence d
+Γ ⊢ e ⇒ τ  ⇝ W        e has type τ, provided W holds        (inference)
+Γ ⊢ e ⇐ τ  ⇝ W        e checks against τ, provided W holds  (checking)
+Γ ⊢ p : τ ⊣ Δ         p matches a τ and binds Δ
+Γ ⊢ bs ⊣ Γ'  ⇝ W      bs give the schemes Γ', leaving W
+Q ⊩ π  ⇝ d            the givens Q entail π, with evidence d
 ```
+
+The typing rules of expressions and bindings are named `T-`, and those of
+entailment `E-`. Patterns are typed by the rules of
+[Typing](03-patterns.md#typing). `⇒` is only the inference judgement;
+types and schemes write `=>`.
 
 `Γ` maps variables to type schemes `∀ā. Q => τ`. Wanted constraints are
 

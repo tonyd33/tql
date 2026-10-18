@@ -1,5 +1,19 @@
 # Types
 
+## Notation
+
+| Letter | Ranges over |
+|---|---|
+| `τ` | types |
+| `ρ` | rows |
+| `κ` | kinds |
+| `a` | type variables |
+| `r` | row variables |
+| `T` | type constructors |
+| `C` | classes |
+| `l` | record labels |
+| `Ψ` | kind environments |
+
 ## Grammar
 
 ```
@@ -24,6 +38,8 @@ variables are quantified at the outside of its signature. There is no
 `forall`.
 
 ## Kinds
+
+`Ψ ⊢ τ : κ` reads: in `Ψ`, `τ` has kind `κ`. The rules are named `K-`.
 
 ```
 (K-Var)   a : κ ∈ Ψ

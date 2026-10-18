@@ -170,7 +170,8 @@ Eq Kind
 
 `String` is ordered by code point, `Bool` with `False < True`, lists
 lexicographically with a prefix first, and `Maybe` with `Nothing` first.
-The tuple instances hold for every n, `()` included. Records are in
+The tuple instances hold for every n, `()` included. `Record ρ` is the
+record type of the row `ρ`, and its instances are in
 [Classes over rows](04-types.md#classes-over-rows). No function type has
 either class.
 

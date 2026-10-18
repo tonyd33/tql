@@ -1,8 +1,16 @@
 # Syntax reference
 
 This chapter gives the whole grammar. Each other chapter gives the
-fragment it defines, and the two agree. The notation is in
-[Notation](README.md#notation).
+fragment it defines, and the two agree. Productions use this notation:
+
+```
+x?        optional
+x*        zero or more
+x+        one or more
+x | y     choice
+(x y)     grouping
+"k"       a literal token
+```
 
 Every comma-separated sequence `x ("," x)*` also accepts a trailing `,`;
 the productions leave it out.
