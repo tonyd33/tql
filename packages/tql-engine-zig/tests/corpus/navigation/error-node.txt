@@ -1,0 +1,15 @@
+title: `is_error` finds the source tree-sitter skipped
+grammar: c
+asserts: values
+
+tree-sitter recovers from `return 1 2;` by skipping the `1` as an `ERROR`
+node. `has_error` on the root tells whether the file parsed.
+
+--- tql ---
+main = (descendants | keep is_error | arr text) <|> (keep has_error | arr kind_name);
+
+--- source ---
+int f() { return 1 2; }
+
+--- values ---
+["1","translation_unit"]

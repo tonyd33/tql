@@ -1,0 +1,21 @@
+title: a synonym's parameter can be bound by an as-pattern
+grammar: typescript
+asserts: values
+
+`c` is bound by the as-pattern and `n` by a node field. Both count as the
+synonym's parameters.
+
+--- tql ---
+pattern Named c n <- c@:class_declaration { #name = n };
+
+main = do {
+  Named c n <- descendants;
+  return [kind_name c, text n];
+};
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[["class_declaration","A"],["class_declaration","B"]]

@@ -2,11 +2,12 @@ title: a regex construct the matcher cannot run fails the match
 grammar: typescript
 asserts: runtime_error
 
-`\K` compiles, but the matcher rejects it when a match reaches it. The
-failure stops the run; it is never read as no match.
+A recursion that consumes nothing before recursing compiles, but the
+matcher rejects it when a match reaches it. The failure stops the run; it
+is never read as no match.
 
 --- tql ---
-main = pure $ "ab" ~ r"a\Kb";
+main = pure $ "b" ~ r"(?R)?b";
 
 --- source ---
 class A {}

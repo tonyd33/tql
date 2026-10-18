@@ -161,6 +161,7 @@
 const std = @import("std");
 const ts = @import("tree-sitter");
 const pcre2 = @import("../regex.zig");
+const utf8 = @import("../utf8.zig");
 const primitives = @import("../primitives.zig");
 const stg = @import("terms.zig");
 const core = @import("../core.zig");
@@ -205,7 +206,8 @@ pub const Error = Allocator.Error || std.Io.Writer.Error || error{
     /// A local read a slot bound under a different name. Reached only by a
     /// translation bug, and checked only in safe builds.
     MisplacedLocal,
-    /// A regex reached a construct the matcher cannot run, such as `\K`.
+    /// A regex reached a construct the matcher cannot run: a recursion that
+    /// consumes nothing before recursing.
     RegexFailed,
 };
 
@@ -971,6 +973,18 @@ pub const Machine = struct {
                     const subject = try self.nodeArgument(arguments);
                     return try self.boolValue(subject.isExtra());
                 },
+                .is_error => {
+                    const subject = try self.nodeArgument(arguments);
+                    return try self.boolValue(subject.isError());
+                },
+                .is_missing => {
+                    const subject = try self.nodeArgument(arguments);
+                    return try self.boolValue(subject.isMissing());
+                },
+                .has_error => {
+                    const subject = try self.nodeArgument(arguments);
+                    return try self.boolValue(subject.hasError());
+                },
                 .range => {
                     const subject = try self.nodeArgument(arguments);
                     return try self.rangeRecord(rangeOf(subject));
@@ -1032,7 +1046,7 @@ pub const Machine = struct {
                     _ = try self.nodeArgument(arguments);
                     const target = self.target orelse return self.nothing();
                     const path = target.path orelse return self.nothing();
-                    return self.just(try self.valueThunk(.{ .string = try self.decoded(path) }));
+                    return self.just(try self.valueThunk(.{ .string = try utf8.decode(self.arena, path) }));
                 },
 
                 // Children and anonymous tokens, document order.
@@ -1068,14 +1082,7 @@ pub const Machine = struct {
     fn nodeText(self: *Machine, node: ts.Node) Error![]const u8 {
         const target = self.target orelse return error.TypeError;
         const bytes = target.source[node.startByte()..node.endByte()];
-        return if (target.utf8) bytes else self.decoded(bytes);
-    }
-
-    /// Returns `bytes` with each ill-formed UTF-8 sequence replaced by U+FFFD,
-    /// copied into the arena only when there is one.
-    fn decoded(self: *Machine, bytes: []const u8) Error![]const u8 {
-        if (std.unicode.utf8ValidateSlice(bytes)) return bytes;
-        return std.fmt.allocPrint(self.arena, "{f}", .{std.unicode.fmtUtf8(bytes)});
+        return if (target.utf8) bytes else utf8.decode(self.arena, bytes);
     }
 
     fn nodeArgument(self: *Machine, arguments: []const *value.Thunk) Error!ts.Node {
@@ -1472,18 +1479,14 @@ pub const Machine = struct {
 
     /// Write a forced list as a JSON array, forcing its spine and every
     /// element.
-    ///
-    /// Returns the number of elements written.
-    pub fn serializeList(self: *Machine, list: value.Value, jws: *std.json.Stringify) Error!usize {
+    fn serializeList(self: *Machine, list: value.Value, jws: *std.json.Stringify) Error!void {
         try jws.beginArray();
-        var count: usize = 0;
         var current = list;
-        while (try self.uncons(current)) |cell| : (count += 1) {
+        while (try self.uncons(current)) |cell| {
             try self.serialize(try self.force(cell.head), jws);
             current = try self.force(cell.tail);
         }
         try jws.endArray();
-        return count;
     }
 
     /// Write a forced value as JSON. This is the `Serial` boundary: it forces
@@ -1510,7 +1513,7 @@ pub const Machine = struct {
                 if (c.constructor == structural.true_.symbol or c.constructor == structural.false_.symbol) {
                     try jws.write(c.constructor == structural.true_.symbol);
                 } else if (c.constructor == structural.nil.symbol or c.constructor == structural.cons.symbol) {
-                    _ = try self.serializeList(v, jws);
+                    try self.serializeList(v, jws);
                 } else if (self.program.tuples.contains(c.constructor)) {
                     try jws.beginArray();
                     for (c.fields()) |field| try self.serialize(try self.force(field), jws);

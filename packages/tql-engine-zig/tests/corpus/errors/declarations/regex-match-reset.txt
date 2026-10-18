@@ -1,0 +1,16 @@
+title: a regex with `\K` is a compile error
+grammar: typescript
+asserts: error
+
+The matcher cannot run `\K`, and whether a match reaches it depends on the
+subject, so it is rejected before any subject is seen.
+
+--- tql ---
+main = pure $ "cb" ~ r"a\Kb|b";
+
+--- error ---
+error[invalid-regex]: `a\Kb|b` uses `\K`, which tql regexes do not support
+ --> 1:22
+  |
+1 | main = pure $ "cb" ~ r"a\Kb|b";
+  |                      ^^^^^^^^^

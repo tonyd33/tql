@@ -1,0 +1,31 @@
+title: an inferred `Serial` context is reduced through instances
+grammar: typescript
+asserts: types, values
+
+`s [x]` raises `Serial [a]`, which the instance for lists reduces to
+`Serial a`. `s (P, x)` raises `Serial (P a, b)`; `P`'s derived instance needs
+nothing of `a`, so it reduces to `Serial b`.
+
+--- tql ---
+data P a = P deriving (Serial);
+
+s :: Serial a => a -> Int;
+s x = 1;
+
+f x = s [x];
+
+g x = s (P, x);
+
+main = pure (f 1 + g 2);
+
+--- source ---
+class A {}
+
+--- values ---
+[2]
+
+--- types ---
+s :: Serial a => a -> Int
+f :: Serial a => a -> Int
+g :: Serial a => a -> Int
+main :: Filter Node Int

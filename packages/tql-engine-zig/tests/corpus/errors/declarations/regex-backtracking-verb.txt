@@ -1,0 +1,13 @@
+title: a regex with a backtracking verb is a compile error
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = pure $ "ab" ~ r"a(*PRUNE)b";
+
+--- error ---
+error[invalid-regex]: `a(*PRUNE)b` uses `(*PRUNE)`, which tql regexes do not support
+ --> 1:22
+  |
+1 | main = pure $ "ab" ~ r"a(*PRUNE)b";
+  |                      ^^^^^^^^^^^^^

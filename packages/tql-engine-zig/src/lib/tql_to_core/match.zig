@@ -212,7 +212,9 @@ pub fn bind(
 /// yielding `f` when `body` does not match.
 pub fn matcherOf(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!core.Term {
     const b = lowerer.builder;
-    const names = try checkParameters(lowerer, synonym);
+    const names = try parameterNames(lowerer, synonym);
+    const body = try kernel(lowerer, synonym.body);
+    try checkBinds(lowerer, synonym, names, body);
 
     const span = synonym.span;
     const s = try lowerer.env.interner.fresh("s");
@@ -221,7 +223,7 @@ pub fn matcherOf(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!co
 
     const arms = try b.dupeSlice(Arm, &.{.{
         .written = synonym.body,
-        .pattern = try kernel(lowerer, synonym.body),
+        .pattern = body,
         .guard = null,
         .body = .{ .holes = .{ .continuation = k, .names = names, .span = synonym.body.span } },
     }});
@@ -229,10 +231,8 @@ pub fn matcherOf(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!co
     return try b.lambda(s, try b.lambda(k, try b.lambda(f, term, span), span), span);
 }
 
-/// Returns the parameters' names. Rejects a synonym whose parameters repeat,
-/// whose body binds a variable that is not a parameter, or whose body leaves a
-/// parameter unbound.
-fn checkParameters(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error![]const []const u8 {
+/// Returns the parameters' names. Rejects a synonym whose parameters repeat.
+fn parameterNames(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error![]const []const u8 {
     const names = try lowerer.builder.slice([]const u8, synonym.parameters.len);
     for (synonym.parameters, names, 0..) |parameter, *name, i| {
         name.* = parameter.name orelse {
@@ -255,9 +255,19 @@ fn checkParameters(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!
             return error.DesugarFailed;
         }
     }
+    return names;
+}
 
+/// Rejects a synonym whose expanded `body` binds a variable that is not one
+/// of `names`, or leaves one of them unbound.
+fn checkBinds(
+    lowerer: *Lowerer,
+    synonym: *const cst.PatternSynonym,
+    names: []const []const u8,
+    body: Pattern,
+) Error!void {
     var binders: std.ArrayList(Variable) = .empty;
-    try boundVariables(lowerer.builder.allocator, synonym.body, &binders);
+    try boundVariables(lowerer.builder.allocator, body, &binders);
     for (binders.items) |variable| {
         for (names) |name| {
             if (std.mem.eql(u8, name, variable.name)) break;
@@ -284,33 +294,19 @@ fn checkParameters(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!
             return error.DesugarFailed;
         }
     }
-    return names;
 }
 
 const Variable = struct { name: []const u8, span: diagnostic.Span };
 
-/// Append every variable `pattern` binds, as written.
-fn boundVariables(allocator: std.mem.Allocator, pattern: cst.Pattern, out: *std.ArrayList(Variable)) Error!void {
+/// Append every variable expanded `pattern` binds, repeats included.
+fn boundVariables(allocator: std.mem.Allocator, pattern: Pattern, out: *std.ArrayList(Variable)) Error!void {
     switch (pattern.kind) {
         .variable => |name| try out.append(allocator, .{ .name = name, .span = pattern.span }),
-        .wildcard => {},
-        .as => |a| {
-            try out.append(allocator, .{ .name = a.name, .span = a.name_span });
-            try boundVariables(allocator, a.pattern, out);
-        },
-        .conjunction => |c| {
-            try boundVariables(allocator, c.left, out);
-            try boundVariables(allocator, c.right, out);
-        },
-        .cons => |c| {
-            try boundVariables(allocator, c.head, out);
-            try boundVariables(allocator, c.tail, out);
-        },
+        .wildcard, .literal => {},
         .constructor => |c| for (c.arguments) |argument| try boundVariables(allocator, argument, out),
-        .list, .tuple => |elements| for (elements) |element| try boundVariables(allocator, element, out),
+        .synonym => |syn| for (syn.arguments) |argument| try boundVariables(allocator, argument, out),
         .view => |v| try boundVariables(allocator, v.pattern, out),
-        .node => |n| for (n.fields) |f| try boundVariables(allocator, f.pattern, out),
-        .literal => {},
+        .all => |patterns| for (patterns) |p| try boundVariables(allocator, p, out),
     }
 }
 
@@ -366,7 +362,7 @@ fn lower(
         slot.* = null;
         if (uses < 2) continue;
         var variables: std.ArrayList(Variable) = .empty;
-        try boundVariables(b.allocator, arm.written, &variables);
+        try boundVariables(b.allocator, arm.pattern, &variables);
         const symbol = try lowerer.env.interner.fresh("alternative");
         if (!matcher.under_synonym[i]) {
             lowerer.env.interner.setDetails(symbol, .{ .join = .{ .arity = @intCast(variables.items.len) } });
@@ -402,28 +398,17 @@ fn lower(
 /// `pattern` expanded. Rejects one binding a variable twice.
 fn kernel(lowerer: *Lowerer, pattern: cst.Pattern) Error!Pattern {
     const expanded = try expand(lowerer, pattern);
-    var seen: std.ArrayList([]const u8) = .empty;
-    defer seen.deinit(lowerer.builder.allocator);
-    try linear(lowerer, expanded, &seen);
-    return expanded;
-}
-
-fn linear(lowerer: *Lowerer, pattern: Pattern, seen: *std.ArrayList([]const u8)) Error!void {
-    switch (pattern.kind) {
-        .variable => |name| {
-            for (seen.items) |earlier| {
-                if (!std.mem.eql(u8, earlier, name)) continue;
-                try lowerer.sink.report(.duplicate_definition, pattern.span, "`{s}` is bound twice in one pattern", .{name});
-                return error.DesugarFailed;
-            }
-            try seen.append(lowerer.builder.allocator, name);
-        },
-        .wildcard, .literal => {},
-        .constructor => |c| for (c.arguments) |argument| try linear(lowerer, argument, seen),
-        .synonym => |s| for (s.arguments) |argument| try linear(lowerer, argument, seen),
-        .view => |v| try linear(lowerer, v.pattern, seen),
-        .all => |patterns| for (patterns) |p| try linear(lowerer, p, seen),
+    var variables: std.ArrayList(Variable) = .empty;
+    defer variables.deinit(lowerer.builder.allocator);
+    try boundVariables(lowerer.builder.allocator, expanded, &variables);
+    for (variables.items, 0..) |variable, i| {
+        for (variables.items[0..i]) |earlier| {
+            if (!std.mem.eql(u8, earlier.name, variable.name)) continue;
+            try lowerer.sink.report(.duplicate_definition, variable.span, "`{s}` is bound twice in one pattern", .{variable.name});
+            return error.DesugarFailed;
+        }
     }
+    return expanded;
 }
 
 /// Resolve the names `pattern` uses, and rewrite list and cons patterns as

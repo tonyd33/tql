@@ -1,0 +1,12 @@
+title: a rejected construct quoted or in a class is literal text
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = pure ["a\\K" ~ r"\Qa\K\E", "*" ~ r"[(*PRUNE)]"];
+
+--- source ---
+class A {}
+
+--- values ---
+[[true,true]]
