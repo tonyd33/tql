@@ -1,0 +1,37 @@
+title: a dictionary calls pass at two instances is kept
+grammar: typescript
+asserts: simplified, values
+
+`size` is too large to inline. One call passes `Sized List` and the other
+`Sized String`, so `size` keeps its dictionary and selects `length` from it.
+
+--- tql ---
+size :: Sized s => s -> Int;
+size xs = length xs + length xs * 2 + length xs * 3;
+
+main = Kleisli $ \_ -> [size [1], size "ab"];
+
+--- source ---
+class A {}
+
+--- values ---
+[6,12]
+--- simplified ---
+size = \d -> \xs -> op[+] (
+  op[+] (
+    case d of
+      dict[Sized] m -> m xs
+  ) (
+    op[*] (
+      case d of
+        dict[Sized] m -> m xs
+    ) 2
+  )
+) (
+  op[*] (
+    case d of
+      dict[Sized] m -> m xs
+  ) 3
+)
+main = \_ -> Cons (size instance[Sized,List] (Cons 1 Nil)) (Cons (size instance[Sized,String] "ab") Nil)
+entry = \root -> map[List] JNumber (main root)
