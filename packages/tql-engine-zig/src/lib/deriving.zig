@@ -50,7 +50,8 @@
 //! `Functor`, `Foldable` and `Traversable` range over a type constructor,
 //! so their instance is for the datatype without its last parameter, `a`.
 //! A field reaches `a` by its type: as `a` itself, through a tuple's
-//! components, through `g τ` with `a` only in `τ` by `g`'s own instance,
+//! components or a record's fields, through `g τ` with `a` only in `τ` by
+//! `g`'s own instance,
 //! and, for `map` only, through a function's result. Each `g` it passes
 //! through is a wanted of the instance's context, so
 //! `data T f a = T (f a)` derives `Functor f => Functor (T f)`. A field
@@ -193,8 +194,8 @@ const Shape = union(enum) {
     absent,
     /// It is `a`.
     element,
-    /// A tuple, holding `a` in its components.
-    tuple: struct { constructor: core.SymbolId, components: []const types.Type },
+    /// A tuple or a record, holding `a` in its parts.
+    product: Product,
     /// `g τ` with `a` only in `τ`, held through `g`'s instance.
     through: struct { head: types.Type, inner: types.Type },
     /// `σ -> τ` with `a` only in `τ`.
@@ -203,14 +204,27 @@ const Shape = union(enum) {
     stuck,
 };
 
+/// A tuple's components, or the fields of a record that mention `a`. A
+/// record's other fields and tail do not.
+const Product = struct {
+    parts: []const types.Type,
+    form: union(enum) {
+        /// The tuple's constructor.
+        tuple: core.SymbolId,
+        /// The labels of `parts`.
+        record: []const []const u8,
+    },
+};
+
 fn shapeOf(env: *core.env.Env, t: types.Type, last: types.TypeVar) Error!Shape {
     if (!types.mentions(t, last)) return .absent;
     switch (types.unalias(t)) {
         .variable => return .element,
         .function => |f| return if (types.mentions(f.from, last)) .stuck else .{ .result = f.to },
         .constructor => |c| {
+            if (types.recordArgument(t)) |row| return .{ .product = try holding(env.allocator(), row.row.fields, last) };
             const declared = env.datatypes.get(c.name);
-            if (declared.form == .tuple) return .{ .tuple = .{ .constructor = declared.constructors[0].symbol, .components = c.arguments } };
+            if (declared.form == .tuple) return .{ .product = .{ .parts = c.arguments, .form = .{ .tuple = declared.constructors[0].symbol } } };
             const init = c.arguments[0 .. c.arguments.len - 1];
             for (init) |argument| if (types.mentions(argument, last)) return .stuck;
             return .{ .through = .{
@@ -222,6 +236,18 @@ fn shapeOf(env: *core.env.Env, t: types.Type, last: types.TypeVar) Error!Shape {
         // A constructor field holds no row, metavariable or skolem.
         .row, .meta, .skolem, .alias => unreachable,
     }
+}
+
+/// The record of `fields`, as a product of those that mention `last`.
+fn holding(allocator: Allocator, fields: []const types.Type.Field, last: types.TypeVar) Error!Product {
+    var parts: std.ArrayList(types.Type) = .empty;
+    var labels: std.ArrayList([]const u8) = .empty;
+    for (fields) |f| {
+        if (!types.mentions(f.type.*, last)) continue;
+        try parts.append(allocator, f.type.*);
+        try labels.append(allocator, f.label);
+    }
+    return .{ .parts = try parts.toOwnedSlice(allocator), .form = .{ .record = try labels.toOwnedSlice(allocator) } };
 }
 
 /// Appends to `out` each type a field of type `field` wants the class at:
@@ -242,9 +268,9 @@ pub fn wanteds(
     }
     switch (try shapeOf(env, field, last)) {
         .absent, .element => return null,
-        .tuple => |t| {
-            for (t.components) |component| {
-                if (try wanteds(gpa, env, deriver, component, last, out)) |stuck| return stuck;
+        .product => |p| {
+            for (p.parts) |part| {
+                if (try wanteds(gpa, env, deriver, part, last, out)) |stuck| return stuck;
             }
             return null;
         },
@@ -272,6 +298,59 @@ pub const Derivation = struct {
     span: diagnostic.Span,
 
     const Alternative = core.Case.Alternative;
+
+    /// What a value is put back together from, once its parts are acted on.
+    const Rebuilt = union(enum) {
+        /// The constructor at the parts.
+        constructor: core.SymbolId,
+        /// `from` without `labels`, extended by each part at its label.
+        record: struct { labels: []const []const u8, from: core.SymbolId },
+    };
+
+    fn assemble(self: Derivation, rebuilt: Rebuilt, parts: []const core.Term) Error!core.Term {
+        switch (rebuilt) {
+            .constructor => |c| return try self.apply(self.symbol(c), parts),
+            .record => |r| {
+                var result = self.symbol(r.from);
+                for (r.labels) |label| result = try self.labelled(primitives.restrictSymbol, label, &.{result});
+                for (r.labels, parts) |label, part| result = try self.labelled(primitives.extendSymbol, label, &.{ part, result });
+                return result;
+            },
+        }
+    }
+
+    /// The record constant `symbolOf` gives for `label`, at `arguments`.
+    fn labelled(self: Derivation, comptime symbolOf: fn (*core.env.Env, []const u8) Allocator.Error!core.SymbolId, label: []const u8, arguments: []const core.Term) Error!core.Term {
+        return try self.apply(self.symbol(try symbolOf(self.env, label)), arguments);
+    }
+
+    /// A product's parts bound to `zs`, and how to rebuild it from them.
+    const Opened = struct { zs: []const core.SymbolId, rebuilt: Rebuilt };
+
+    fn open(self: Derivation, product: Product) Error!Opened {
+        return .{
+            .zs = try self.binders(product.parts.len, "z"),
+            .rebuilt = switch (product.form) {
+                .tuple => |c| .{ .constructor = c },
+                .record => |labels| .{ .record = .{ .labels = labels, .from = try self.fresh("w") } },
+            },
+        };
+    }
+
+    /// `body` with `opened`'s parts bound from `value`.
+    fn close(self: Derivation, opened: Opened, value: core.Term, body_term: core.Term) Error!core.Term {
+        switch (opened.rebuilt) {
+            .constructor => |c| return try self.unpack(value, c, opened.zs, body_term),
+            .record => |r| {
+                const bindings = try self.builder.slice(core.Letrec.Binding, opened.zs.len + 1);
+                bindings[0] = .{ .name = r.from, .value = value };
+                for (r.labels, opened.zs, bindings[1..]) |label, z, *binding| {
+                    binding.* = .{ .name = z, .value = try self.labelled(primitives.selectSymbol, label, &.{self.symbol(r.from)}) };
+                }
+                return try self.builder.lets(bindings, body_term, self.span);
+            },
+        }
+    }
 
     pub fn body(self: Derivation) Error!core.Term {
         return switch (self.derived.deriver) {
@@ -446,14 +525,14 @@ pub const Derivation = struct {
     }
 
     fn mapped(self: Derivation, parameters: []const core.SymbolId, c: datatypes.Constructor, ys: []const core.SymbolId) Error!core.Term {
-        return try self.mapAll(c.symbol, c.fields, ys, parameters[0]);
+        return try self.mapAll(.{ .constructor = c.symbol }, c.fields, ys, parameters[0]);
     }
 
-    /// `constructor` applied to `values`, of types `ts`, each mapped by `f`.
-    fn mapAll(self: Derivation, constructor: core.SymbolId, ts: []const types.Type, values: []const core.SymbolId, f: core.SymbolId) Error!core.Term {
+    /// `values`, of types `ts`, each mapped by `f`, then rebuilt.
+    fn mapAll(self: Derivation, rebuilt: Rebuilt, ts: []const types.Type, values: []const core.SymbolId, f: core.SymbolId) Error!core.Term {
         const out = try self.builder.slice(core.Term, ts.len);
         for (ts, values, out) |t, v, *m| m.* = try self.mapField(t, f, self.symbol(v));
-        return try self.apply(self.symbol(constructor), out);
+        return try self.assemble(rebuilt, out);
     }
 
     /// `value`, of type `t`, with `f` applied at each element in it.
@@ -465,9 +544,9 @@ pub const Derivation = struct {
                 const z = try self.fresh("z");
                 return try self.builder.lambda(z, try self.mapField(to, f, try self.apply(value, &.{self.symbol(z)})), self.span);
             },
-            .tuple => |tuple| {
-                const zs = try self.binders(tuple.components.len, "z");
-                return try self.unpack(value, tuple.constructor, zs, try self.mapAll(tuple.constructor, tuple.components, zs, f));
+            .product => |p| {
+                const opened = try self.open(p);
+                return try self.close(opened, value, try self.mapAll(opened.rebuilt, p.parts, opened.zs, f));
             },
             .through => |x| return try self.apply(self.symbol(self.method), &.{ try self.elementwise(x.inner, f), value }),
             .stuck => unreachable,
@@ -500,9 +579,9 @@ pub const Derivation = struct {
         switch (try self.shape(t)) {
             .absent => return acc,
             .element => return try self.apply(self.symbol(f), &.{ value, acc }),
-            .tuple => |tuple| {
-                const zs = try self.binders(tuple.components.len, "z");
-                return try self.unpack(value, tuple.constructor, zs, try self.foldAll(tuple.components, zs, f, acc));
+            .product => |p| {
+                const opened = try self.open(p);
+                return try self.close(opened, value, try self.foldAll(p.parts, opened.zs, f, acc));
             },
             .through => |x| return try self.apply(self.symbol(self.method), &.{ try self.elementwise(x.inner, f), acc, value }),
             // Deriving rejects a function that mentions the last parameter.
@@ -518,13 +597,13 @@ pub const Derivation = struct {
     }
 
     fn traversed(self: Derivation, parameters: []const core.SymbolId, c: datatypes.Constructor, ys: []const core.SymbolId) Error!core.Term {
-        return try self.rebuild(c.symbol, c.fields, ys, parameters[0]);
+        return try self.rebuild(.{ .constructor = c.symbol }, c.fields, ys, parameters[0]);
     }
 
-    /// `constructor` applied to `values`, of types `ts`, in the applicative:
-    /// `ap (... ap (pure (\bs -> constructor ...)) t1 ...) tn`, with one
-    /// `ti` for each value that mentions the last parameter.
-    fn rebuild(self: Derivation, constructor: core.SymbolId, ts: []const types.Type, values: []const core.SymbolId, f: core.SymbolId) Error!core.Term {
+    /// `values`, of types `ts`, rebuilt in the applicative:
+    /// `ap (... ap (pure (\bs -> rebuilt ...)) t1 ...) tn`, with one `ti`
+    /// for each value that mentions the last parameter.
+    fn rebuild(self: Derivation, rebuilt: Rebuilt, ts: []const types.Type, values: []const core.SymbolId, f: core.SymbolId) Error!core.Term {
         const b = self.builder;
         const app = self.derived.applicative.?;
         var bound: std.ArrayList(core.SymbolId) = .empty;
@@ -540,7 +619,7 @@ pub const Derivation = struct {
             try actions.append(b.allocator, try self.traverseField(t, f, self.symbol(value)));
             argument.* = self.symbol(result);
         }
-        const built = try self.apply(self.symbol(constructor), arguments);
+        const built = try self.assemble(rebuilt, arguments);
         var result = try self.apply(self.symbol(app.pure), &.{try b.abstract(bound.items, built)});
         for (actions.items) |action| result = try self.apply(self.symbol(app.ap), &.{ result, action });
         return result;
@@ -550,9 +629,9 @@ pub const Derivation = struct {
     fn traverseField(self: Derivation, t: types.Type, f: core.SymbolId, value: core.Term) Error!core.Term {
         switch (try self.shape(t)) {
             .element => return try self.apply(self.symbol(f), &.{value}),
-            .tuple => |tuple| {
-                const zs = try self.binders(tuple.components.len, "z");
-                return try self.unpack(value, tuple.constructor, zs, try self.rebuild(tuple.constructor, tuple.components, zs, f));
+            .product => |p| {
+                const opened = try self.open(p);
+                return try self.close(opened, value, try self.rebuild(opened.rebuilt, p.parts, opened.zs, f));
             },
             .through => |x| return try self.apply(self.symbol(self.method), &.{ try self.elementwise(x.inner, f), value }),
             // `rebuild` traverses only fields that mention the last

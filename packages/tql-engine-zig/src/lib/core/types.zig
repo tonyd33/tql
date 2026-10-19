@@ -561,14 +561,14 @@ pub const Scheme = struct {
     constraints: []const TypeClassConstraint = &.{},
     type: Type,
     /// Labels each bound variable lacks, by `forall` position, or empty.
-    /// `lacking` adds those of the rows it is the tail of in `type`.
+    /// `lacking` adds those `type` needs it to lack.
     lacks: []const Labels = &.{},
 
     /// The labels each bound variable lacks, indexed by `forall` position.
-    pub fn lacking(self: Scheme, allocator: std.mem.Allocator) std.mem.Allocator.Error![]Labels {
+    pub fn lacking(self: Scheme, allocator: std.mem.Allocator, registry: *const datatypes.Registry) std.mem.Allocator.Error![]Labels {
         const out = try allocator.alloc(Labels, self.variables.len);
         for (out, 0..) |*labels, i| labels.* = if (i < self.lacks.len) self.lacks[i] else &.{};
-        try tailLabels(allocator, self.type, &.{}, out);
+        try needed(allocator, registry, self.type, &.{}, out);
         return out;
     }
 
@@ -614,28 +614,33 @@ pub const Scheme = struct {
     }
 };
 
-/// Adds to `out[v]` the labels of every row bound variable `v` is the tail
-/// of in `t`, with `carried` the labels of the rows `t` is the tail of.
-fn tailLabels(allocator: std.mem.Allocator, t: Type, carried: Labels, out: []Labels) std.mem.Allocator.Error!void {
+/// Adds to `out[v]` the labels bound variable `v` must lack for `t` to have
+/// each label at most once in every row, when `t` lacks `carried`. A row's
+/// tail lacks the row's labels, and a declared type's argument what the type
+/// declares its parameter lacks.
+pub fn needed(allocator: std.mem.Allocator, registry: *const datatypes.Registry, t: Type, carried: Labels, out: []Labels) std.mem.Allocator.Error!void {
     switch (t) {
         .variable => |v| out[v] = try unionLabels(allocator, out[v], carried),
         .meta, .skolem => {},
-        .constructor => |c| for (c.arguments) |argument| try tailLabels(allocator, argument, &.{}, out),
+        .constructor => |c| {
+            const declared = registry.get(c.name);
+            for (c.arguments, 0..) |argument, i| try needed(allocator, registry, argument, declared.lacksOf(i), out);
+        },
         .row => |r| {
-            for (r.fields) |f| try tailLabels(allocator, f.type.*, &.{}, out);
+            for (r.fields) |f| try needed(allocator, registry, f.type.*, &.{}, out);
             const tail = r.tail orelse return;
             const labels = try unionLabels(allocator, carried, try fieldLabels(allocator, r.fields));
-            try tailLabels(allocator, tail.*, labels, out);
+            try needed(allocator, registry, tail.*, labels, out);
         },
         .function => |arrow| {
-            try tailLabels(allocator, arrow.from, &.{}, out);
-            try tailLabels(allocator, arrow.to, &.{}, out);
+            try needed(allocator, registry, arrow.from, &.{}, out);
+            try needed(allocator, registry, arrow.to, &.{}, out);
         },
         .application => |a| {
-            try tailLabels(allocator, a.head, &.{}, out);
-            try tailLabels(allocator, a.argument, &.{}, out);
+            try needed(allocator, registry, a.head, &.{}, out);
+            try needed(allocator, registry, a.argument, &.{}, out);
         },
-        .alias => |a| try tailLabels(allocator, a.expansion, &.{}, out),
+        .alias => |a| try needed(allocator, registry, a.expansion, &.{}, out),
     }
 }
 

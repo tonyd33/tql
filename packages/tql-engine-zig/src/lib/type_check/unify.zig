@@ -301,7 +301,7 @@ fn rows(
     const left_id = switch (left_tail) {
         .flexible => |id| id,
         .closed, .rigid => switch (right_tail) {
-            .flexible => |id| return try bindTail(subst, shown, id, try withFields(subst, only_left.items, if (left.tail) |t| t.* else null)),
+            .flexible => |id| return try bindTail(subst, shown, .found, id, try withFields(subst, only_left.items, if (left.tail) |t| t.* else null)),
             .closed, .rigid => {
                 const skolem = if (left_tail == .rigid) left_tail.rigid else if (right_tail == .rigid) right_tail.rigid else return .unified;
                 return .{ .mismatch = .{ .reason = .{ .rigid = skolem }, .expected = shown.expected, .found = shown.found } };
@@ -310,26 +310,29 @@ fn rows(
     };
     const right_id = switch (right_tail) {
         .flexible => |id| id,
-        .closed, .rigid => return try bindTail(subst, shown, left_id, try withFields(subst, only_right.items, if (right.tail) |t| t.* else null)),
+        .closed, .rigid => return try bindTail(subst, shown, .expected, left_id, try withFields(subst, only_right.items, if (right.tail) |t| t.* else null)),
     };
 
     if (only_left.items.len == 0) {
-        return try bindTail(subst, shown, left_id, try withFields(subst, only_right.items, .{ .meta = right_id }));
+        return try bindTail(subst, shown, .expected, left_id, try withFields(subst, only_right.items, .{ .meta = right_id }));
     }
     if (only_right.items.len == 0) {
-        return try bindTail(subst, shown, right_id, try withFields(subst, only_left.items, .{ .meta = left_id }));
+        return try bindTail(subst, shown, .found, right_id, try withFields(subst, only_left.items, .{ .meta = left_id }));
     }
     const shared = try subst.fresh(.row);
-    switch (try bindTail(subst, shown, left_id, try withFields(subst, only_right.items, shared))) {
+    switch (try bindTail(subst, shown, .expected, left_id, try withFields(subst, only_right.items, shared))) {
         .unified => {},
         .mismatch => |m| return .{ .mismatch = m },
     }
-    return try bindTail(subst, shown, right_id, try withFields(subst, only_left.items, shared));
+    return try bindTail(subst, shown, .found, right_id, try withFields(subst, only_left.items, shared));
 }
 
-/// `bindMeta` for a row's tail, naming `shown` in a mismatch.
-fn bindTail(subst: *Substitution, shown: Pair, id: types.Meta, t: types.Type) Allocator.Error!Result {
-    return naming(try bindMeta(subst, id, t), shown);
+/// `bindMeta` for the tail of the row on `side`, naming `shown` in a
+/// mismatch.
+fn bindTail(subst: *Substitution, shown: Pair, side: Mismatch.Side, id: types.Meta, t: types.Type) Allocator.Error!Result {
+    var result = naming(try bindMeta(subst, id, t), shown);
+    if (result == .mismatch and result.mismatch.reason == .lacks) result.mismatch.reason.lacks.from = side;
+    return result;
 }
 
 /// What a flattened row's `tail` is.

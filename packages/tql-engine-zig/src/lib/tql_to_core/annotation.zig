@@ -390,25 +390,7 @@ pub fn translateField(
         .variables = .free,
     };
     try t.declaration(declared.name, declared.parameters, t.parameterKinds(id), declared.span);
-    const field = try t.type(written, .type);
-    if (hasRecord(field)) {
-        try sink.report(.type_mismatch, written.span, .{"a constructor field may not be a record yet"});
-        return error.BadAnnotation;
-    }
-    return field;
-}
-
-/// Whether a record appears anywhere in `t`.
-fn hasRecord(t: types.Type) bool {
-    return switch (t) {
-        .variable, .meta, .skolem, .row => false,
-        .constructor => |c| types.recordArgument(t) != null or for (c.arguments) |argument| {
-            if (hasRecord(argument)) break true;
-        } else false,
-        .function => |arrow| hasRecord(arrow.from) or hasRecord(arrow.to),
-        .alias => |a| hasRecord(a.expansion),
-        .application => |a| hasRecord(a.head) or hasRecord(a.argument),
-    };
+    return try t.type(written, .type);
 }
 
 const Translator = struct {

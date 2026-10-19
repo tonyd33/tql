@@ -20,6 +20,7 @@
 - Added local signatures, `let { g :: a -> a; g x = x; } in g 1`, and type annotations, `([] :: [Int]) == []`.
 - `Functor`, `Foldable` and `Traversable` can be derived, over a datatype's last parameter: `data Tree a = Leaf | Node (Tree a) a (Tree a) deriving (Functor, Foldable, Traversable);`.
 - Records are ordered field by field in label order, and a context constrains every field of a row with `All`: `same :: All Eq r => {name: String | r} -> {name: String | r} -> Bool; same a b = a == b;`.
+- A constructor field may be a record, open or closed, and derived instances reach into it: `data W r a = W {x: a | r} deriving (Eq, Functor);` maps `x` and keeps the other fields.
 
 ### Improvements
 

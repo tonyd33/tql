@@ -1,0 +1,23 @@
+title: a constructor field may be a record, written or through a synonym
+grammar: typescript
+asserts: values
+
+A field may have any type of kind `Type`, records included (Declarations:
+Datatype).
+
+--- tql ---
+type P = {x: Int};
+
+data Box = Box P {y: String};
+
+run b = case b of {
+  Box p q -> [p.x, length q.y];
+};
+
+main = Kleisli $ \_ -> run $ Box {x = 1} {y = "ab"};
+
+--- source ---
+class A {}
+
+--- values ---
+[1,2]

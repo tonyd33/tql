@@ -207,7 +207,8 @@ mapped, folded or traversed by its type, left to right:
 |---|---|
 | one not mentioning `a` | itself, untouched |
 | `a` | an element |
-| a tuple or a record | its components, each by its type |
+| a tuple | its components, each by its type |
+| a record | its fields in label order, each by its type, and its tail untouched |
 | `g τ`, `a` only in `τ` | through `g`'s instance of the class, which is wanted |
 | `σ -> τ`, `a` only in `τ`, for `Functor` | `τ`, after the function |
 

@@ -43,10 +43,17 @@ pub const Datatype = struct {
     module: symbols.ModuleId,
     /// The kind of each bound type parameter, numbered from zero.
     parameters: []const types.Kind,
+    /// The labels each parameter's argument lacks, by parameter, or empty.
+    lacks: []const types.Labels = &.{},
     constructors: []const Constructor,
     /// Set from `reserveBuiltins` until `Prim`'s declaration claims it.
     reserved: bool = false,
     form: Form = .data,
+
+    /// The labels parameter `i`'s argument lacks.
+    pub fn lacksOf(self: *const Datatype, i: usize) types.Labels {
+        return if (i < self.lacks.len) self.lacks[i] else &.{};
+    }
 
     pub const Form = enum {
         data,
@@ -359,6 +366,12 @@ pub const Registry = struct {
     /// were solved. `parameters` must outlive the registry.
     pub fn setParameters(self: *Registry, id: TypeId, parameters: []const types.Kind) void {
         self.datatypes.items[@intFromEnum(id)].parameters = parameters;
+    }
+
+    /// Sets the labels `id`'s parameters lack. `lacks` must outlive the
+    /// registry.
+    pub fn setLacks(self: *Registry, id: TypeId, lacks: []const types.Labels) void {
+        self.datatypes.items[@intFromEnum(id)].lacks = lacks;
     }
 
     /// Fills in a type declared with no constructors yet. A recursive type's

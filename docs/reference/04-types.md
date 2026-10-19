@@ -119,8 +119,11 @@ name_of x = x.name;
 
 A row has each label at most once. A row variable lacks every label of
 every row it is the tail of: in a signature, with synonyms expanded, or in
-a type inference builds. A row variable is never bound to a row with a
-label it lacks:
+a type inference builds. A datatype's parameter lacks what its fields need
+it to lack, and so does the parameter's argument wherever the datatype is
+applied: with `data W r = W {x: Int | r};`, `r` lacks `x` in
+`h :: W r -> Int`. A row variable is never bound to a row with a label it
+lacks:
 
 ```tql
 f :: {a: Int | r} -> {b: Int | r} -> Int;
@@ -130,12 +133,14 @@ f x y = x.a + y.b;
 `r` lacks `a` and `b`, so `f {a = 1, b = "s"}` is an error,
 `type-mismatch`.
 
-The record constants of the [translation](02-expressions.md#record) have
-these types:
+The record constants of the [translation](02-expressions.md#record) and
+of [derived instances](05-declarations.md#deriving) have these types:
 
 ```
 record_{l1 ... ln}  ::  a1 -> ... -> an -> {l1: a1, ..., ln: an}
 select_l            ::  {l: a | r} -> a
+extend_l            ::  a -> Record r -> {l: a | r}
+restrict_l          ::  {l: a | r} -> Record r
 ```
 
 ### Classes over rows
