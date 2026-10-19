@@ -108,11 +108,13 @@ select_l            ::  {l: a | r} -> a
 
 ### Classes over rows
 
-`All C ρ` holds when every field of `ρ` has an instance of `C`. A record
-has an instance of `Eq`, `Ord`, `ToJson` or any other derivable class
-when its row satisfies `All` of it ([E-Record](06-static-semantics.md#entailment)).
-A record's fields are compared and encoded in label order. `All` may be
-written in a context:
+`All C ρ` holds when every field of `ρ` has an instance of `C`. `Prim`
+declares `All`; its first argument is a class and its second a row. A
+constraint naming two classes names `All` first, or is an error,
+`invalid-class`. A record has an instance of `Eq`, `Ord`, `ToJson` or any
+other derivable class when its row satisfies `All` of it
+([E-Record](06-static-semantics.md#entailment)). A record's fields are
+compared and encoded in label order. `All` may be written in a context:
 
 ```tql
 same_name :: All Eq r => {name: String | r} -> {name: String | r} -> Bool;

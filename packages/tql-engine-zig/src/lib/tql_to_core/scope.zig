@@ -460,9 +460,10 @@ pub const ModuleScope = struct {
             if (entry.key_ptr.module != self.module) continue;
             try out.types.put(arena, entry.key_ptr.name, .{ .alias = entry.value_ptr.* });
         }
-        for (self.env.classes.classes.items, 0..) |c, i| {
-            if (c.name.module != self.module) continue;
-            try out.types.put(arena, c.name.name, .{ .class = @enumFromInt(i) });
+        var declared = self.env.classes.by_name.iterator();
+        while (declared.next()) |entry| {
+            if (entry.key_ptr.module != self.module) continue;
+            try out.types.put(arena, entry.key_ptr.name, .{ .class = entry.value_ptr.* });
         }
         return out;
     }

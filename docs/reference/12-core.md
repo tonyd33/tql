@@ -94,6 +94,25 @@ inst_C_T :: ∀ā. Dict_C1 a1 -> ... -> Dict_Cj aj -> Dict_C (T ā)
 Its superclass fields are the evidence of the superclass wanteds
 ([Instance](05-declarations.md#instance)).
 
+`All C ρ` is `Record (Dict_C ρ)`, where `Dict_C ρ` is `ρ` with each
+field's type `τ` replaced by `Dict_C τ`. For each row, one operation
+consumes such a record and one rebuilds it, over `ρ`'s labels
+`l1 < ... < ln`:
+
+```
+fold_ρ :: ∀b. (∀a. String -> Dict_C a -> (Record ρ -> a) -> b -> b) -> b -> Record (Dict_C ρ) -> b
+map_ρ  :: (∀a. Dict_C a -> Dict_S a) -> Record (Dict_C ρ) -> Record (Dict_S ρ)
+
+fold_ρ f z d  =  f "l1" d.l1 select_l1 (... (f "ln" d.ln select_ln z))
+map_ρ g d     =  {l1 = g d.l1, ..., ln = g d.ln}
+```
+
+A record's derived method is a fold over its evidence `d`. `==` is
+
+```
+\x y -> fold_ρ (\_ e s k -> (==) e (s x) (s y) && k) True d
+```
+
 Each class wanted has an evidence variable. Solving it binds the variable
 in the scope that solved it:
 

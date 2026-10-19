@@ -123,7 +123,10 @@ pub const Env = struct {
         var heads: std.ArrayList(types.Spelled) = .empty;
         defer heads.deinit(gpa);
         for (ts) |t| try types.collectHeads(gpa, t, &heads);
-        for (cs) |c| try heads.append(gpa, .{ .head = .{ .class = c }, .spelling = self.classes.spelling(c) });
+        for (cs) |c| {
+            const named = self.classes.named(c);
+            try heads.append(gpa, .{ .head = .{ .class = named }, .spelling = self.classes.spelling(named) });
+        }
 
         var names: types.MessageNames = .{};
         errdefer names.deinit(gpa);

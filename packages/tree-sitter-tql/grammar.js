@@ -120,23 +120,32 @@ module.exports = grammar({
       ),
 
     class_declaration: $ =>
-      seq(
-        "class",
-        optional(seq(field("context", $.context), "=>")),
-        field("name", $.type_identifier),
-        field("parameter", $._type_variable),
-        "where",
-        "{",
-        repeat(
-          choice(
-            seq(field("method", $.signature), ";"),
-            field("default", $.definition),
-            field("minimal", $.minimal),
-            field("deriver", $.class_deriver),
+      choice(
+        seq(
+          "class",
+          optional(seq(field("context", $.context), "=>")),
+          field("name", $.type_identifier),
+          field("parameter", $._type_variable),
+          "where",
+          "{",
+          repeat(
+            choice(
+              seq(field("method", $.signature), ";"),
+              field("default", $.definition),
+              field("minimal", $.minimal),
+              field("deriver", $.class_deriver),
+            ),
           ),
+          "}",
+          ";",
         ),
-        "}",
-        ";",
+        seq(
+          "class",
+          field("name", $.type_identifier),
+          "=",
+          field("representation", $.primitive),
+          ";",
+        ),
       ),
 
     minimal: $ => seq("minimal", field("formula", $._minimal_formula), ";"),
@@ -250,6 +259,7 @@ module.exports = grammar({
     class_constraint: $ =>
       seq(
         field("class", $.type_identifier),
+        optional(field("class_argument", $.type_identifier)),
         field(
           "type",
           choice($._type_variable, $.parenthesized_type, $.record_type),

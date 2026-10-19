@@ -20,6 +20,8 @@ data Maybe a = Nothing | Just a deriving (Eq, Ord);
 
 data Json = JNull | JBool Bool | JNumber Int | JString String | JArray [Json] | JObject [(String, Json)];
 
+class All = %all;
+
 class Eq a where {
   eq :: a -> a -> Bool;
   deriving %derive_eq;

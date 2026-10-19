@@ -106,6 +106,8 @@ pub fn synthesizedScheme(
         .operator => |operator| try operatorScheme(arena, declared, operator),
         .record => |labels| try recordScheme(arena, labels),
         .select => |label| try selectScheme(arena, label),
+        // Elaboration and lowering build these, after checking.
+        .fold, .map, .record_size, .record_label, .record_field, .record_insert => unreachable,
     };
 }
 
@@ -171,7 +173,7 @@ pub fn populate(target: *core.env.Env) !void {
 ///
 /// Preconditions:
 /// - What `what` points to outlives `target`.
-pub fn synthesizedSymbol(target: *core.env.Env, spelling: []const u8, what: core.Synthesized) SchemeError!core.SymbolId {
+fn synthesizedSymbol(target: *core.env.Env, spelling: []const u8, what: core.Synthesized) SchemeError!core.SymbolId {
     const id = try target.interner.internOrGet(spelling, .{ .synthesized = what });
     if (target.schemeOf(id) == null) {
         try target.setScheme(id, try synthesizedScheme(target.allocator(), &target.datatypes, what));
@@ -179,14 +181,68 @@ pub fn synthesizedSymbol(target: *core.env.Env, spelling: []const u8, what: core
     return id;
 }
 
+/// `op[s]`, the scalar operator `scalar`, with its scheme.
+pub fn operatorSymbol(target: *core.env.Env, scalar: core.Scalar) Allocator.Error!core.SymbolId {
+    return try bounded(target, "op[{s}]", .{scalar.spelling()}, .{ .operator = scalar });
+}
+
+/// `record[l_1,...,l_n]`, building a record with `labels`, in normalized
+/// order, with its scheme.
+pub fn recordSymbol(target: *core.env.Env, labels: []const []const u8) SchemeError!core.SymbolId {
+    const joined = try std.mem.join(target.gpa, ",", labels);
+    defer target.gpa.free(joined);
+    return try symbolOf(target, "record[{s}]", .{joined}, .{ .record = labels });
+}
+
+/// `record[]`, the record with no fields, with its scheme.
+pub fn emptyRecordSymbol(target: *core.env.Env) Allocator.Error!core.SymbolId {
+    return try bounded(target, "record[]", .{}, .{ .record = &.{} });
+}
+
+/// `field[name]`, the children in the grammar field `name`, numbered `id`,
+/// with its scheme.
+pub fn fieldSymbol(target: *core.env.Env, name: []const u8, id: u16) Allocator.Error!core.SymbolId {
+    return try bounded(target, "field[{s}]", .{name}, .{ .field = .{ .name = name, .id = id } });
+}
+
 /// `select[label]`, reading the record field `label`, with its scheme.
 pub fn selectSymbol(target: *core.env.Env, label: []const u8) Allocator.Error!core.SymbolId {
-    const spelling = try std.fmt.allocPrint(target.gpa, "select[{s}]", .{label});
-    defer target.gpa.free(spelling);
-    if (target.interner.lookup(null, spelling)) |id| return id;
-    const what: core.Synthesized = .{ .select = try target.allocator().dupe(u8, label) };
-    return synthesizedSymbol(target, spelling, what) catch |err| switch (err) {
+    return try bounded(target, "select[{s}]", .{label}, .{ .select = label });
+}
+
+/// `symbolOf` for a symbol whose scheme has at most one field.
+fn bounded(target: *core.env.Env, comptime format: []const u8, args: anytype, what: core.Synthesized) Allocator.Error!core.SymbolId {
+    return symbolOf(target, format, args, what) catch |err| switch (err) {
         error.TooManyRecordFields => unreachable,
         error.OutOfMemory => |e| return e,
+    };
+}
+
+/// The symbol spelled by `format`, interned as a copy of `what` with its
+/// scheme on first use.
+fn symbolOf(
+    target: *core.env.Env,
+    // IMPROVE: normalize differently in a non-stupid way
+    comptime format: []const u8,
+    args: anytype,
+    what: core.Synthesized,
+) SchemeError!core.SymbolId {
+    const spelling = try std.fmt.allocPrint(target.gpa, format, args);
+    defer target.gpa.free(spelling);
+    if (target.interner.lookup(null, spelling)) |id| return id;
+    return try synthesizedSymbol(target, spelling, try what.dupe(target.allocator()));
+}
+
+/// The symbol of `operation`, which elaboration or lowering builds after
+/// checking. It has no scheme.
+pub fn elaboratedSymbol(target: *core.env.Env, comptime operation: std.meta.Tag(core.Synthesized)) Allocator.Error!core.SymbolId {
+    return try target.interner.internOrGet(elaboratedSpelling(operation), .{ .synthesized = @unionInit(core.Synthesized, @tagName(operation), {}) });
+}
+
+pub fn elaboratedSpelling(operation: std.meta.Tag(core.Synthesized)) []const u8 {
+    return switch (operation) {
+        .fold => "fold[All]",
+        .map => "map[All]",
+        else => @tagName(operation),
     };
 }

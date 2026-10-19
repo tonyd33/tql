@@ -2233,6 +2233,16 @@
           }
         ]
       },
+      "class_argument": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      },
       "type": {
         "multiple": false,
         "required": true,
@@ -2323,7 +2333,7 @@
       },
       "parameter": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "type_variable",
@@ -2331,6 +2341,16 @@
           },
           {
             "type": "wildcard",
+            "named": true
+          }
+        ]
+      },
+      "representation": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "primitive",
             "named": true
           }
         ]

@@ -925,10 +925,7 @@ pub const Machine = struct {
                 // Forces the record, and of its fields only the one selected.
                 .select => |label| {
                     if (arguments.len != 1) return error.TypeError;
-                    const fields = switch (try self.force(arguments[0])) {
-                        .record => |f| f,
-                        else => return error.TypeError,
-                    };
+                    const fields = try self.recordArgument(arguments[0]);
                     const index = std.sort.binarySearch(value.Field, fields, label, orderLabel) orelse
                         return error.TypeError;
                     return try self.force(fields[index].thunk);
@@ -938,6 +935,32 @@ pub const Machine = struct {
                 // order. A field the grammar knows but this node lacks yields
                 // no output.
                 .field => |f| return try self.walk(try self.nodeArgument(arguments), .sibling, .{ .field = f.id }),
+
+                .record_insert => {
+                    if (arguments.len != 3) return error.TypeError;
+                    const label = switch (try self.force(arguments[0])) {
+                        .string => |text| text,
+                        else => return error.TypeError,
+                    };
+                    return try self.insert(label, arguments[1], try self.recordArgument(arguments[2]));
+                },
+                .record_size => {
+                    if (arguments.len != 1) return error.TypeError;
+                    return .{ .number = @intCast((try self.recordArgument(arguments[0])).len) };
+                },
+                .record_label, .record_field => {
+                    if (arguments.len != 2) return error.TypeError;
+                    const index = switch (try self.force(arguments[0])) {
+                        .number => |n| std.math.cast(usize, n) orelse return error.TypeError,
+                        else => return error.TypeError,
+                    };
+                    const fields = try self.recordArgument(arguments[1]);
+                    if (index >= fields.len) return error.TypeError;
+                    if (synthesized == .record_label) return .{ .string = fields[index].label };
+                    return try self.force(fields[index].thunk);
+                },
+                // Lowering writes these as definitions.
+                .fold, .map => unreachable,
             },
             .builtin => |primop| switch (primop) {
                 inline .div, .mod, .quot, .rem => |p| {
@@ -1171,6 +1194,23 @@ pub const Machine = struct {
         for (fields, row.fields, thunks) |*field, typed, *thunk| {
             field.* = .{ .label = typed.label, .thunk = thunk };
         }
+    }
+
+    fn recordArgument(self: *Machine, thunk: *value.Thunk) Error![]const value.Field {
+        return switch (try self.force(thunk)) {
+            .record => |fields| fields,
+            else => error.TypeError,
+        };
+    }
+
+    /// `fields` with a field `label` holding `thunk`, in label order.
+    fn insert(self: *Machine, label: []const u8, thunk: *value.Thunk, fields: []const value.Field) Error!value.Value {
+        const at = std.sort.lowerBound(value.Field, fields, label, orderLabel);
+        const extended = try self.arena.alloc(value.Field, fields.len + 1);
+        @memcpy(extended[0..at], fields[0..at]);
+        extended[at] = .{ .label = label, .thunk = thunk };
+        @memcpy(extended[at + 1 ..], fields[at..]);
+        return .{ .record = extended };
     }
 
     fn valueThunk(self: *Machine, v: value.Value) Error!*value.Thunk {

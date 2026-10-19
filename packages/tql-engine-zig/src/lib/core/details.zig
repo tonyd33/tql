@@ -248,6 +248,50 @@ pub const Synthesized = union(enum) {
     /// `select[l]`, reading the record field labelled `l`. Forces the
     /// record, then that field and no other.
     select: []const u8,
+    /// `fold f z d`, `f "l_1" d.l_1 select_l_1 (.. (f "l_n" d.l_n select_l_n z))`
+    /// over the labels of `d`, an `All` evidence record, in order.
+    fold,
+    /// `map g d`, the `All` evidence record `d` with `g` applied to each
+    /// field.
+    map,
+
+    // Lowering writes `fold` and `map` with these, by a field's position in
+    // its record. Two records of one row hold its labels at the same
+    // positions.
+
+    /// `record_size r`, how many fields `r` has. Forces `r`.
+    record_size,
+    /// `record_label i r`, the label of field `i`. Forces `i` and `r`.
+    record_label,
+    /// `record_field i r`, field `i`. Forces `i`, `r` and the field.
+    record_field,
+    /// `record_insert l x r`, `r` with a field `l` holding `x`. Forces `l` and
+    /// `r`.
+    record_insert,
+
+    /// How many arguments it takes.
+    pub fn arity(self: Synthesized) u32 {
+        return switch (self) {
+            .record => |labels| @intCast(labels.len),
+            .field, .select, .record_size => 1,
+            .operator, .map, .record_label, .record_field => 2,
+            .fold, .record_insert => 3,
+        };
+    }
+
+    /// A copy whose strings live in `allocator`.
+    pub fn dupe(self: Synthesized, allocator: std.mem.Allocator) std.mem.Allocator.Error!Synthesized {
+        return switch (self) {
+            .field => |f| .{ .field = .{ .name = try allocator.dupe(u8, f.name), .id = f.id } },
+            .record => |labels| blk: {
+                const copies = try allocator.alloc([]const u8, labels.len);
+                for (labels, copies) |label, *copy| copy.* = try allocator.dupe(u8, label);
+                break :blk .{ .record = copies };
+            },
+            .select => |label| .{ .select = try allocator.dupe(u8, label) },
+            .operator, .fold, .map, .record_size, .record_label, .record_field, .record_insert => self,
+        };
+    }
 };
 
 /// What a primitive call runs.

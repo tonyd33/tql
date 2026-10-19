@@ -1,0 +1,15 @@
+title: a constraint naming two classes names `All` first
+grammar: typescript
+asserts: error
+
+--- tql ---
+f :: Eq Ord r => {| r} -> Bool;
+f r = True;
+main = pure 1;
+
+--- error ---
+error[invalid-class]: a constraint naming two classes names `All` first
+ --> 1:6
+  |
+1 | f :: Eq Ord r => {| r} -> Bool;
+  |      ^^^^^^^^

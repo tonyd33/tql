@@ -1,0 +1,15 @@
+title: `All`'s second argument is a row
+grammar: typescript
+asserts: error
+
+--- tql ---
+f :: All Eq a => a -> Bool;
+f x = True;
+main = pure 1;
+
+--- error ---
+error[kind-mismatch]: `a` has kind `Type`, but kind `Row` is expected
+ --> 1:13
+  |
+1 | f :: All Eq a => a -> Bool;
+  |             ^

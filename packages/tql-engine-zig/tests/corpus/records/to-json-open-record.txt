@@ -1,0 +1,14 @@
+title: a function over an open record encodes every field, in label order
+grammar: typescript
+asserts: values
+
+--- tql ---
+encode :: All ToJson r => {id: Int | r} -> Json;
+encode = to_json;
+main = pure $ encode {id = 1, b = "x", z = [True]};
+
+--- source ---
+class A {}
+
+--- values ---
+[{"b":"x","id":1,"z":[true]}]

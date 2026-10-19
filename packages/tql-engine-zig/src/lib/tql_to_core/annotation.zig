@@ -57,6 +57,33 @@ pub fn resolveClass(
     span: diagnostic.Span,
     sink: *diagnostic.Sink,
 ) Error!classes.ClassId {
+    const id = try resolveClassName(scope, written, span, sink);
+    if (scope.env.classes.get(id).role == .primitive) {
+        try sink.report(.invalid_class, span, .{ diagnostic.code(written), " takes a class and a row, as in ", diagnostic.code(.{ written, " Eq r" }) });
+        return error.BadAnnotation;
+    }
+    return id;
+}
+
+/// The class `c` constrains by. Reports what `resolveClass` does, and two
+/// classes whose first is not `All`.
+pub fn constraintClass(scope: *const ModuleScope, c: cst.ClassConstraint, sink: *diagnostic.Sink) Error!classes.ClassId {
+    const argument = c.argument orelse return try resolveClass(scope, c.class, c.span, sink);
+    const head = scope.env.classes.get(try resolveClassName(scope, c.class, c.span, sink)).role;
+    if (head != .primitive or head.primitive != .all) {
+        try sink.report(.invalid_class, c.span, .{ "a constraint naming two classes names ", diagnostic.code("All"), " first" });
+        return error.BadAnnotation;
+    }
+    return scope.env.classes.get(try resolveClass(scope, argument, c.span, sink)).role.declared;
+}
+
+/// The class `written` names, a primitive-bound one included.
+fn resolveClassName(
+    scope: *const ModuleScope,
+    written: []const u8,
+    span: diagnostic.Span,
+    sink: *diagnostic.Sink,
+) Error!classes.ClassId {
     switch (scope.typeNamed(written)) {
         .found => |found| switch (found) {
             .class => |id| return id,
@@ -624,16 +651,16 @@ const Translator = struct {
 
     /// Translates `c`, whose type must have its class parameter's kind.
     fn constraint(self: *Translator, c: cst.ClassConstraint) Error!types.TypeClassConstraint {
-        const class = try resolveClass(self.scope, c.class, c.span, self.sink);
+        const env = self.scope.env;
+        const class = try constraintClass(self.scope, c, self.sink);
         const parameter = self.classKind(class);
         const t = try self.type(c.type, parameter);
-        const env = self.scope.env;
         const solution = try classes.solve(self.gpa, &env.classes, class, t, classes.Bound{}, &.{}, classes.Check{ .assume = {} });
         if (solution == .refuted) {
             const culprit = solution.refuted;
             var names = try env.messageNames(self.gpa, &.{culprit}, &.{class});
             defer names.deinit(self.gpa);
-            try self.sink.report(.unsatisfied_constraint, c.span, .{ diagnostic.code(.{ names.class(class, env.classes.spelling(class)), " ", culprit.namedOperand(&names) }), " is never satisfied" });
+            try self.sink.report(.unsatisfied_constraint, c.span, .{ diagnostic.code(.{ names.class(&env.classes, class), " ", culprit.namedOperand(&names) }), " is never satisfied" });
             return error.BadAnnotation;
         }
         if (types.recordArgument(t)) |argument| if (argument == .row and argument.row.tail != null) return .{ .class = class, .type = t };

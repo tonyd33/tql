@@ -1421,26 +1421,26 @@ fn render(
             const t = try subst.resolveDeep(v.type);
             var names = try env.messageNames(gpa, &.{t}, &.{v.class});
             defer names.deinit(gpa);
-            try message.append(.{ diagnostic.code(.{ names.class(v.class, env.classes.spelling(v.class)), " ", t.namedOperand(&names) }), " is not satisfied." });
+            try message.append(.{ diagnostic.code(.{ names.class(&env.classes, v.class), " ", t.namedOperand(&names) }), " is not satisfied." });
         },
         .not_given => |n| {
             const t = try subst.resolveDeep(n.needed.type);
             var names = try env.messageNames(gpa, &.{t}, &.{n.needed.class});
             defer names.deinit(gpa);
-            try message.append(.{ diagnostic.code(.{ names.class(n.needed.class, env.classes.spelling(n.needed.class)), " ", t.namedOperand(&names) }), " is needed, but the signature of ", diagnostic.code(env.interner.spelling(n.binder)), " does not give it." });
+            try message.append(.{ diagnostic.code(.{ names.class(&env.classes, n.needed.class), " ", t.namedOperand(&names) }), " is needed, but the signature of ", diagnostic.code(env.interner.spelling(n.binder)), " does not give it." });
         },
         .ambiguous => |c| {
             const t = try subst.resolveDeep(c.type);
             var names = try env.messageNames(gpa, &.{t}, &.{c.class});
             defer names.deinit(gpa);
-            try message.append(.{ diagnostic.code(.{ names.class(c.class, env.classes.spelling(c.class)), " ", t.namedOperand(&names) }), " is ambiguous: nothing determines its type." });
+            try message.append(.{ diagnostic.code(.{ names.class(&env.classes, c.class), " ", t.namedOperand(&names) }), " is ambiguous: nothing determines its type." });
         },
         .superclass => |s| {
             const instance = env.classes.instance(s.instance);
             const needed = try subst.resolveDeep(s.needed.type);
             var names = try env.messageNames(gpa, &.{ instance.type, needed }, &.{ instance.class, s.needed.class });
             defer names.deinit(gpa);
-            try message.append(.{ diagnostic.code(.{ names.class(instance.class, env.classes.spelling(instance.class)), " ", instance.type.namedOperand(&names) }), " needs ", diagnostic.code(.{ names.class(s.needed.class, env.classes.spelling(s.needed.class)), " ", needed.namedOperand(&names) }) });
+            try message.append(.{ diagnostic.code(.{ names.class(&env.classes, instance.class), " ", instance.type.namedOperand(&names) }), " needs ", diagnostic.code(.{ names.class(&env.classes, s.needed.class), " ", needed.namedOperand(&names) }) });
         },
         inline .over_application, .view_not_function, .not_a_function => |shown, tag| {
             const t = try subst.resolveDeep(shown);

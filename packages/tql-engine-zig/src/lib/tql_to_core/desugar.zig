@@ -17,8 +17,6 @@ const types = core.types;
 
 pub const Error = error{DesugarFailed} || std.mem.Allocator.Error;
 
-const Synthesized = core.Synthesized;
-
 /// Whether `name` is already bound by one of `earlier`. `_` never repeats.
 fn repeats(earlier: []const resolve.Scope.Entry, name: ?[]const u8) bool {
     const n = name orelse return false;
@@ -146,26 +144,6 @@ pub const Lowerer = struct {
             .{ .kind = .{ .name = try self.builder.dupe(name), .id = id } },
             span,
         );
-    }
-
-    /// The synthesized symbol spelled by `spelling_format`, interned with its
-    /// scheme on first use. Reports at `span` a record too wide to type.
-    fn synthesize(
-        self: *Lowerer,
-        span: diagnostic.Span,
-        // IMPROVE: normalize differently in a non-stupid way
-        comptime spelling_format: []const u8,
-        spelling_args: anytype,
-        what: Synthesized,
-    ) Error!core.SymbolId {
-        const spelling = try self.builder.print(spelling_format, spelling_args);
-        return primitives.synthesizedSymbol(self.env, spelling, what) catch |err| switch (err) {
-            error.TooManyRecordFields => {
-                try self.sink.report(.type_mismatch, span, .{"a record has more fields than the type system can index"});
-                return error.DesugarFailed;
-            },
-            error.OutOfMemory => |e| return e,
-        };
     }
 
     /// `f x_1 ... x_n = e` is nested unary lambdas. One desugaring, used by
@@ -433,12 +411,7 @@ pub const Lowerer = struct {
             .@"or" => return try self.combinator(.@"or", left, right, span),
             inline else => |o| @field(core.Scalar, @tagName(o)),
         };
-        const operator = try self.synthesize(
-            span,
-            "op[{s}]",
-            .{scalar.spelling()},
-            .{ .operator = scalar },
-        );
+        const operator = try primitives.operatorSymbol(self.env, scalar);
         return try self.builder.applyMany(
             self.builder.symbol(operator, span),
             &.{ left, right },
@@ -454,10 +427,7 @@ pub const Lowerer = struct {
             try self.sink.report(.unknown_field, span, .{ diagnostic.code(name), " is not a field in this grammar" });
             return error.DesugarFailed;
         }
-        return self.builder.symbol(
-            try self.synthesize(span, "field[{s}]", .{name}, .{ .field = .{ .name = try self.builder.dupe(name), .id = id } }),
-            span,
-        );
+        return self.builder.symbol(try primitives.fieldSymbol(self.env, name, id), span);
     }
 
     fn combinator(self: *Lowerer, which: core.Known, left: core.Term, right: core.Term, span: diagnostic.Span) Error!core.Term {
@@ -525,14 +495,13 @@ pub const Lowerer = struct {
             arguments[i] = try self.expression(r.fields[source_index].value, scope);
         }
 
-        const owned = try self.builder.slice([]const u8, labels.len);
-        for (labels, 0..) |label, i| owned[i] = try self.builder.dupe(label);
-        const symbol = try self.synthesize(
-            span,
-            "record[{s}]",
-            .{try self.builder.join(",", labels)},
-            .{ .record = owned },
-        );
+        const symbol = primitives.recordSymbol(self.env, labels) catch |err| switch (err) {
+            error.TooManyRecordFields => {
+                try self.sink.report(.type_mismatch, span, .{"a record has more fields than the type system can index"});
+                return error.DesugarFailed;
+            },
+            error.OutOfMemory => |e| return e,
+        };
         return try self.builder.applyMany(
             self.builder.symbol(symbol, span),
             arguments,

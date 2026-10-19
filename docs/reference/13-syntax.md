@@ -73,6 +73,7 @@ topdecl  ::= "data" simpletype ("=" constrs)? deriving* ";"
            | "newtype" simpletype "=" con atype deriving* ";"
            | "type" simpletype "=" type ";"
            | "class" (context "=>")? cls tyvar "where" "{" (cdecl ";")* "}" ";"
+           | "class" cls "=" primitive ";"
            | "instance" (context "=>")? qcls inst "where" "{" (idecl ";")* "}" ";"
            | "pattern" con var* "<-" pat ";"
            | "pattern" con "::" sigtype ";"
@@ -113,7 +114,7 @@ declare a `rule` ([The optimiser](12-core.md#the-optimiser)).
 ```
 sigtype    ::= (context "=>")? type
 context    ::= constraint | "(" (constraint ("," constraint)*)? ")"
-constraint ::= qcls atype | "All" qcls atype
+constraint ::= qcls atype | qcls qcls atype
 
 type     ::= btype ("->" type)?
 btype    ::= btype atype | atype

@@ -274,7 +274,7 @@ pub const Desugarer = struct {
     fn conforms(s: datatypes.Registry.Structural, declared: cst.DataDeclaration) bool {
         if (declared.parameters.len != s.parameters.len) return false;
         const representation: ?types.Primitive = if (declared.representation) |r|
-            std.meta.stringToEnum(types.Primitive, r.name[1..]) orelse return false
+            core.primitiveNamed(types.Primitive, r.name) orelse return false
         else
             null;
         if (!std.meta.eql(representation, s.representation)) return false;

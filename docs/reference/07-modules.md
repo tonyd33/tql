@@ -117,7 +117,7 @@ The standard library is a set of modules bundled with the engine, found
 after the program's own search path. A program module that takes a
 library module's name is an error, `ambiguous-module`. Library modules
 name primitives by `%` names: `Prim` binds the primitive types and
-operations, and a class its deriver. A primitive named outside the
+operations and `All`, and a class its deriver. A primitive named outside the
 library is an error, `unresolved-name`. The `Prelude`
 re-exports the common parts of the library. The modules and their contents
 are in [Predefined types and classes](11-library.md).

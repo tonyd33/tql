@@ -1,0 +1,16 @@
+title: a superclass naming two classes names `All` first
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Ord Eq a => Same a where {
+  same :: a -> a -> Bool;
+};
+main = pure 1;
+
+--- error ---
+error[invalid-class]: a constraint naming two classes names `All` first
+ --> 1:7
+  |
+1 | class Ord Eq a => Same a where {
+  |       ^^^^^^^^

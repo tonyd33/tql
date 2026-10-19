@@ -1,4 +1,31 @@
 //! Declared classes and their instances.
+//!
+//! ## Classes over rows
+//!
+//! `All Eq r` says every field of row `r` has an `Eq` instance. Rather than
+//! teach the solver a second kind of predicate, we give each class `C` an
+//! entry `All C`: a class whose parameter is a row and whose instances the
+//! solver supplies. Wanteds, givens, generalisation and messages then treat
+//! `All Eq r` as they treat `Eq a`.
+//!
+//! What is its evidence? A record with `r`'s labels, holding each field's
+//! dictionary. `All Eq ()` is `{}`, and `All Eq (name: String | r)` is `r`'s
+//! evidence extended with `name = eq_String`. A list of dictionaries in label
+//! order looks simpler, but `name` belongs somewhere among `r`'s labels,
+//! which are known only at run time. Placing it needs labels, and a record
+//! already carries them.
+//!
+//! A record's dictionary is `record[C] d`, from that evidence. Its method
+//! folds over `d` and the record together; both have one row, so field `i`
+//! of each holds the same label. `All Ord r` gives `All Eq r` by mapping
+//! `super[Ord,Eq]` over `d`, which `record[Ord]` needs for its `Eq` field.
+//!
+//! The fold and the map cannot be typed in System F over an unknown row, so
+//! Core keeps them as typed primitives and lowering to STG writes them by a
+//! field's position.
+//!
+//! Tom Hubers and J. Garrett Morris. "Generic programming with extensible
+//! data types". ICFP 2023.
 
 const std = @import("std");
 const diagnostic = @import("../diagnostic.zig");
@@ -23,12 +50,6 @@ pub const Deriver = enum {
     derive_foldable,
     derive_traversable,
 
-    /// The deriver spelled `spelling`, `%` included.
-    pub fn named(spelling: []const u8) ?Deriver {
-        if (!std.mem.startsWith(u8, spelling, "%")) return null;
-        return std.meta.stringToEnum(Deriver, spelling[1..]);
-    }
-
     /// The spelling of the method it defines.
     pub fn method(self: Deriver) []const u8 {
         return switch (self) {
@@ -49,11 +70,6 @@ pub const Deriver = enum {
             .derive_eq, .derive_ord, .derive_to_json => false,
         };
     }
-
-    /// Whether it also builds a record's method from its fields'.
-    pub fn coversRecords(self: Deriver) bool {
-        return self == .derive_eq or self == .derive_to_json;
-    }
 };
 
 /// A class's deriver, resolved against the class's methods.
@@ -71,10 +87,28 @@ pub const Applicative = struct {
     ap: symbols.SymbolId,
 };
 
+/// What `class All = %all;` binds a class to.
+pub const Primitive = enum {
+    all,
+};
+
+/// Where a class comes from.
+pub const Role = union(enum) {
+    /// A class declaration, carrying `All` of the class.
+    declared: ClassId,
+    /// A class bound to a primitive. It has no members.
+    primitive: Primitive,
+    /// `All C`, carrying `C`. It holds of a row when `C` holds of each of its
+    /// fields, and the solver supplies its instances.
+    all: ClassId,
+};
+
 pub const Class = struct {
+    /// For `All C`, `C`'s.
     name: symbols.QualifiedName,
     /// The kind of the class's parameter.
     parameter: types.Kind = .type,
+    role: Role,
     superclasses: []const ClassId = &.{},
     /// Method symbols, in declaration order.
     methods: []const symbols.SymbolId = &.{},
@@ -85,6 +119,10 @@ pub const Class = struct {
     /// What `deriving` generates its instances with. Null for a class that
     /// cannot be derived.
     deriver: ?Derived = null,
+    /// `record[C]`, from `All C`'s evidence at a row to this class's
+    /// dictionary at `Record` of the row. Set when the deriver ranges over a
+    /// whole type and each superclass has one.
+    record: ?symbols.SymbolId = null,
     /// `dict[C]`, the constructor of this class's dictionaries: one field per
     /// selector, then one per method. Null for a class whose members failed
     /// to declare.
@@ -186,12 +224,27 @@ pub const Registry = struct {
         };
     }
 
-    /// `class.name` and everything `class` points to must outlive the
-    /// registry.
-    pub fn declare(self: *Registry, class: Class) Allocator.Error!ClassId {
+    pub const Declaration = struct {
+        name: symbols.QualifiedName,
+        /// What the class is bound to, for one with no members.
+        primitive: ?Primitive = null,
+        span: diagnostic.Span = .unknown,
+    };
+
+    /// Declares a class, and `All` of it when it is not bound to a
+    /// primitive. `declared.name` must outlive the registry.
+    pub fn declare(self: *Registry, declared: Declaration) Allocator.Error!ClassId {
         const id: ClassId = @enumFromInt(self.classes.items.len);
-        try self.classes.append(self.allocator, class);
-        try self.by_name.put(self.allocator, class.name, id);
+        try self.by_name.put(self.allocator, declared.name, id);
+        if (declared.primitive) |primitive| {
+            try self.classes.append(self.allocator, .{ .name = declared.name, .role = .{ .primitive = primitive }, .span = declared.span });
+            return id;
+        }
+        const all: ClassId = @enumFromInt(self.classes.items.len + 1);
+        try self.classes.appendSlice(self.allocator, &.{
+            .{ .name = declared.name, .role = .{ .declared = all }, .span = declared.span },
+            .{ .name = declared.name, .parameter = .row, .role = .{ .all = id }, .span = declared.span },
+        });
         return id;
     }
 
@@ -207,19 +260,17 @@ pub const Registry = struct {
         return self.get(id).name.name;
     }
 
+    /// Returns the class whose name writes `id`: `C` for `All C`, else `id`.
+    pub fn named(self: *const Registry, id: ClassId) ClassId {
+        return switch (self.get(id).role) {
+            .all => |over| over,
+            .declared, .primitive => id,
+        };
+    }
+
     /// The class `module` declares as `name`.
     pub fn lookup(self: *const Registry, module: symbols.ModuleId, name: []const u8) ?ClassId {
         return self.by_name.get(.{ .module = module, .name = name });
-    }
-
-    /// The deriver that builds `class`'s dictionary at a record from its
-    /// fields' dictionaries. A record's dictionary has no superclass fields,
-    /// so a class with superclasses has none.
-    pub fn recordDeriver(self: *const Registry, class: ClassId) ?Derived {
-        const c = self.get(class);
-        const derived = c.deriver orelse return null;
-        if (!derived.deriver.coversRecords() or c.superclasses.len > 0) return null;
-        return derived;
     }
 
     /// The deriver of `class` when it ranges over a whole type, so a tuple
@@ -286,12 +337,12 @@ pub fn Solution(comptime E: type) type {
 
 /// Solves `class t`, building its evidence: from a given, directly or
 /// through its superclasses, else from the instance at `t`'s head with its
-/// context solved the same way. A closed record is solved field by field
-/// when `class` covers records.
+/// context solved the same way. A record is solved through `All` of `class`
+/// at its row, when `class` has a `record[C]`. `All C` at a row is solved
+/// field by field and then at its tail.
 ///
 /// A leaf no given solves goes to `sink.leaf`. A leaf is a constraint on a
-/// metavariable or bound variable, on one applied to types, or on an open
-/// record whose known fields are not refuted.
+/// metavariable or bound variable, or on one applied to types.
 ///
 /// `view` supplies:
 /// - `resolve(t) Type`: `t` with every solved metavariable at its head
@@ -306,8 +357,10 @@ pub fn Solution(comptime E: type) type {
 /// - `select(selector, of) !Evidence`: a superclass selected from `of`
 /// - `instance(id, context) !Evidence`: instance `id` at the evidence for
 ///   each requirement of its context, in order
-/// - `record(class, fields, evidence) !Evidence`: a closed record's, from
-///   each field's
+/// - `row(fields, evidence, tail) !Evidence`: `All C`'s at a row, from
+///   each field's and, unless the row is closed, its tail's
+/// - `derived(class, all) !Evidence`: `class`'s at a record, from `All` of
+///   `class` at its row
 /// - `leaf(class, t) !?Evidence`: for a leaf no given solves, or null when
 ///   it is stuck
 pub fn solve(
@@ -329,21 +382,27 @@ pub fn solve(
         }
     }
 
+    const c = registry.get(class);
     const written = view.resolve(t);
     const expanded = try view.normalize(written);
     switch (expanded) {
         .meta, .variable, .skolem, .application => {},
-        .alias, .row => unreachable,
-        .constructor, .function => if (types.recordArgument(expanded)) |argument| {
-            if (try solveRecord(gpa, registry, class, written, try view.normalize(argument), view, givens, sink)) |solution| return solution;
-        } else {
-            const c = types.asApplied(expanded).?;
-            const found = registry.instanceFor(class, c.name()) orelse return .{ .refuted = written };
+        .alias => unreachable,
+        .row => |r| return try solveRow(gpa, registry, class, c.role.all, r, view, givens, sink),
+        .constructor, .function => {
+            if (types.recordArgument(expanded)) |row| {
+                if (c.record == null) return .{ .refuted = written };
+                const all = try solve(gpa, registry, c.role.declared, row, view, givens, sink);
+                if (all != .solved) return all;
+                return .{ .solved = try sink.derived(class, all.solved) };
+            }
+            const applied = types.asApplied(expanded).?;
+            const found = registry.instanceFor(class, applied.name()) orelse return .{ .refuted = written };
             const context = registry.instance(found).context;
             const evidence = try gpa.alloc(E, context.len);
             defer gpa.free(evidence);
             for (context, evidence) |needed, *slot| {
-                const solution = try solve(gpa, registry, needed.class, c.argument(needed.variable), view, givens, sink);
+                const solution = try solve(gpa, registry, needed.class, applied.argument(needed.variable), view, givens, sink);
                 if (solution != .solved) return solution;
                 slot.* = solution.solved;
             }
@@ -354,39 +413,31 @@ pub fn solve(
     return .{ .stuck = .{ .class = class, .type = expanded } };
 }
 
-/// `solve` for `written`, a record at row `row`. Null when it is a leaf.
-fn solveRecord(
+/// `solve` for `all`, `All` of `over`, at row `r`: `over` at each field,
+/// then `all` at the tail.
+fn solveRow(
     gpa: Allocator,
     registry: *const Registry,
-    class: ClassId,
-    written: types.Type,
-    row: types.Type,
+    all: ClassId,
+    over: ClassId,
+    r: types.Type.Row,
     view: anytype,
     givens: anytype,
     sink: anytype,
-) (@TypeOf(sink).Error || Allocator.Error)!?Solution(@TypeOf(sink).Evidence) {
-    if (row != .row) return null;
-    const r = row.row;
-    if (registry.recordDeriver(class) == null) return .{ .refuted = written };
-    if (r.tail == null) {
-        const evidence = try gpa.alloc(@TypeOf(sink).Evidence, r.fields.len);
-        defer gpa.free(evidence);
-        for (r.fields, evidence) |f, *slot| {
-            const solution = try solve(gpa, registry, class, f.type.*, view, givens, sink);
-            if (solution != .solved) return solution;
-            slot.* = solution.solved;
-        }
-        return .{ .solved = try sink.record(class, r.fields, evidence) };
+) (@TypeOf(sink).Error || Allocator.Error)!Solution(@TypeOf(sink).Evidence) {
+    const evidence = try gpa.alloc(@TypeOf(sink).Evidence, r.fields.len);
+    defer gpa.free(evidence);
+    for (r.fields, evidence) |f, *slot| {
+        const solution = try solve(gpa, registry, over, f.type.*, view, givens, sink);
+        if (solution != .solved) return solution;
+        slot.* = solution.solved;
     }
-    // An open record's known fields can refute it, and the rest is decided
-    // once its tail is.
-    for (r.fields) |f| {
-        switch (try solve(gpa, registry, class, f.type.*, view, @as([]const Given(void), &.{}), Check{ .assume = {} })) {
-            .refuted => |culprit| return .{ .refuted = culprit },
-            .solved, .stuck => {},
-        }
-    }
-    return null;
+    const tail = if (r.tail) |t| blk: {
+        const solution = try solve(gpa, registry, all, t.*, view, givens, sink);
+        if (solution != .solved) return solution;
+        break :blk solution.solved;
+    } else null;
+    return .{ .solved = try sink.row(r.fields, evidence, tail) };
 }
 
 /// The evidence for `to`, a superclass of `from` at any depth, selected
@@ -440,7 +491,8 @@ pub const Check = union(enum) {
 
     pub fn select(_: Check, _: symbols.SymbolId, _: void) Error!void {}
     pub fn instance(_: Check, _: InstanceId, _: []const void) Error!void {}
-    pub fn record(_: Check, _: ClassId, _: []const types.Type.Field, _: []const void) Error!void {}
+    pub fn row(_: Check, _: []const types.Type.Field, _: []const void, _: ?void) Error!void {}
+    pub fn derived(_: Check, _: ClassId, _: void) Error!void {}
 
     pub fn leaf(self: Check, class: ClassId, t: types.Type) Error!?void {
         switch (self) {

@@ -40,7 +40,7 @@ const core = @import("../core.zig");
 const cst = @import("../lang/cst.zig");
 const diagnostic = @import("../diagnostic.zig");
 const annotation = @import("annotation.zig");
-const deriving = @import("deriving.zig");
+const deriving = @import("../deriving.zig");
 const kinds = @import("kinds.zig");
 const ModuleScope = @import("scope.zig").ModuleScope;
 const classes = core.classes;
@@ -89,21 +89,47 @@ pub const Linker = struct {
     /// instance head may name a class declared later in the module.
     pub fn declareClasses(self: *Linker, source: cst.SourceFile) Error!void {
         var ids: std.ArrayList(?classes.ClassId) = .empty;
-        for (source.declarations) |*decl| {
-            if (decl.* != .class_declaration) continue;
-            const declared = &decl.class_declaration;
-            if (self.scope.declaredType(self.module(), declared.name) != null) {
-                try self.sink.report(.duplicate_definition, declared.span, .{ diagnostic.code(declared.name), " is declared more than once" });
-                self.failed = true;
-                try ids.append(self.arena(), null);
-                continue;
-            }
-            try ids.append(self.arena(), try self.env.classes.declare(.{
-                .name = .{ .module = self.module(), .name = try self.arena().dupe(u8, declared.name) },
-                .span = declared.span,
-            }));
-        }
+        for (source.declarations) |decl| switch (decl) {
+            .class_declaration => |declared| try ids.append(self.arena(), try self.declareClass(declared.name, null, declared.span)),
+            .primitive_class => |declared| {
+                const written = declared.representation;
+                const primitive = try self.libraryPrimitive(classes.Primitive, "class", written.name, written.span) orelse {
+                    self.failed = true;
+                    continue;
+                };
+                _ = try self.declareClass(declared.name, primitive, declared.span);
+            },
+            else => {},
+        };
         self.declared = ids.items;
+    }
+
+    /// Declares the class `name`, bound to `primitive` when there is one.
+    /// Reports a name declared twice.
+    fn declareClass(self: *Linker, name: []const u8, primitive: ?classes.Primitive, span: diagnostic.Span) Error!?classes.ClassId {
+        if (self.scope.declaredType(self.module(), name) != null) {
+            try self.sink.report(.duplicate_definition, span, .{ diagnostic.code(name), " is declared more than once" });
+            self.failed = true;
+            return null;
+        }
+        return try self.env.classes.declare(.{
+            .name = .{ .module = self.module(), .name = try self.arena().dupe(u8, name) },
+            .primitive = primitive,
+            .span = span,
+        });
+    }
+
+    /// The tag of `E` that `written` names, a `what`. Reports one named
+    /// outside the library and one naming no `what`.
+    fn libraryPrimitive(self: *Linker, comptime E: type, comptime what: []const u8, written: []const u8, span: diagnostic.Span) Error!?E {
+        if (!self.env.isLibrary(self.module())) {
+            try self.sink.report(.unresolved_name, span, .{ diagnostic.code(written), " is not defined outside the library" });
+            return null;
+        }
+        return core.primitiveNamed(E, written) orelse {
+            try self.sink.report(.unresolved_name, span, .{ diagnostic.code(written), " is not a " ++ what });
+            return null;
+        };
     }
 
     /// Each class declaration of `source` with the class it registered.
@@ -172,7 +198,12 @@ pub const Linker = struct {
     fn superclasses(self: *Linker, declared: *const cst.ClassDeclaration) annotation.Error![]const classes.ClassId {
         const out = try self.arena().alloc(classes.ClassId, declared.superclasses.len);
         for (declared.superclasses, out) |written, *slot| {
-            slot.* = try annotation.resolveClass(self.scope, written.class, written.span, self.sink);
+            slot.* = try annotation.constraintClass(self.scope, written, self.sink);
+            if (self.env.classes.get(slot.*).parameter == .row) {
+                const unqualified: types.MessageNames = .{};
+                try self.sink.report(.invalid_class, written.span, .{ diagnostic.code(unqualified.class(&self.env.classes, slot.*)), " ranges over rows; a class ranges over types" });
+                return error.BadAnnotation;
+            }
             if (!std.mem.eql(u8, written.variableName() orelse "", declared.parameter)) {
                 try self.sink.report(.invalid_class, written.span, .{ diagnostic.code(written.class), " constrains something other than ", diagnostic.code(declared.parameter), ", the parameter of ", diagnostic.code(declared.name) });
                 return error.BadAnnotation;
@@ -200,7 +231,7 @@ pub const Linker = struct {
     /// Returns which classes were reported. The caller owns the result.
     ///
     /// Preconditions:
-    /// - `members` holds consecutive ids, in declaration order.
+    /// - `members` is in declaration order.
     fn rejectCycles(self: *Linker, members: []Registered) Error![]bool {
         const reported = try self.gpa.alloc(bool, members.len);
         errdefer self.gpa.free(reported);
@@ -209,13 +240,13 @@ pub const Linker = struct {
 
         var scratch: std.heap.ArenaAllocator = .init(self.gpa);
         defer scratch.deinit();
-        const first = @intFromEnum(members[0].id);
+        var index: std.AutoHashMapUnmanaged(classes.ClassId, u32) = .empty;
+        for (members, 0..) |r, i| try index.put(scratch.allocator(), r.id, @intCast(i));
         const edges = try scratch.allocator().alloc([]const u32, members.len);
         for (members, edges) |r, *edge| {
             var among: std.ArrayList(u32) = .empty;
             for (self.env.classes.get(r.id).superclasses) |super| {
-                const index = @intFromEnum(super) -% first;
-                if (index < members.len) try among.append(scratch.allocator(), index);
+                if (index.get(super)) |i| try among.append(scratch.allocator(), i);
             }
             edge.* = among.items;
         }
@@ -283,6 +314,7 @@ pub const Linker = struct {
         }
         class.selectors = selectors.items;
         class.constructor = try self.declareDictionary(declared.name, selectors.items.len + symbols.len);
+        try self.declareAllSuperclasses(class.*);
 
         const written = try self.arena().alloc(?*const cst.Definition, symbols.len);
         if (!try self.slotMethods(class.*, declared.defaults, .invalid_class, written)) self.failed = true;
@@ -306,6 +338,25 @@ pub const Linker = struct {
         };
     }
 
+    /// Gives `All C`, for `class` `C`, `All S` for each superclass `S` of
+    /// `C`, selected by `map[C,S]`: `C`'s evidence record with `super[C,S]`
+    /// applied to each field.
+    fn declareAllSuperclasses(self: *Linker, class: classes.Class) Error!void {
+        const all = self.env.classes.getMut(class.role.declared);
+        const supers = try self.arena().alloc(classes.ClassId, class.selectors.len);
+        const selectors = try self.arena().alloc(classes.Selector, class.selectors.len);
+        for (class.selectors, supers, selectors) |selector, *super, *slot| {
+            super.* = self.env.classes.get(selector.superclass).role.declared;
+            const spelling = try std.fmt.allocPrint(self.arena(), "map[{s},{s}]", .{
+                class.name.name,
+                self.env.classes.spelling(selector.superclass),
+            });
+            slot.* = .{ .superclass = super.*, .symbol = try self.env.interner.generate(self.module(), spelling, .vanilla) };
+        }
+        all.superclasses = supers;
+        all.selectors = selectors;
+    }
+
     /// The deriver `declared` names, if it names one. Reports a second, one
     /// named outside the library, and a primitive that is not a deriver.
     fn writtenDeriver(self: *Linker, declared: *const cst.ClassDeclaration) annotation.Error!?classes.Deriver {
@@ -315,14 +366,7 @@ pub const Linker = struct {
             return error.BadAnnotation;
         }
         const written = declared.derivers[0];
-        if (!self.env.isLibrary(self.module())) {
-            try self.sink.report(.unresolved_name, written.span, .{ diagnostic.code(written.primitive), " is not defined outside the library" });
-            return error.BadAnnotation;
-        }
-        return classes.Deriver.named(written.primitive) orelse {
-            try self.sink.report(.unresolved_name, written.span, .{ diagnostic.code(written.primitive), " is not a deriver" });
-            return error.BadAnnotation;
-        };
+        return try self.libraryPrimitive(classes.Deriver, "deriver", written.primitive, written.span) orelse error.BadAnnotation;
     }
 
     /// Resolves the deriver each class of the module names. Reports one that
@@ -359,6 +403,20 @@ pub const Linker = struct {
                 },
             }
         }
+        for (registered.items) |r| try self.declareRecord(r.id);
+    }
+
+    /// Gives class `id` its `record[C]` when its deriver ranges over a whole
+    /// type and each of its superclasses has one.
+    fn declareRecord(self: *Linker, id: classes.ClassId) Error!void {
+        const class = self.env.classes.get(id);
+        if (class.record != null or self.env.classes.wholeTypeDeriver(id) == null) return;
+        for (class.superclasses) |super| {
+            try self.declareRecord(super);
+            if (self.env.classes.get(super).record == null) return;
+        }
+        const spelling = try std.fmt.allocPrint(self.arena(), "record[{s}]", .{class.name.name});
+        self.env.classes.getMut(id).record = try self.env.interner.generate(self.module(), spelling, .vanilla);
     }
 
     /// Slots each of `definitions` at the index of the method of `class` it
@@ -642,7 +700,7 @@ pub const Linker = struct {
         const resolved = class.deriver orelse {
             var names = try self.env.messageNames(self.gpa, &.{}, &.{class_id});
             defer names.deinit(self.gpa);
-            try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(names.class(class_id, self.env.classes.spelling(class_id))), " cannot be derived; its class names no deriver" });
+            try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(names.class(&self.env.classes, class_id)), " cannot be derived; its class names no deriver" });
             return error.BadAnnotation;
         };
         if (declared.representation != null) {
@@ -750,7 +808,7 @@ pub const Linker = struct {
                 if (leaf.type != .variable) {
                     var names = try self.env.messageNames(self.gpa, &.{ instance.type, leaf.type }, &.{ instance.class, leaf.class });
                     defer names.deinit(self.gpa);
-                    try self.sink.report(.invalid_deriving, span, .{ diagnostic.code(.{ names.class(instance.class, class), " ", instance.type.namedOperand(&names) }), " needs ", diagnostic.code(.{ names.class(leaf.class, self.env.classes.spelling(leaf.class)), " ", leaf.type.namedOperand(&names) }), ", but a derived instance can only require a class of a type variable" });
+                    try self.sink.report(.invalid_deriving, span, .{ diagnostic.code(.{ names.class(&self.env.classes, instance.class), " ", instance.type.namedOperand(&names) }), " needs ", diagnostic.code(.{ names.class(&self.env.classes, leaf.class), " ", leaf.type.namedOperand(&names) }), ", but a derived instance can only require a class of a type variable" });
                     p.failed = true;
                     return;
                 }

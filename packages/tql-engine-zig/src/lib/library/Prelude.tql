@@ -23,6 +23,7 @@ import Prim (
   List(..),
   Bool(..),
   Ordering(..),
+  All,
   Eq(..),
   Ord(..),
   Json(..),

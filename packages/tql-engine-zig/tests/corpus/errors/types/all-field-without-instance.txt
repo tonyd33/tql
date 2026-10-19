@@ -1,0 +1,13 @@
+title: a record of a field without an instance has none
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = pure $ {f = \x -> x + 1} == {f = \x -> x};
+
+--- error ---
+error[unsatisfied-constraint]: `Eq (Int -> Int)` is not satisfied.
+ --> 1:15
+  |
+1 | main = pure $ {f = \x -> x + 1} == {f = \x -> x};
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

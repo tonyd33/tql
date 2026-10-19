@@ -1,0 +1,17 @@
+title: `All` of a class gives `All` of its superclasses
+grammar: typescript
+asserts: values
+
+`Ord`'s dictionary at `{| r}` holds an `Eq` one, wanting `All Eq r`, which
+E-AllSuper takes from `All Ord r`.
+
+--- tql ---
+at_most :: All Ord r => {| r} -> {| r} -> Bool;
+at_most a b = a == b or a < b;
+main = pure [at_most {x = 1, y = "b"} {x = 1, y = "a"}, at_most {x = 1, y = "a"} {x = 1, y = "a"}];
+
+--- source ---
+class A {}
+
+--- values ---
+[[false,true]]

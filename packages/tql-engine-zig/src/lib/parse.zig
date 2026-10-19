@@ -213,7 +213,11 @@ const Walker = struct {
                         try declarations.append(self.allocator, .{ .pattern_signature = p });
                     }
                 } else if (std.mem.eql(u8, kind, "class_declaration")) {
-                    if (try self.classDeclaration(child)) |c| {
+                    if (child.childByFieldName("representation") != null) {
+                        if (try self.primitiveClass(child)) |c| {
+                            try declarations.append(self.allocator, .{ .primitive_class = c });
+                        }
+                    } else if (try self.classDeclaration(child)) |c| {
                         try declarations.append(self.allocator, .{ .class_declaration = c });
                     }
                 } else if (std.mem.eql(u8, kind, "instance_declaration")) {
@@ -341,6 +345,7 @@ const Walker = struct {
                     const type_node = try self.requiredField(child, "type") orelse return null;
                     try collected.append(self.allocator, .{
                         .class = try self.dupe(class_node),
+                        .argument = if (child.childByFieldName("class_argument")) |a| try self.dupe(a) else null,
                         .type = try self.typeExpr(type_node) orelse return null,
                         .span = spanOf(child, self.source_id),
                     });
@@ -373,6 +378,16 @@ const Walker = struct {
             .defaults = defaults,
             .minimal = minimal,
             .derivers = derivers,
+            .span = spanOf(node, self.source_id),
+        };
+    }
+
+    fn primitiveClass(self: *Walker, node: ts.Node) !?cst.PrimitiveClass {
+        const name_node = try self.requiredField(node, "name") orelse return null;
+        const representation = try self.requiredField(node, "representation") orelse return null;
+        return .{
+            .name = try self.dupe(name_node),
+            .representation = .{ .name = try self.dupe(representation), .span = spanOf(representation, self.source_id) },
             .span = spanOf(node, self.source_id),
         };
     }
