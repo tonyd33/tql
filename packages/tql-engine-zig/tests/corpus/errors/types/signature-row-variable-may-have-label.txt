@@ -1,0 +1,22 @@
+title: a signature's row variable lacks only the labels its signature gives
+grammar: typescript
+asserts: error
+
+`r` lacks `a` alone, so it cannot be the tail of `h`'s row with `b`
+(Types: Records and rows).
+
+--- tql ---
+import Data.Function (const);
+
+h :: {a: Int | r} -> {b: Int | r} -> Int;
+h x y = x.a + y.b;
+g :: {a: Int | r} -> Int;
+g x = const x.a (h x);
+main = pure $ g {a = 1};
+
+--- error ---
+error[type-mismatch]: Expected `{a: Int | a}`, found `{a: Int | r}`. `r` is rigid, bound by the signature of `g`. `r` may have `b`.
+ --> 6:20
+  |
+6 | g x = const x.a (h x);
+  |                    ^

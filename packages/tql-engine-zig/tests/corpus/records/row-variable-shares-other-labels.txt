@@ -1,0 +1,21 @@
+title: a row variable holds labels its rows do not have
+grammar: typescript
+asserts: types, values
+
+`r` lacks `a` and `b`, and is `{c: Int}` at both arguments (Types: Records
+and rows).
+
+--- tql ---
+f :: {a: Int | r} -> {b: Int | r} -> Int;
+f x y = x.a + y.b;
+main = pure $ f {a = 1, c = 2} {b = 3, c = 5};
+
+--- source ---
+class A {}
+
+--- values ---
+[4]
+--- types ---
+f :: {a: Int | a} -> {b: Int | a} -> Int
+main :: Kleisli List Node Int
+entry :: Node -> [Json]

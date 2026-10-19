@@ -232,9 +232,9 @@ There is no defaulting.
 
 A wanted that no rule can solve is insoluble. A class wanted that an
 instance lookup refutes is `unsatisfied-constraint`, and an equality that
-unification cannot solve, between distinct constructors or a variable and
-a type containing it, is `type-mismatch`, each at the expression it came
-from.
+unification cannot solve, between distinct constructors, a variable and
+a type containing it, or a row variable and a row with a label it lacks,
+is `type-mismatch`, each at the expression it came from.
 
 Under a signature, a type that does not fit a rigid variable is
 `type-mismatch` at the expression, naming the variable and its signature.

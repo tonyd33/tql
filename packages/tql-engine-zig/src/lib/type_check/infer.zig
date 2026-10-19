@@ -1214,9 +1214,9 @@ pub const Inference = struct {
 
             const scheme = declared.scheme;
             const skolems = try self.subst.arena.alloc(types.Type, scheme.variables.len);
-            for (skolems, scheme.variables, 0..) |*skolem, kind, i| {
+            for (skolems, scheme.variables, try scheme.lacking(self.subst.arena), 0..) |*skolem, kind, lacks, i| {
                 const spelling = if (i < declared.names.len) declared.names[i] else try types.variableSpelling(self.subst.arena, i);
-                skolem.* = try self.subst.skolem(spelling, kind, binder);
+                skolem.* = try self.subst.skolem(spelling, kind, lacks, binder);
             }
             const context = try self.subst.arena.alloc(types.TypeClassConstraint, scheme.constraints.len);
             for (scheme.constraints, context) |c, *slot| {
@@ -1398,6 +1398,11 @@ fn startByte(span: diagnostic.Span) u32 {
     return if (span.range) |r| r.start_byte else 0;
 }
 
+/// Says that `k` is rigid and which signature binds it.
+fn rigid(message: *diagnostic.Message, env: *core.env.Env, k: *const types.Skolem) !void {
+    try message.append(.{ " ", diagnostic.code(k.spelling), " is rigid, bound by the signature of ", diagnostic.code(env.interner.spelling(k.binder)), "." });
+}
+
 fn render(
     gpa: Allocator,
     subst: *Substitution,
@@ -1415,7 +1420,16 @@ fn render(
             var names = try env.messageNames(gpa, &.{ expected, found }, &.{});
             defer names.deinit(gpa);
             try message.append(.{ "Expected ", diagnostic.code(expected.named(&names)), ", found ", diagnostic.code(found.named(&names)), "." });
-            if (m.skolem) |k| try message.append(.{ " ", diagnostic.code(k.spelling), " is rigid, bound by the signature of ", diagnostic.code(env.interner.spelling(k.binder)), "." });
+            switch (m.reason) {
+                .rigid, .escape => |k| try rigid(&message, env, k),
+                .lacks => |l| if (l.rigid) |k| {
+                    try rigid(&message, env, k);
+                    try message.append(.{ " ", diagnostic.code(k.spelling), " may have ", diagnostic.code(l.label), "." });
+                } else {
+                    try message.append(.{ " The ", @tagName(l.from), " record cannot have ", diagnostic.code(l.label), "." });
+                },
+                .incompatible, .occurs, .labels, .kind => {},
+            }
         },
         .violation => |v| {
             const t = try subst.resolveDeep(v.type);

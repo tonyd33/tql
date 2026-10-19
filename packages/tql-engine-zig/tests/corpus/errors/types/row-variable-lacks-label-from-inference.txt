@@ -1,0 +1,22 @@
+title: an inferred row variable lacks a label no record of its type shows
+grammar: typescript
+asserts: error
+
+`h x` makes the row of `x` the tail of a row with `b`, so `g`'s row
+variable lacks `b` though `g`'s type does not mention it (Types: Records
+and rows).
+
+--- tql ---
+import Data.Function (const);
+
+h :: {a: Int | r} -> {b: Int | r} -> Int;
+h x y = x.a + y.b;
+g x = const x.a (h x);
+main = pure $ g {a = 1, b = 2};
+
+--- error ---
+error[type-mismatch]: Expected `{a: Int | a}`, found `{a: Int, b: Int}`. The expected record cannot have `b`.
+ --> 6:17
+  |
+6 | main = pure $ g {a = 1, b = 2};
+  |                 ^^^^^^^^^^^^^^
