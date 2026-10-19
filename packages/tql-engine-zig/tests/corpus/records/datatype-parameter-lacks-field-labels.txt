@@ -1,0 +1,28 @@
+title: a datatype's row parameter lacks the labels its fields need it to lack
+grammar: typescript
+asserts: values
+
+`r` lacks `x` in `W`'s declaration, so it lacks `x` in `h`'s signature,
+and through `V`, whose field is `W r` (Types: Records and rows).
+
+--- tql ---
+data W r = W {x: Int | r};
+data V r = V (W r);
+
+h :: W r -> Int;
+h w = case w of {
+  W v -> v.x;
+};
+
+k :: V r -> Int;
+k v = case v of {
+  V w -> h w;
+};
+
+main = Kleisli $ \_ -> [h $ W {x = 1, y = 2}, k $ V $ W {x = 3}];
+
+--- source ---
+class A {}
+
+--- values ---
+[1,3]

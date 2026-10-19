@@ -72,8 +72,9 @@ e ::= x                                   variable
 ```
 
 A kernel expression is written in source syntax. A variable `x` includes
-the kernel constants the translations introduce, `record_L`, `select_l`
-and `field_f`, and the primitives. Without those, a kernel expression is
+the kernel constants the translations and derived instances introduce,
+`record_L`, `select_l`, `extend_l`, `restrict_l` and `field_f`, and the
+primitives. Without those, a kernel expression is
 a program fragment. Kernel patterns are in
 [The pattern kernel](03-patterns.md#the-pattern-kernel), the typing rules
 in [Static semantics](06-static-semantics.md), and the meaning in

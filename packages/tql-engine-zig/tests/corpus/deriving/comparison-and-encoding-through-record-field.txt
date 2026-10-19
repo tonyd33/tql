@@ -1,0 +1,23 @@
+title: derived `==`, `compare` and `to_json` reach a record field through its row
+grammar: typescript
+asserts: values
+
+A record field of type `{x: Int | r}` wants `Eq {x: Int | r}`, which holds
+when `All Eq r` does, and that joins the derived context (Declarations:
+Deriving).
+
+--- tql ---
+data W r = W {x: Int | r} deriving (Eq, Ord, ToJson);
+
+main = Kleisli $ \_ -> [
+  to_json $ W {x = 1, y = 2} == W {x = 1, y = 2},
+  to_json $ W {x = 1, y = 2} == W {x = 1, y = 3},
+  to_json $ compare (W {x = 2, y = 1}) (W {x = 1, y = 5}),
+  to_json $ W {x = 1, y = "a"},
+];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false,"GT",{"x":1,"y":"a"}]

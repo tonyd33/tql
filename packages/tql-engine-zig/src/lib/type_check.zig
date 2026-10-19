@@ -65,8 +65,22 @@
 //!
 //! A row has each label at most once, so `{a: Int | r}` holds only where
 //! `r` has no `a`. Each row metavariable and skolem carries the labels it
-//! lacks. A scheme's bound variable lacks the labels of every row it is the
-//! tail of in the scheme's type, and any more inference found.
+//! lacks.
+//!
+//! A scheme's bound variable lacks what the scheme's type needs it to
+//! lack, and any more inference found. A row's tail must lack the row's
+//! labels, and a datatype's argument what the datatype's fields need of
+//! its parameter:
+//!
+//! ```tql
+//! data W r = W {x: Int | r};
+//! h :: W r -> Int;
+//! ```
+//!
+//! `h`'s `r` is never a tail, yet lacks `x`: every `W r` was built by `W`,
+//! whose field is `{x: Int | r}`. A datatype's lacks are solved with its
+//! module's kinds, as a least fixed point, since `data V r = V (W r)`
+//! lacks what `W` does.
 //!
 //! Binding a row metavariable to a row checks the row has none of its
 //! labels, then makes the row's tail lack them and the row's own labels. A

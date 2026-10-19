@@ -248,6 +248,10 @@ pub const Synthesized = union(enum) {
     /// `select[l]`, reading the record field labelled `l`. Forces the
     /// record, then that field and no other.
     select: []const u8,
+    /// `extend[l] x r`, `r` with a field `l` holding `x`. Forces `r`.
+    extend: []const u8,
+    /// `restrict[l] r`, `r` without its field `l`. Forces `r`.
+    restrict: []const u8,
     /// `fold f z d`, `f "l_1" d.l_1 select_l_1 (.. (f "l_n" d.l_n select_l_n z))`
     /// over the labels of `d`, an `All` evidence record, in order.
     fold,
@@ -273,8 +277,8 @@ pub const Synthesized = union(enum) {
     pub fn arity(self: Synthesized) u32 {
         return switch (self) {
             .record => |labels| @intCast(labels.len),
-            .field, .select, .record_size => 1,
-            .operator, .map, .record_label, .record_field => 2,
+            .field, .select, .restrict, .record_size => 1,
+            .operator, .extend, .map, .record_label, .record_field => 2,
             .fold, .record_insert => 3,
         };
     }
@@ -289,6 +293,8 @@ pub const Synthesized = union(enum) {
                 break :blk .{ .record = copies };
             },
             .select => |label| .{ .select = try allocator.dupe(u8, label) },
+            .extend => |label| .{ .extend = try allocator.dupe(u8, label) },
+            .restrict => |label| .{ .restrict = try allocator.dupe(u8, label) },
             .operator, .fold, .map, .record_size, .record_label, .record_field, .record_insert => self,
         };
     }

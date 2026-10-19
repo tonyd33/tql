@@ -1,0 +1,25 @@
+title: a `case` over a datatype binds fields whose rows lack what the datatype needs
+grammar: typescript
+asserts: error
+
+`W r` needs `r` to lack `x` and `y`, so `b`, of type `{y: Int | r}`, has
+no `x` (Types: Records and rows).
+
+--- tql ---
+data W r = W {x: Int | r} {y: Int | r};
+
+f w = case w of {
+  W a b -> b.x;
+};
+
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[type-mismatch]: Expected `{x: a, y: Int | b}`, found `{y: Int | c}`. The found record cannot have `x`.
+ --> 4:12
+  |
+4 |   W a b -> b.x;
+  |            ^

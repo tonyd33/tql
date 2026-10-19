@@ -73,6 +73,35 @@ pub const Group = struct {
         try self.aliases.put(self.inference.gpa, alias.name, stored);
     }
 
+    /// Gives each datatype's parameters the least labels its fields need them
+    /// to lack, a fixed point over the group.
+    fn lack(self: *const Group, env: *core.env.Env) Allocator.Error!void {
+        while (try self.lackOnce(env)) {}
+    }
+
+    /// Recomputes each datatype's lacks from its fields. Returns whether any
+    /// grew.
+    fn lackOnce(self: *const Group, env: *core.env.Env) Allocator.Error!bool {
+        const arena = env.allocator();
+        var grew = false;
+        for (self.constructors.items) |c| {
+            const before = env.datatypes.get(c.id);
+            const lacks = try arena.alloc(types.Labels, before.parameters.len);
+            @memset(lacks, &.{});
+            for (c.constructors) |constructor| {
+                for (constructor.fields) |field| try types.needed(arena, &env.datatypes, field, &.{}, lacks);
+            }
+            // Lacks only grow, so a count that holds is a set that holds.
+            for (lacks, 0..) |labels, i| {
+                if (labels.len == before.lacksOf(i).len) continue;
+                env.datatypes.setLacks(c.id, lacks);
+                grew = true;
+                break;
+            }
+        }
+        return grew;
+    }
+
     /// Solves every kind, defaulting to `Type`, and writes the group's
     /// declarations to `env`.
     pub fn commit(self: *const Group, env: *core.env.Env) Allocator.Error!void {
@@ -80,6 +109,7 @@ pub const Group = struct {
         for (self.datatypes.keys(), self.datatypes.values()) |id, parameters| {
             env.datatypes.setParameters(id, try inference.zonkAll(parameters));
         }
+        try self.lack(env);
         for (self.constructors.items) |c| try env.setConstructors(c.id, c.constructors);
         for (self.aliases.values()) |alias| {
             const parameters = try inference.arena.alloc(core.datatypes.Alias.Parameter, alias.parameters.len);

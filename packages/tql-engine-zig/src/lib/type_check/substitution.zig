@@ -377,7 +377,7 @@ pub const Substitution = struct {
     /// variables became.
     pub fn instantiate(self: *Substitution, scheme: types.Scheme) !Instantiated {
         const metas = try self.arena.alloc(types.Type, scheme.variables.len);
-        for (metas, scheme.variables, try scheme.lacking(self.arena)) |*m, kind, lacks| {
+        for (metas, scheme.variables, try scheme.lacking(self.arena, self.datatypes)) |*m, kind, lacks| {
             m.* = try self.fresh(kind);
             try self.lack(m.meta, lacks);
         }

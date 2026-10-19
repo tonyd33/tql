@@ -1,0 +1,21 @@
+title: a derived `map` reaches the last parameter through a record's fields and keeps its tail
+grammar: typescript
+asserts: values
+
+The fields holding the last parameter are mapped, the others and the
+tail's are kept as they are (Declarations: Deriving).
+
+--- tql ---
+data W r a = W {x: a, y: Int | r} deriving (Functor);
+
+run w = case w of {
+  W v -> [to_json v.x, to_json v.y, to_json v.z];
+};
+
+main = Kleisli $ \_ -> run $ map (\n -> n * 10 > 5) $ W {x = 1, y = 2, z = "s"};
+
+--- source ---
+class A {}
+
+--- values ---
+[true,2,"s"]

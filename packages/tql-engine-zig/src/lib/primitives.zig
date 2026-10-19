@@ -91,8 +91,9 @@ pub const max_record_fields = std.math.maxInt(types.TypeVar) - 1;
 
 pub const SchemeError = error{TooManyRecordFields} || Allocator.Error;
 
-/// The scheme of a synthesized symbol: `field[l]`, `op[+]`, `record[l,...]`
-/// or `select[l]`, built against `arena` and `declared`.
+/// The scheme of a synthesized symbol: `field[l]`, `op[+]`, `record[l,...]`,
+/// `select[l]`, `extend[l]` or `restrict[l]`, built against `arena` and
+/// `declared`.
 pub fn synthesizedScheme(
     arena: Allocator,
     declared: *const datatypes.Registry,
@@ -106,6 +107,8 @@ pub fn synthesizedScheme(
         .operator => |operator| try operatorScheme(arena, declared, operator),
         .record => |labels| try recordScheme(arena, labels),
         .select => |label| try selectScheme(arena, label),
+        .extend => |label| try extendScheme(arena, label),
+        .restrict => |label| try restrictScheme(arena, label),
         // Elaboration and lowering build these, after checking.
         .fold, .map, .record_size, .record_label, .record_field, .record_insert => unreachable,
     };
@@ -140,14 +143,29 @@ fn recordScheme(arena: Allocator, labels: []const []const u8) SchemeError!types.
 
 /// `select[l] : forall t r. {l: t | r} -> t`.
 fn selectScheme(arena: Allocator, label: []const u8) Allocator.Error!types.Scheme {
-    const field = types.variable_type(0);
+    return .{ .variables = &.{ .type, .row }, .type = try types.func(arena, try labelled(arena, label), types.variable_type(0)) };
+}
+
+/// `extend[l] : forall t r. t -> {| r} -> {l: t | r}`.
+fn extendScheme(arena: Allocator, label: []const u8) Allocator.Error!types.Scheme {
+    return .{ .variables = &.{ .type, .row }, .type = try types.arrows(arena, &.{ types.variable_type(0), try rest(arena) }, try labelled(arena, label)) };
+}
+
+/// `restrict[l] : forall t r. {l: t | r} -> {| r}`.
+fn restrictScheme(arena: Allocator, label: []const u8) Allocator.Error!types.Scheme {
+    return .{ .variables = &.{ .type, .row }, .type = try types.func(arena, try labelled(arena, label), try rest(arena)) };
+}
+
+/// `{l: t | r}`, with `t` and `r` variables 0 and 1.
+fn labelled(arena: Allocator, label: []const u8) Allocator.Error!types.Type {
     const fields = try arena.alloc(types.Type.Field, 1);
-    fields[0] = .{ .label = label, .type = try types.store(arena, field) };
-    const subject = try datatypes.record(arena, .{
-        .fields = fields,
-        .tail = try types.store(arena, types.variable_type(1)),
-    });
-    return .{ .variables = &.{ .type, .row }, .type = try types.func(arena, subject, field) };
+    fields[0] = .{ .label = label, .type = try types.store(arena, types.variable_type(0)) };
+    return try datatypes.record(arena, .{ .fields = fields, .tail = try types.store(arena, types.variable_type(1)) });
+}
+
+/// `{| r}`, with `r` variable 1.
+fn rest(arena: Allocator) Allocator.Error!types.Type {
+    return try datatypes.record(arena, .{ .fields = &.{}, .tail = try types.store(arena, types.variable_type(1)) });
 }
 
 /// Declares the built-in types, then interns the primitives with their
@@ -208,6 +226,16 @@ pub fn fieldSymbol(target: *core.env.Env, name: []const u8, id: u16) Allocator.E
 /// `select[label]`, reading the record field `label`, with its scheme.
 pub fn selectSymbol(target: *core.env.Env, label: []const u8) Allocator.Error!core.SymbolId {
     return try bounded(target, "select[{s}]", .{label}, .{ .select = label });
+}
+
+/// `extend[label]`, adding the record field `label`, with its scheme.
+pub fn extendSymbol(target: *core.env.Env, label: []const u8) Allocator.Error!core.SymbolId {
+    return try bounded(target, "extend[{s}]", .{label}, .{ .extend = label });
+}
+
+/// `restrict[label]`, removing the record field `label`, with its scheme.
+pub fn restrictSymbol(target: *core.env.Env, label: []const u8) Allocator.Error!core.SymbolId {
+    return try bounded(target, "restrict[{s}]", .{label}, .{ .restrict = label });
 }
 
 /// `symbolOf` for a symbol whose scheme has at most one field.

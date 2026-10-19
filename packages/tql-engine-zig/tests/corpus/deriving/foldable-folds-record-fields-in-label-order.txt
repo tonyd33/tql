@@ -1,0 +1,19 @@
+title: a derived `foldr` folds a record's fields in label order
+grammar: typescript
+asserts: values
+
+The fields holding the last parameter are folded by label, whatever order
+the type writes them in (Declarations: Deriving).
+
+--- tql ---
+import Data.Foldable (to_list);
+
+data W r a = W {b: a, a: a, c: Int | r} deriving (Foldable);
+
+main = Kleisli $ \_ -> to_list $ W {a = 1, b = 2, c = 3, d = 4};
+
+--- source ---
+class A {}
+
+--- values ---
+[1,2]

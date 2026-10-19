@@ -926,9 +926,17 @@ pub const Machine = struct {
                 .select => |label| {
                     if (arguments.len != 1) return error.TypeError;
                     const fields = try self.recordArgument(arguments[0]);
-                    const index = std.sort.binarySearch(value.Field, fields, label, orderLabel) orelse
-                        return error.TypeError;
-                    return try self.force(fields[index].thunk);
+                    return try self.force(fields[try fieldIndex(fields, label)].thunk);
+                },
+
+                .extend => |label| {
+                    if (arguments.len != 2) return error.TypeError;
+                    return try self.insert(label, arguments[0], try self.recordArgument(arguments[1]));
+                },
+                .restrict => |label| {
+                    if (arguments.len != 1) return error.TypeError;
+                    const fields = try self.recordArgument(arguments[0]);
+                    return try self.remove(try fieldIndex(fields, label), fields);
                 },
 
                 // Children under one field, named or anonymous, document
@@ -1211,6 +1219,18 @@ pub const Machine = struct {
         extended[at] = .{ .label = label, .thunk = thunk };
         @memcpy(extended[at + 1 ..], fields[at..]);
         return .{ .record = extended };
+    }
+
+    /// `fields` without field `index`.
+    fn remove(self: *Machine, index: usize, fields: []const value.Field) Error!value.Value {
+        const restricted = try self.arena.alloc(value.Field, fields.len - 1);
+        @memcpy(restricted[0..index], fields[0..index]);
+        @memcpy(restricted[index..], fields[index + 1 ..]);
+        return .{ .record = restricted };
+    }
+
+    fn fieldIndex(fields: []const value.Field, label: []const u8) Error!usize {
+        return std.sort.binarySearch(value.Field, fields, label, orderLabel) orelse error.TypeError;
     }
 
     fn valueThunk(self: *Machine, v: value.Value) Error!*value.Thunk {

@@ -1,0 +1,23 @@
+title: a derived `traverse` rebuilds a record field in the applicative, by label
+grammar: typescript
+asserts: values
+
+Each field holding the last parameter is traversed in label order and the
+record rebuilt around the tail (Declarations: Deriving).
+
+--- tql ---
+import Data.Traversable (traverse);
+
+data W r a = W {a: a, b: a | r} deriving (Functor, Foldable, Traversable);
+
+run w = case w of {
+  W v -> [v.a, v.b, v.c];
+};
+
+main = Kleisli $ \_ -> map run $ traverse (\n -> [n, n * 10]) $ W {a = 1, b = 2, c = 0};
+
+--- source ---
+class A {}
+
+--- values ---
+[[1,2,0],[1,20,0],[10,2,0],[10,20,0]]

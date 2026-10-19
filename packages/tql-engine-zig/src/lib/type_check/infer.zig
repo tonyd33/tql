@@ -466,14 +466,19 @@ pub const Inference = struct {
         // is known without inferring the scrutinee, and the scrutinee is
         // checked against it at fresh arguments. A `case` with only a default
         // leaves the scrutinee's type free.
-        var arguments: []types.Type = &.{};
+        var arguments: []const types.Type = &.{};
         var scrutinee_type: ?types.Type = null;
         if (c.alternatives.len > 0) {
             const owner = core.datatypes.ownerOf(&self.env.interner, c.alternatives[0].constructor).?;
             const declared = self.env.datatypes.get(owner);
-            arguments = try self.subst.arena.alloc(types.Type, declared.parameters.len);
-            for (arguments, declared.parameters) |*argument, kind| argument.* = try self.subst.fresh(kind);
-            scrutinee_type = try types.constructed(self.subst.arena, owner, declared.name, arguments);
+            const bound = try self.subst.arena.alloc(types.Type, declared.parameters.len);
+            for (bound, 0..) |*v, i| v.* = types.variable_type(@intCast(i));
+            const instantiated = try self.subst.instantiate(.{
+                .variables = declared.parameters,
+                .type = try types.constructed(self.subst.arena, owner, declared.name, bound),
+            });
+            arguments = instantiated.metas;
+            scrutinee_type = instantiated.type;
         }
         const elaborated_scrutinee = try self.elaborate(c.scrutinee, scrutinee_type);
         const scrutinee = elaborated_scrutinee.type;
@@ -1214,7 +1219,7 @@ pub const Inference = struct {
 
             const scheme = declared.scheme;
             const skolems = try self.subst.arena.alloc(types.Type, scheme.variables.len);
-            for (skolems, scheme.variables, try scheme.lacking(self.subst.arena), 0..) |*skolem, kind, lacks, i| {
+            for (skolems, scheme.variables, try scheme.lacking(self.subst.arena, self.subst.datatypes), 0..) |*skolem, kind, lacks, i| {
                 const spelling = if (i < declared.names.len) declared.names[i] else try types.variableSpelling(self.subst.arena, i);
                 skolem.* = try self.subst.skolem(spelling, kind, lacks, binder);
             }
