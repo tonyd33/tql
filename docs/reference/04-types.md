@@ -37,6 +37,9 @@ kind    ::= "Type" | "Row" | kind "->" kind | "(" kind ")"
 variables are quantified at the outside of its signature. There is no
 `forall`.
 
+A constraint's type is a type variable, possibly applied to types. A
+constraint on any other type is an error, `invalid-class`.
+
 ## Kinds
 
 `Ψ ⊢ τ : κ` reads: in `Ψ`, `τ` has kind `κ`. The rules are named `K-`.
@@ -113,6 +116,19 @@ fields:
 name_of :: {name: String | r} -> String;
 name_of x = x.name;
 ```
+
+A row has each label at most once. A row variable lacks every label of
+every row it is the tail of: in a signature, with synonyms expanded, or in
+a type inference builds. A row variable is never bound to a row with a
+label it lacks:
+
+```tql
+f :: {a: Int | r} -> {b: Int | r} -> Int;
+f x y = x.a + y.b;
+```
+
+`r` lacks `a` and `b`, so `f {a = 1, b = "s"}` is an error,
+`type-mismatch`.
 
 The record constants of the [translation](02-expressions.md#record) have
 these types:

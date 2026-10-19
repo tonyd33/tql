@@ -11,7 +11,7 @@ f x = x == x;
 main = const [];
 
 --- error ---
-error[invalid-class]: a constraint must be on a type variable, one applied to types, or an open record
+error[invalid-class]: a constraint must be on a type variable or one applied to types
  --> 4:9
   |
 4 | f :: Eq (Maybe a) => Maybe a -> Bool;

@@ -25,7 +25,7 @@ rule calls a parse error, is a parse error, `parse`: in
 | `duplicate-instance` | [Instance](05-declarations.md#instance) |
 | `duplicate-signature` | [Type signature](05-declarations.md#type-signature) |
 | `grammar-mismatch` | [Grammars](07-modules.md#grammars) |
-| `invalid-class` | [Classes over rows](04-types.md#classes-over-rows), [Class](05-declarations.md#class) |
+| `invalid-class` | [Grammar](04-types.md#grammar), [Classes over rows](04-types.md#classes-over-rows), [Class](05-declarations.md#class) |
 | `invalid-deriving` | [Deriving](05-declarations.md#deriving) |
 | `invalid-instance` | [Class](05-declarations.md#class), [Instance](05-declarations.md#instance) |
 | `invalid-regex` | [Literals](01-lexical.md#literals), [Regex](11-library.md#regex) |

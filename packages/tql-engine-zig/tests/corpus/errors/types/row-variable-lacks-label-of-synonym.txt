@@ -1,0 +1,19 @@
+title: a row variable lacks the labels of a synonym's record
+grammar: typescript
+asserts: error
+
+`Named r` expands to `{name: String | r}`, so `r` lacks `name` (Types:
+Records and rows).
+
+--- tql ---
+type Named r = {name: String | r};
+f :: Named r -> {age: Int | r} -> String;
+f x y = x.name;
+main = pure $ f {name = "n", age = 1} {name = "m", age = 2};
+
+--- error ---
+error[type-mismatch]: Expected `Named a`, found `{age: Int, name: String}`. The expected record cannot have `age`.
+ --> 4:17
+  |
+4 | main = pure $ f {name = "n", age = 1} {name = "m", age = 2};
+  |                 ^^^^^^^^^^^^^^^^^^^^^

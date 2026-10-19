@@ -13,29 +13,19 @@ const Allocator = std.mem.Allocator;
 /// carried, which is not always the pair unification was called with: for
 /// `[int]` against `[string]` the mismatch to report is `int` against `string`.
 pub const Mismatch = struct {
-    reason: Reason,
     expected: types.Type,
     found: types.Type,
-    /// For `labels`, a label one row has and the other cannot.
-    missing: ?Missing = null,
-    /// For `rigid` and `escape`, the rigid variable.
-    skolem: ?*const types.Skolem = null,
+    reason: Reason,
 
     /// The same mismatch with its sides exchanged.
     pub fn swapped(self: Mismatch) Mismatch {
-        var m = self;
-        m.expected = self.found;
-        m.found = self.expected;
-        return m;
+        return .{ .expected = self.found, .found = self.expected, .reason = switch (self.reason) {
+            .lacks => |l| .{ .lacks = .{ .label = l.label, .from = if (l.from == .expected) .found else .expected, .rigid = l.rigid } },
+            else => self.reason,
+        } };
     }
 
-    pub const Missing = struct {
-        label: []const u8,
-        /// The row without it.
-        from: enum { expected, found },
-    };
-
-    pub const Reason = enum {
+    pub const Reason = union(enum) {
         /// Two different constructors.
         incompatible,
         /// Binding would have built an infinite type.
@@ -45,12 +35,24 @@ pub const Mismatch = struct {
         labels,
         /// A metavariable and a type of different kinds.
         kind,
+        /// A row metavariable and a row with a label it lacks.
+        lacks: Lacked,
         /// A rigid variable and a type other than itself.
-        rigid,
+        rigid: *const types.Skolem,
         /// A metavariable and a type mentioning a rigid variable bound inside
         /// the metavariable's scope.
-        escape,
+        escape: *const types.Skolem,
     };
+
+    pub const Lacked = struct {
+        label: []const u8,
+        /// The record whose row variable lacks it.
+        from: Side = .expected,
+        /// The rigid tail that does not lack it, or null when the row has it.
+        rigid: ?*const types.Skolem = null,
+    };
+
+    pub const Side = enum { expected, found };
 };
 
 /// Whether the two types could be made equal.
@@ -99,7 +101,7 @@ fn unifyNamed(
     if (left == .skolem or right == .skolem) {
         if (left == .skolem and right == .skolem and left.skolem == right.skolem) return .unified;
         const skolem = if (left == .skolem) left.skolem else right.skolem;
-        return .{ .mismatch = .{ .reason = .rigid, .expected = shown.expected, .found = shown.found, .skolem = skolem } };
+        return .{ .mismatch = .{ .reason = .{ .rigid = skolem }, .expected = shown.expected, .found = shown.found } };
     }
 
     const incompatible: Result = .{ .mismatch = .{ .reason = .incompatible, .expected = shown.expected, .found = shown.found } };
@@ -199,10 +201,34 @@ fn bindMeta(subst: *Substitution, id: types.Meta, t: types.Type) Allocator.Error
         return .{ .mismatch = .{ .reason = .kind, .expected = .{ .meta = id }, .found = t } };
     }
     if (subst.promote(solution, subst.levelOf(id))) |skolem| {
-        return .{ .mismatch = .{ .reason = .escape, .expected = .{ .meta = id }, .found = t, .skolem = skolem } };
+        return .{ .mismatch = .{ .reason = .{ .escape = skolem }, .expected = .{ .meta = id }, .found = t } };
+    }
+    if (try restrict(subst, subst.lacksOf(id), solution)) |lacked| {
+        return .{ .mismatch = .{ .reason = .{ .lacks = lacked }, .expected = .{ .meta = id }, .found = t } };
     }
     subst.bind(id, solution);
     return .unified;
+}
+
+/// Makes the tail of row `t` lack `lacks` and the labels before it.
+/// Returns a label of `lacks` that `t` has, or that a rigid tail does not
+/// lack.
+fn restrict(subst: *Substitution, lacks: types.Labels, t: types.Type) Allocator.Error!?Mismatch.Lacked {
+    switch (subst.resolve(t)) {
+        .meta => |id| try subst.lack(id, lacks),
+        .skolem => |k| for (lacks) |label| {
+            if (!types.holds(k.lacks, label)) return .{ .label = label, .rigid = k };
+        },
+        .row => |r| {
+            const row = try subst.flatten(r);
+            const labels = try types.fieldLabels(subst.arena, row.fields);
+            for (labels) |label| if (types.holds(lacks, label)) return .{ .label = label };
+            const tail = row.tail orelse return null;
+            return try restrict(subst, try types.unionLabels(subst.arena, lacks, labels), tail.*);
+        },
+        else => {},
+    }
+    return null;
 }
 
 /// The kind of `t`, which is not a bound variable.
@@ -265,11 +291,10 @@ fn rows(
     // Only a flexible tail can hold the other side's extra labels, and one
     // tail on both sides cannot hold labels only one side has.
     const same_tail = left_tail != .closed and std.meta.eql(left_tail, right_tail);
-    if ((right_tail != .flexible or same_tail) and only_left.items.len > 0) {
-        return missing(shown, only_left.items[0].label, .found);
-    }
-    if ((left_tail != .flexible or same_tail) and only_right.items.len > 0) {
-        return missing(shown, only_right.items[0].label, .expected);
+    if (((right_tail != .flexible or same_tail) and only_left.items.len > 0) or
+        ((left_tail != .flexible or same_tail) and only_right.items.len > 0))
+    {
+        return .{ .mismatch = .{ .reason = .labels, .expected = shown.expected, .found = shown.found } };
     }
     if (same_tail) return .unified;
 
@@ -279,7 +304,7 @@ fn rows(
             .flexible => |id| return try bindTail(subst, shown, id, try withFields(subst, only_left.items, if (left.tail) |t| t.* else null)),
             .closed, .rigid => {
                 const skolem = if (left_tail == .rigid) left_tail.rigid else if (right_tail == .rigid) right_tail.rigid else return .unified;
-                return .{ .mismatch = .{ .reason = .rigid, .expected = shown.expected, .found = shown.found, .skolem = skolem } };
+                return .{ .mismatch = .{ .reason = .{ .rigid = skolem }, .expected = shown.expected, .found = shown.found } };
             },
         },
     };
@@ -305,19 +330,6 @@ fn rows(
 /// `bindMeta` for a row's tail, naming `shown` in a mismatch.
 fn bindTail(subst: *Substitution, shown: Pair, id: types.Meta, t: types.Type) Allocator.Error!Result {
     return naming(try bindMeta(subst, id, t), shown);
-}
-
-fn missing(
-    shown: Pair,
-    label: []const u8,
-    from: @FieldType(Mismatch.Missing, "from"),
-) Result {
-    return .{ .mismatch = .{
-        .reason = .labels,
-        .expected = shown.expected,
-        .found = shown.found,
-        .missing = .{ .label = label, .from = from },
-    } };
 }
 
 /// What a flattened row's `tail` is.

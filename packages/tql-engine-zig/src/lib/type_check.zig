@@ -61,6 +61,23 @@
 //! metavariable can't be bound to a type with a skolem deeper than itself:
 //! the skolem would escape the signature binding it.
 //!
+//! ## Rows lack labels
+//!
+//! A row has each label at most once, so `{a: Int | r}` holds only where
+//! `r` has no `a`. Each row metavariable and skolem carries the labels it
+//! lacks. A scheme's bound variable lacks the labels of every row it is the
+//! tail of in the scheme's type, and any more inference found.
+//!
+//! Binding a row metavariable to a row checks the row has none of its
+//! labels, then makes the row's tail lack them and the row's own labels. A
+//! skolem tail must lack them already. In
+//!
+//! ```tql
+//! f :: {a: Int | r} -> {b: Int | r} -> Int;
+//! ```
+//!
+//! `r` lacks `a` and `b`, so a use of `f` cannot bind it to `{b: String}`.
+//!
 //! ## Checking
 //!
 //! A signature is pushed into the body it types, not compared with the

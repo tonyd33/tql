@@ -75,6 +75,8 @@ pub const Substitution = struct {
         /// `null` means unsolved.
         solution: ?types.Type,
         kind: types.Kind,
+        /// For a row metavariable, the labels it lacks.
+        lacks: types.Labels,
         /// Whether the metavariable stands in a type an error was reported
         /// on.
         poisoned: bool,
@@ -99,15 +101,15 @@ pub const Substitution = struct {
     /// A metavariable of kind `kind` no type mentions yet.
     pub fn fresh(self: *Substitution, kind: types.Kind) !types.Type {
         const id: types.Meta = @intCast(self.metas.len);
-        try self.metas.append(self.gpa, .{ .solution = null, .kind = kind, .poisoned = false, .level = self.level });
+        try self.metas.append(self.gpa, .{ .solution = null, .kind = kind, .lacks = &.{}, .poisoned = false, .level = self.level });
         return .{ .meta = id };
     }
 
     /// A rigid variable of the implication at the current level, bound by
     /// `binder`'s signature.
-    pub fn skolem(self: *Substitution, spelling: []const u8, kind: types.Kind, binder: core.SymbolId) Allocator.Error!types.Type {
+    pub fn skolem(self: *Substitution, spelling: []const u8, kind: types.Kind, lacks: types.Labels, binder: core.SymbolId) Allocator.Error!types.Type {
         const node = try self.arena.create(types.Skolem);
-        node.* = .{ .spelling = spelling, .kind = kind, .level = self.level, .binder = binder };
+        node.* = .{ .spelling = spelling, .kind = kind, .lacks = lacks, .level = self.level, .binder = binder };
         return .{ .skolem = node };
     }
 
@@ -146,6 +148,16 @@ pub const Substitution = struct {
 
     pub fn kindOf(self: *const Substitution, id: types.Meta) types.Kind {
         return self.metas.items(.kind)[id];
+    }
+
+    pub fn lacksOf(self: *const Substitution, id: types.Meta) types.Labels {
+        return self.metas.items(.lacks)[id];
+    }
+
+    /// Makes unsolved row metavariable `id` lack `labels` too.
+    pub fn lack(self: *Substitution, id: types.Meta, labels: types.Labels) Allocator.Error!void {
+        const lacks = &self.metas.items(.lacks)[id];
+        lacks.* = try types.unionLabels(self.arena, lacks.*, labels);
     }
 
     /// What `id` is solved to, or null if it is still unknown.
@@ -365,7 +377,10 @@ pub const Substitution = struct {
     /// variables became.
     pub fn instantiate(self: *Substitution, scheme: types.Scheme) !Instantiated {
         const metas = try self.arena.alloc(types.Type, scheme.variables.len);
-        for (metas, scheme.variables) |*m, kind| m.* = try self.fresh(kind);
+        for (metas, scheme.variables, try scheme.lacking(self.arena)) |*m, kind, lacks| {
+            m.* = try self.fresh(kind);
+            try self.lack(m.meta, lacks);
+        }
         return .{
             .type = try self.instantiateWith(scheme.type, metas),
             .metas = metas,
@@ -388,7 +403,7 @@ pub const Substitution = struct {
     pub fn resolveScheme(self: *Substitution, scheme: types.Scheme) Allocator.Error!types.Scheme {
         const constraints = try self.arena.alloc(types.TypeClassConstraint, scheme.constraints.len);
         for (scheme.constraints, constraints) |c, *slot| slot.* = .{ .class = c.class, .type = try self.resolveDeep(c.type) };
-        return .{ .variables = scheme.variables, .constraints = constraints, .type = try self.resolveDeep(scheme.type) };
+        return .{ .variables = scheme.variables, .constraints = constraints, .type = try self.resolveDeep(scheme.type), .lacks = scheme.lacks };
     }
 
     /// Whether `t` mentions a skolem at `level` or deeper.
@@ -437,10 +452,13 @@ pub const Substitution = struct {
 
         const variables = try self.arena.alloc(types.Kind, metas.len);
         for (metas, variables) |id, *kind| kind.* = self.kindOf(id);
+        const lacks = try self.arena.alloc(types.Labels, metas.len);
+        for (metas, lacks) |id, *labels| labels.* = self.lacksOf(id);
         return .{
             .variables = variables,
             .constraints = bound,
             .type = try self.rewrite(t, .{ .bound = metas }, null),
+            .lacks = lacks,
         };
     }
 };

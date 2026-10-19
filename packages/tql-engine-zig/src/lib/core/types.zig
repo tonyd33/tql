@@ -17,11 +17,46 @@ pub const Meta = u32;
 pub const Skolem = struct {
     spelling: []const u8,
     kind: Kind,
+    /// For a row variable, the labels it lacks.
+    lacks: Labels,
     /// The level of the implication that binds it.
     level: u32,
     /// The definition whose signature binds it.
     binder: symbols.SymbolId,
 };
+
+/// Record labels, sorted, each at most once.
+pub const Labels = []const []const u8;
+
+/// The labels of `a` and of `b`.
+pub fn unionLabels(allocator: std.mem.Allocator, a: Labels, b: Labels) std.mem.Allocator.Error!Labels {
+    var out: std.ArrayList([]const u8) = .empty;
+    var i: usize = 0;
+    var j: usize = 0;
+    while (i < a.len or j < b.len) {
+        const order: std.math.Order = if (i == a.len) .gt else if (j == b.len) .lt else Type.Field.order(a[i], b[j]);
+        if (order == .gt) {
+            try out.append(allocator, b[j]);
+        } else {
+            try out.append(allocator, a[i]);
+            i += 1;
+        }
+        if (order != .lt) j += 1;
+    }
+    return out.items;
+}
+
+/// Whether `labels` holds `label`.
+pub fn holds(labels: Labels, label: []const u8) bool {
+    return std.sort.binarySearch([]const u8, labels, label, Type.Field.order) != null;
+}
+
+/// The labels of `fields`.
+pub fn fieldLabels(allocator: std.mem.Allocator, fields: []const Type.Field) std.mem.Allocator.Error!Labels {
+    const labels = try allocator.alloc([]const u8, fields.len);
+    for (fields, labels) |f, *label| label.* = f.label;
+    return labels;
+}
 
 /// A type the machine represents directly. `Prim` declares each as
 /// `data Int = %Int;`.
@@ -525,6 +560,17 @@ pub const Scheme = struct {
     variables: []const Kind = &.{},
     constraints: []const TypeClassConstraint = &.{},
     type: Type,
+    /// Labels each bound variable lacks, by `forall` position, or empty.
+    /// `lacking` adds those of the rows it is the tail of in `type`.
+    lacks: []const Labels = &.{},
+
+    /// The labels each bound variable lacks, indexed by `forall` position.
+    pub fn lacking(self: Scheme, allocator: std.mem.Allocator) std.mem.Allocator.Error![]Labels {
+        const out = try allocator.alloc(Labels, self.variables.len);
+        for (out, 0..) |*labels, i| labels.* = if (i < self.lacks.len) self.lacks[i] else &.{};
+        try tailLabels(allocator, self.type, &.{}, out);
+        return out;
+    }
 
     /// Format with each class spelled as `registry` declares it.
     pub fn named(self: Scheme, registry: *const classes.Registry) Named {
@@ -557,13 +603,41 @@ pub const Scheme = struct {
         for (self.constraints, constraints) |c, *copy| {
             copy.* = .{ .class = c.class, .type = try c.type.clone(allocator) };
         }
+        const lacks = try allocator.alloc(Labels, self.lacks.len);
+        for (self.lacks, lacks) |labels, *copy| copy.* = try allocator.dupe([]const u8, labels);
         return .{
             .variables = try allocator.dupe(Kind, self.variables),
             .constraints = constraints,
             .type = try self.type.clone(allocator),
+            .lacks = lacks,
         };
     }
 };
+
+/// Adds to `out[v]` the labels of every row bound variable `v` is the tail
+/// of in `t`, with `carried` the labels of the rows `t` is the tail of.
+fn tailLabels(allocator: std.mem.Allocator, t: Type, carried: Labels, out: []Labels) std.mem.Allocator.Error!void {
+    switch (t) {
+        .variable => |v| out[v] = try unionLabels(allocator, out[v], carried),
+        .meta, .skolem => {},
+        .constructor => |c| for (c.arguments) |argument| try tailLabels(allocator, argument, &.{}, out),
+        .row => |r| {
+            for (r.fields) |f| try tailLabels(allocator, f.type.*, &.{}, out);
+            const tail = r.tail orelse return;
+            const labels = try unionLabels(allocator, carried, try fieldLabels(allocator, r.fields));
+            try tailLabels(allocator, tail.*, labels, out);
+        },
+        .function => |arrow| {
+            try tailLabels(allocator, arrow.from, &.{}, out);
+            try tailLabels(allocator, arrow.to, &.{}, out);
+        },
+        .application => |a| {
+            try tailLabels(allocator, a.head, &.{}, out);
+            try tailLabels(allocator, a.argument, &.{}, out);
+        },
+        .alias => |a| try tailLabels(allocator, a.expansion, &.{}, out),
+    }
+}
 
 pub const int_type = primitiveType(.Int);
 pub const string_type = primitiveType(.String);
