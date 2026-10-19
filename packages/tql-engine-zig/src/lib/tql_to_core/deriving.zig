@@ -163,7 +163,7 @@ fn renamed(pattern: types.Type, actual: types.Type, renaming: []?types.TypeVar) 
         .application => |x| return a == .application and
             renamed(x.head, a.application.head, renaming) and
             renamed(x.argument, a.application.argument, renaming),
-        .meta, .skolem, .record, .alias => unreachable,
+        .meta, .skolem, .row, .alias => unreachable,
     }
 }
 
@@ -218,8 +218,8 @@ fn shapeOf(env: *core.env.Env, t: types.Type, last: types.TypeVar) Error!Shape {
             } };
         },
         .application => |x| return if (types.mentions(x.head, last)) .stuck else .{ .through = .{ .head = x.head, .inner = x.argument } },
-        // A constructor field holds no record, metavariable or skolem.
-        .record, .meta, .skolem, .alias => unreachable,
+        // A constructor field holds no row, metavariable or skolem.
+        .row, .meta, .skolem, .alias => unreachable,
     }
 }
 

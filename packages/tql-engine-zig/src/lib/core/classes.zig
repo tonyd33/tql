@@ -297,8 +297,8 @@ pub fn Solution(comptime E: type) type {
 /// - `resolve(t) Type`: `t` with every solved metavariable at its head
 ///   followed
 /// - `normalize(t) !Type`: `resolve`, also stripping every alias at the head,
-///   rebuilding an application whose head is solved, and following a
-///   record's row to the end
+///   rebuilding an application whose head is solved, and following a row
+///   to its end
 /// - `resolveDeep(t) !Type`: `t` with every solved metavariable followed, for
 ///   comparing against a given
 ///
@@ -333,8 +333,10 @@ pub fn solve(
     const expanded = try view.normalize(written);
     switch (expanded) {
         .meta, .variable, .skolem, .application => {},
-        .alias => unreachable,
-        .constructor, .function => {
+        .alias, .row => unreachable,
+        .constructor, .function => if (types.recordArgument(expanded)) |argument| {
+            if (try solveRecord(gpa, registry, class, written, try view.normalize(argument), view, givens, sink)) |solution| return solution;
+        } else {
             const c = types.asApplied(expanded).?;
             const found = registry.instanceFor(class, c.name()) orelse return .{ .refuted = written };
             const context = registry.instance(found).context;
@@ -347,30 +349,44 @@ pub fn solve(
             }
             return .{ .solved = try sink.instance(found, evidence) };
         },
-        .record => |r| {
-            if (registry.recordDeriver(class) == null) return .{ .refuted = written };
-            if (r.rest == null) {
-                const evidence = try gpa.alloc(E, r.fields.len);
-                defer gpa.free(evidence);
-                for (r.fields, evidence) |f, *slot| {
-                    const solution = try solve(gpa, registry, class, f.type.*, view, givens, sink);
-                    if (solution != .solved) return solution;
-                    slot.* = solution.solved;
-                }
-                return .{ .solved = try sink.record(class, r.fields, evidence) };
-            }
-            // An open record's known fields can refute it, and the rest is
-            // decided once its row is.
-            for (r.fields) |f| {
-                switch (try solve(gpa, registry, class, f.type.*, view, @as([]const Given(void), &.{}), Check{ .assume = {} })) {
-                    .refuted => |culprit| return .{ .refuted = culprit },
-                    .solved, .stuck => {},
-                }
-            }
-        },
     }
     if (try sink.leaf(class, expanded)) |e| return .{ .solved = e };
     return .{ .stuck = .{ .class = class, .type = expanded } };
+}
+
+/// `solve` for `written`, a record at row `row`. Null when it is a leaf.
+fn solveRecord(
+    gpa: Allocator,
+    registry: *const Registry,
+    class: ClassId,
+    written: types.Type,
+    row: types.Type,
+    view: anytype,
+    givens: anytype,
+    sink: anytype,
+) (@TypeOf(sink).Error || Allocator.Error)!?Solution(@TypeOf(sink).Evidence) {
+    if (row != .row) return null;
+    const r = row.row;
+    if (registry.recordDeriver(class) == null) return .{ .refuted = written };
+    if (r.tail == null) {
+        const evidence = try gpa.alloc(@TypeOf(sink).Evidence, r.fields.len);
+        defer gpa.free(evidence);
+        for (r.fields, evidence) |f, *slot| {
+            const solution = try solve(gpa, registry, class, f.type.*, view, givens, sink);
+            if (solution != .solved) return solution;
+            slot.* = solution.solved;
+        }
+        return .{ .solved = try sink.record(class, r.fields, evidence) };
+    }
+    // An open record's known fields can refute it, and the rest is decided
+    // once its tail is.
+    for (r.fields) |f| {
+        switch (try solve(gpa, registry, class, f.type.*, view, @as([]const Given(void), &.{}), Check{ .assume = {} })) {
+            .refuted => |culprit| return .{ .refuted = culprit },
+            .solved, .stuck => {},
+        }
+    }
+    return null;
 }
 
 /// The evidence for `to`, a superclass of `from` at any depth, selected

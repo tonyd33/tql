@@ -193,6 +193,7 @@ pub fn translateInstance(
     switch (head_type) {
         .constructor, .function => {
             const c = types.asApplied(head_type).?;
+            if (types.recordArgument(head_type) != null) return badHead(sink, written.span, "a record type");
             for (0..c.arity()) |i| {
                 const argument = c.argument(i);
                 const w = headArgument(written, i);
@@ -209,9 +210,8 @@ pub fn translateInstance(
             }
         },
         .variable, .application => return badHead(sink, written.span, "a type variable"),
-        .record => return badHead(sink, written.span, "a record type"),
         .alias => return badHead(sink, written.span, "an alias"),
-        .meta, .skolem => unreachable,
+        .meta, .skolem, .row => unreachable,
     }
 
     const constraints = try arena.alloc(types.TypeClassConstraint, declared.context.len);
@@ -374,9 +374,8 @@ pub fn translateField(
 /// Whether a record appears anywhere in `t`.
 fn hasRecord(t: types.Type) bool {
     return switch (t) {
-        .variable, .meta, .skolem => false,
-        .record => true,
-        .constructor => |c| for (c.arguments) |argument| {
+        .variable, .meta, .skolem, .row => false,
+        .constructor => |c| types.recordArgument(t) != null or for (c.arguments) |argument| {
             if (hasRecord(argument)) break true;
         } else false,
         .function => |arrow| hasRecord(arrow.from) or hasRecord(arrow.to),
@@ -637,8 +636,7 @@ const Translator = struct {
             try self.sink.report(.unsatisfied_constraint, c.span, .{ diagnostic.code(.{ names.class(class, env.classes.spelling(class)), " ", culprit.namedOperand(&names) }), " is never satisfied" });
             return error.BadAnnotation;
         }
-        const expanded = types.unalias(t);
-        if (expanded == .record and expanded.record.rest != null) return .{ .class = class, .type = t };
+        if (types.recordArgument(t)) |argument| if (argument == .row and argument.row.tail != null) return .{ .class = class, .type = t };
         var head = t;
         while (head == .application) head = head.application.head;
         if (head != .variable) {
@@ -697,10 +695,10 @@ const Translator = struct {
             try self.sink.report(.duplicate_definition, span, .{ diagnostic.code(f.label), " labels two fields of one record" });
             return error.BadAnnotation;
         };
-        const rest = if (r.row) |name|
+        const tail = if (r.row) |name|
             try types.store(self.arena, .{ .variable = try self.binder(name, .row, span) })
         else
             null;
-        return .{ .record = .{ .fields = copies, .rest = rest } };
+        return try datatypes.record(self.arena, .{ .fields = copies, .tail = tail });
     }
 };

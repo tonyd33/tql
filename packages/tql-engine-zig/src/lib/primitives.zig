@@ -126,7 +126,7 @@ fn recordScheme(arena: Allocator, labels: []const []const u8) SchemeError!types.
 
     // Built right to left: the record is the innermost, each field type
     // wrapping it in one more arrow.
-    var result: types.Type = .{ .record = .{ .fields = fields } };
+    var result = try datatypes.record(arena, .{ .fields = fields });
     var i = labels.len;
     while (i > 0) {
         i -= 1;
@@ -141,10 +141,10 @@ fn selectScheme(arena: Allocator, label: []const u8) Allocator.Error!types.Schem
     const field = types.variable_type(0);
     const fields = try arena.alloc(types.Type.Field, 1);
     fields[0] = .{ .label = label, .type = try types.store(arena, field) };
-    const subject: types.Type = .{ .record = .{
+    const subject = try datatypes.record(arena, .{
         .fields = fields,
-        .rest = try types.store(arena, types.variable_type(1)),
-    } };
+        .tail = try types.store(arena, types.variable_type(1)),
+    });
     return .{ .variables = &.{ .type, .row }, .type = try types.func(arena, subject, field) };
 }
 

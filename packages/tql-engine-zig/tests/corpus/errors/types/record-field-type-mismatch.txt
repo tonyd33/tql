@@ -1,0 +1,17 @@
+title: a record whose labels agree reports the field types that differ
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Function (const);
+
+f :: {a: Int} -> Int;
+f r = r.a;
+main = Kleisli $ const [f {a = "s"}];
+
+--- error ---
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 5:32
+  |
+5 | main = Kleisli $ const [f {a = "s"}];
+  |                                ^^^
