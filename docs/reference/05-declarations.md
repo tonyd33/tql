@@ -56,8 +56,9 @@ Circle :: Int -> Shape
 Rect   :: Int -> Int -> Shape
 ```
 
-A datatype is nominal: two declarations with the same constructors are
-different types. Its parameters' kinds are inferred
+A type declared by `data` or `newtype` is a datatype. A datatype is
+nominal: two declarations with the same constructors are different
+types. Its parameters' kinds are inferred
 ([Kinds](04-types.md#kinds)) or written:
 `data Wrap (f :: Type -> Type) a = Wrap (f a);`.
 
@@ -283,8 +284,8 @@ f = \x1 ... xk -> case (x1, ..., xk) of {
 
 The bindings of one module, or of one `let`, are split into strongly
 connected components of their reference graph and typed in dependency
-order. A reference to a signed binding is not an edge. One component is
-typed together ([T-Group](06-static-semantics.md#bindings)).
+order. A reference to a signed binding is not an edge. Each component is
+a binding group, typed together ([T-Group](06-static-semantics.md#bindings)).
 
 ## Generalisation
 

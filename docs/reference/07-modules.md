@@ -104,7 +104,8 @@ twice.
 
 ## Grammars
 
-A target grammar is named by a `for` clause. A module with a `for` clause
+A target grammar, the grammar target files are parsed with, is named by
+a `for` clause. A module with a `for` clause
 may use the kind literals and fields of its grammars. A module without one
 is generic: it may not name kinds or fields, and it imports only generic
 modules. A generic module that names a kind, a field or a module with a

@@ -4,6 +4,28 @@ After checking, match compilation, operator lowering and elaboration
 translate a program to Core: System F with datatypes and casts. Every pass over Core keeps it well typed, and
 a lint checks that after every pass.
 
+## Notation
+
+| Letter | Ranges over |
+|---|---|
+| `e`, `u` | Core expressions |
+| `x`, `b` | variables |
+| `j` | join points |
+| `lit` | literals |
+| `K` | constructors |
+| `τ`, `σ` | types |
+| `a` | type variables |
+| `κ` | kinds |
+| `T` | type constructors |
+| `γ` | coercions |
+| `ρ` | rows |
+| `l` | record labels |
+| `C`, `S` | classes |
+| `d` | dictionaries |
+| `Γ` | typing environments, of variables and type variables |
+
+A bar marks a sequence: `ā` is `a1 ... an`.
+
 ## Terms
 
 ```
@@ -18,6 +40,10 @@ e ::= x | lit
 ```
 
 ## Typing
+
+`Γ ⊢ e : τ` reads: in `Γ`, `e` has type `τ`. `Γ ⊢ τ : κ` is kinding, and
+`Γ ⊢ γ : τ1 ~R τ2` says `γ` proves `τ1` and `τ2` representationally
+equal. The rules are named `C-`.
 
 ```
 (C-Var)    x : τ ∈ Γ

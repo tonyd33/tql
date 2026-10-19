@@ -1,5 +1,22 @@
 # Expressions
 
+## Notation
+
+| Letter | Ranges over |
+|---|---|
+| `e` | expressions |
+| `x`, `y`, `f` | variables |
+| `lit` | literals |
+| `op` | operators |
+| `p` | patterns |
+| `g` | guards |
+| `b`, `bs` | bindings, and sequences of them |
+| `ss` | sequences of statements |
+| `l` | record labels |
+| `f`, in `n#f` and `#f` | fields |
+| `n` | nodes |
+| `σ` | type schemes |
+
 ## Grammar
 
 ```
@@ -61,6 +78,13 @@ a program fragment. Kernel patterns are in
 [The pattern kernel](03-patterns.md#the-pattern-kernel), the typing rules
 in [Static semantics](06-static-semantics.md), and the meaning in
 [Evaluation](10-evaluation.md).
+
+Each construct is given as a translation, an equation read left to right.
+Its right side is a kernel expression, except that it may apply the
+translation to smaller source terms. A name on the right that the left
+does not bind is fresh, and a library name on the right (`bind`, `empty`,
+`Cons`) is the one the `Prelude` exports, whatever the program's own scope
+holds.
 
 A source construct is well typed exactly when its translation is, and
 means what its translation means. The checker reads the source as

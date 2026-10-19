@@ -1,5 +1,30 @@
 # Patterns
 
+## Notation
+
+| Letter | Ranges over |
+|---|---|
+| `p`, `q` | patterns |
+| `fs` | sequences of field patterns |
+| `x` | variables |
+| `e`, `c` | expressions |
+| `v` | values |
+| `lit` | literals |
+| `K` | constructors |
+| `N` | newtype constructors |
+| `P` | pattern synonyms |
+| `k` | node kinds |
+| `f` | fields |
+| `m` | results of matches |
+| `θ` | bindings of variables to values |
+| `τ`, `σ` | types |
+| `a` | type variables |
+| `T` | type constructors |
+| `Γ` | type environments |
+| `Δ` | the variables a pattern binds, with their types |
+
+A bar marks a sequence: `ā` is `a1 ... an`.
+
 ## Grammar
 
 ```
@@ -37,7 +62,9 @@ p ::= x            variable
     | !p           bang
 ```
 
-The surface forms expand as follows.
+The surface forms expand as follows. A library name in an expansion
+(`Cons`, `run`, `of_kind`) is the library's, whatever the program's own
+scope holds.
 
 | Surface | Kernel |
 |---|---|
@@ -62,7 +89,7 @@ p if c -> e   =   p & ((\_ -> c) -> True) -> e
 ## Meaning
 
 `match p v` is one of `Ok θ`, a binding of `p`'s variables; `Fail`; or
-`⊥`. Sequencing runs left to right and stops at the first `Fail` or `⊥`:
+`⊥`. The rules are named `M-`. Sequencing runs left to right and stops at the first `Fail` or `⊥`:
 
 ```
 Fail  ⊕ m  =  Fail
@@ -102,7 +129,7 @@ alternatives swapped it is `2`.
 ## Typing
 
 `Γ ⊢ p : τ ⊣ Δ` reads: in `Γ`, `p` matches values of type `τ` and binds
-the variables in `Δ`. The checker checks a pattern against the type of
+the variables in `Δ`. The rules are named `P-`. The checker checks a pattern against the type of
 the value it matches.
 
 ```

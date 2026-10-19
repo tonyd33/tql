@@ -29,7 +29,8 @@ An entry module with no `main` is an error, `missing-main`.
 
 ## Runs
 
-A program runs once per target file, on the root of that file's syntax
+A target file is a file a program runs on. A program runs once per
+target file, on the root of that file's syntax
 tree. Runs share nothing, and a run reads no file but its own. A run has
 no effect but its output: there is no `IO`. A run that
 fails does not stop the others.
