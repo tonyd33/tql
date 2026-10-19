@@ -1,0 +1,19 @@
+title: a derived `map` maps each field that holds the last parameter
+grammar: typescript
+asserts: values
+
+`Tree`'s first and last fields reach `a` through `Tree`'s own instance, and
+its middle field is `a` itself.
+
+--- tql ---
+import Data.Foldable (to_list);
+
+data Tree a = Leaf | Node (Tree a) a (Tree a) deriving (Functor, Foldable);
+
+main = Kleisli $ \_ -> to_list $ map (* 10) $ Node (Node Leaf 1 Leaf) 2 (Node Leaf 3 Leaf);
+
+--- source ---
+class A {}
+
+--- values ---
+[10,20,30]

@@ -310,7 +310,6 @@ pub const Translator = struct {
             .lambda => return .{ .atom = try self.bindClosure(try self.closureOf(term), hoisted) },
 
             .case => |case_term| {
-                if (case_term.default != null and case_term.alternatives.len > 0) return error.Unsupported;
                 const scrutinee = try self.open(case_term.scrutinee, hoisted);
 
                 // In scope for every alternative and the default, in the slot
@@ -319,27 +318,7 @@ pub const Translator = struct {
                 if (case_term.binder) |binder| try self.scope.append(self.gpa, binder);
                 defer self.scope.shrinkRetainingCapacity(start);
 
-                const alternatives = try self.arena.alloc(stg.Alternative, case_term.alternatives.len);
-                for (case_term.alternatives, alternatives) |source, *alternative| {
-                    if (self.program.env.datatypes.constructorOf(
-                        &self.program.env.interner,
-                        source.constructor,
-                    ) == null) return error.Unsupported;
-                    const binders = try self.arena.dupe(core.SymbolId, source.binders);
-
-                    // In scope for this alternative's body only, and pushed in
-                    // the order the evaluator binds the constructor's fields.
-                    const mark = self.scope.items.len;
-                    try self.scope.appendSlice(self.gpa, binders);
-                    defer self.scope.shrinkRetainingCapacity(mark);
-
-                    alternative.* = .{
-                        .constructor = source.constructor,
-                        .binders = binders,
-                        .body = try self.expression(source.body),
-                    };
-                }
-
+                const alternatives = try self.alternativesOf(case_term);
                 const default = if (case_term.default) |body| try self.expression(body) else null;
                 const node = try self.arena.create(stg.Expr.Case);
                 node.* = .{
@@ -408,6 +387,38 @@ pub const Translator = struct {
                 return .{ .let = node };
             },
         }
+    }
+
+    /// `case_term`'s alternatives, one slot per constructor of their
+    /// datatype, indexed by tag, or none when it has no alternatives. Rejects
+    /// an alternative of another datatype, one that repeats another, and,
+    /// without a default, a constructor no alternative covers.
+    fn alternativesOf(self: *Translator, case_term: *const core.Case) Error![]?stg.Alternative {
+        if (case_term.alternatives.len == 0) return &.{};
+        const env = &self.program.env;
+        const owner = datatypes.ownerOf(&env.interner, case_term.alternatives[0].constructor) orelse return error.Unsupported;
+        const slots = try self.arena.alloc(?stg.Alternative, env.datatypes.get(owner).constructors.len);
+        @memset(slots, null);
+        for (case_term.alternatives) |source| {
+            if (datatypes.ownerOf(&env.interner, source.constructor) != owner) return error.Unsupported;
+            const slot = &slots[env.datatypes.constructorOf(&env.interner, source.constructor).?.tag];
+            if (slot.* != null) return error.Unsupported;
+            const binders = try self.arena.dupe(core.SymbolId, source.binders);
+
+            // In scope for this alternative's body only, and pushed in the
+            // order the evaluator binds the constructor's fields.
+            const mark = self.scope.items.len;
+            try self.scope.appendSlice(self.gpa, binders);
+            defer self.scope.shrinkRetainingCapacity(mark);
+
+            slot.* = .{
+                .constructor = source.constructor,
+                .binders = binders,
+                .body = try self.expression(source.body),
+            };
+        }
+        if (case_term.default == null) for (slots) |slot| if (slot == null) return error.Unsupported;
+        return slots;
     }
 
     /// `term` as a jump, when its head is a join point. Atomized arguments

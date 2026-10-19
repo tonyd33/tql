@@ -1,0 +1,14 @@
+title: `Functor` cannot be derived through a function's argument
+grammar: typescript
+asserts: error
+
+--- tql ---
+data C a = C (a -> Int) deriving (Functor);
+main = pure 1;
+
+--- error ---
+error[invalid-deriving]: `Functor` cannot be derived through `a -> Int`
+ --> 1:14
+  |
+1 | data C a = C (a -> Int) deriving (Functor);
+  |              ^^^^^^^^^^

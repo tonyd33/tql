@@ -182,12 +182,12 @@ pub fn Sink(comptime Leaf: type) type {
 }
 
 /// The dictionary of `class` at a closed record of `fields`, from
-/// `evidence`, each field's: `dict[C]` at its first method, built over the
-/// fields, and its defaults for the rest.
+/// `evidence`, each field's: `dict[C]` at the method its deriver defines,
+/// built over the fields, and its defaults for the rest.
 ///
 /// Preconditions:
-/// - `class` covers records, has no superclass, and has a default for every
-///   method but its first.
+/// - `class` has a record deriver, whose method alone satisfies its
+///   `minimal`.
 fn recordDictionary(
     b: core.Builder,
     env: *core.env.Env,
@@ -197,15 +197,17 @@ fn recordDictionary(
     span: diagnostic.Span,
 ) Allocator.Error!core.Term {
     const declared = env.classes.get(class);
-    const first = switch (class) {
-        .eq => try recordEq(b, env, fields, evidence, span),
-        .to_json => try recordToJson(b, env, fields, evidence, span),
-        else => unreachable,
-    };
+    const derived = env.classes.recordDeriver(class).?;
+    const method = declared.methods[derived.method];
     const itself = try env.interner.fresh("d");
-    var dictionary = try b.apply(b.symbol(declared.constructor.?, span), first, span);
-    for (declared.defaults[1..]) |default| {
-        dictionary = try b.apply(dictionary, try b.apply(b.symbol(default.?, span), b.symbol(itself, span), span), span);
+    var dictionary = b.symbol(declared.constructor.?, span);
+    for (declared.defaults, 0..) |default, i| {
+        const slot = if (i == derived.method) switch (derived.deriver) {
+            .derive_eq => try recordEq(b, env, method, fields, evidence, span),
+            .derive_to_json => try recordToJson(b, env, method, fields, evidence, span),
+            else => unreachable,
+        } else try b.apply(b.symbol(default.?, span), b.symbol(itself, span), span);
+        dictionary = try b.apply(dictionary, slot, span);
     }
     if (declared.methods.len == 1) return dictionary;
     const bindings = try b.dupeSlice(core.Letrec.Binding, &.{.{ .name = itself, .value = dictionary }});
@@ -216,11 +218,11 @@ fn recordDictionary(
 fn recordEq(
     b: core.Builder,
     env: *core.env.Env,
+    eq: core.SymbolId,
     fields: []const types.Type.Field,
     evidence: []const core.Term,
     span: diagnostic.Span,
 ) Allocator.Error!core.Term {
-    const eq = env.classes.get(.eq);
     const declared = &env.datatypes;
     const x = try env.interner.fresh("x");
     const y = try env.interner.fresh("y");
@@ -230,7 +232,7 @@ fn recordEq(
     while (i > 0) {
         i -= 1;
         const select = try primitives.selectSymbol(env, fields[i].label);
-        const pair = try b.applyMany(b.symbol(eq.methods[0], span), &.{
+        const pair = try b.applyMany(b.symbol(eq, span), &.{
             evidence[i],
             try b.apply(b.symbol(select, span), b.symbol(x, span), span),
             try b.apply(b.symbol(select, span), b.symbol(y, span), span),
@@ -247,11 +249,11 @@ fn recordEq(
 fn recordToJson(
     b: core.Builder,
     env: *core.env.Env,
+    to_json: core.SymbolId,
     fields: []const types.Type.Field,
     evidence: []const core.Term,
     span: diagnostic.Span,
 ) Allocator.Error!core.Term {
-    const to_json = env.classes.get(.to_json).methods[0];
     const r = try env.interner.fresh("r");
     const members = try b.slice(core.Builder.Member, fields.len);
     for (fields, evidence, members) |f, e, *member| {
@@ -355,14 +357,10 @@ fn field(
     const dictionary = try env.interner.fresh("d");
     const binders = try builder.slice(core.SymbolId, count);
     for (binders, 0..) |*binder, i| binder.* = try env.interner.fresh(if (i == index) "m" else "_");
-    const alternatives = try builder.dupeSlice(core.Case.Alternative, &.{.{
-        .constructor = constructor,
-        .binders = binders,
-        .body = builder.symbol(binders[index], span),
-    }});
+    const selected = try builder.unpack(builder.symbol(dictionary, span), constructor, binders, builder.symbol(binders[index], span), span);
     return .{
         .symbol = symbol,
-        .body = try builder.lambda(dictionary, try builder.case(builder.symbol(dictionary, span), alternatives, span), span),
+        .body = try builder.lambda(dictionary, selected, span),
         .span = span,
     };
 }

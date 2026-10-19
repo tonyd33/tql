@@ -1,0 +1,30 @@
+title: a derived instance over the last parameter wants the class of the constructor it reaches through
+grammar: typescript
+asserts: types, values
+
+`data Wrap f a = Wrap (f a)` derives `Functor f => Functor (Wrap f)` and
+`Foldable f => Foldable (Wrap f)`.
+
+--- tql ---
+import Data.Foldable (to_list, concat);
+
+data Wrap f a = Wrap (f a) deriving (Functor, Foldable);
+
+doubled :: (Functor f, Foldable f) => Wrap f Int -> [Int];
+doubled w = to_list $ map (* 2) w;
+
+main = Kleisli $ \_ -> concat [
+  doubled $ Wrap [1, 2],
+  doubled $ Wrap $ Just 3,
+];
+
+--- source ---
+class A {}
+
+--- values ---
+[2,4,6]
+
+--- types ---
+doubled :: (Functor a, Foldable a) => Wrap a Int -> [Int]
+main :: Kleisli List a Int
+entry :: Node -> [Json]

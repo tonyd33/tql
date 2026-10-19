@@ -290,10 +290,14 @@ pub const Registry = struct {
 
     /// `id` applied to its own parameters, in order.
     pub fn applied(self: *const Registry, arena: Allocator, id: TypeId) Allocator.Error!types.Type {
-        const declared = self.get(id);
-        const arguments = try arena.alloc(types.Type, declared.parameters.len);
+        return try self.appliedTo(arena, id, self.get(id).parameters.len);
+    }
+
+    /// `id` applied to its first `count` parameters, in order.
+    pub fn appliedTo(self: *const Registry, arena: Allocator, id: TypeId, count: usize) Allocator.Error!types.Type {
+        const arguments = try arena.alloc(types.Type, count);
         for (arguments, 0..) |*argument, i| argument.* = types.variable_type(@intCast(i));
-        return try types.constructed(arena, id, declared.name, arguments);
+        return try types.constructed(arena, id, self.get(id).name, arguments);
     }
 
     /// `Bool`.

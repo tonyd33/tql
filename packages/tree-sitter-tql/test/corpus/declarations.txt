@@ -906,3 +906,28 @@ f :: (->) Int Bool -> Maybe ((->) Int);
           (type_application
             (function_constructor)
             (type_identifier)))))))
+
+========================================
+a class naming its deriver
+========================================
+
+class Eq a where {
+  eq :: a -> a -> Bool;
+  deriving %derive_eq;
+};
+
+---
+
+(source_file
+  (class_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    method: (signature
+      name: (identifier)
+      type: (function_type
+        from: (type_variable)
+        to: (function_type
+          from: (type_variable)
+          to: (type_identifier))))
+    deriver: (class_deriver
+      primitive: (primitive))))

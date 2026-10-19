@@ -39,6 +39,8 @@ pub const Env = struct {
     primitives: std.EnumArray(details.PrimOp, ?symbols.SymbolId) = .initFill(null),
     /// The tuple datatype of each arity declared so far.
     tuples: [types.max_tuple_arity + 1]?symbols.TypeId = @splat(null),
+    /// How many modules, from `Prim` on, are the library's.
+    library_modules: u16 = 1,
 
     /// A written signature, translated.
     pub const Annotation = struct {
@@ -49,8 +51,7 @@ pub const Env = struct {
         names: []const []const u8 = &.{},
     };
 
-    /// Declares `Prim` as `ModuleId.prim`, and reserves the classes the
-    /// engine names in it.
+    /// Declares `Prim` as `ModuleId.prim`.
     pub fn init(gpa: Allocator) !Env {
         const arena = try gpa.create(std.heap.ArenaAllocator);
         errdefer gpa.destroy(arena);
@@ -60,14 +61,12 @@ pub const Env = struct {
         const scratch = arena.allocator();
         var interner = symbols.Interner.init(scratch);
         _ = try interner.declareModule(symbols.ModuleId.prim_name);
-        var class_registry = classes.Registry.init(scratch);
-        try class_registry.reserveBuiltins();
         return .{
             .gpa = gpa,
             .arena = arena,
             .interner = interner,
             .datatypes = datatypes.Registry.init(scratch),
-            .classes = class_registry,
+            .classes = classes.Registry.init(scratch),
             .schemes = symbols.SymbolTable(types.Scheme).init(scratch),
             .annotations = symbols.SymbolTable(Annotation).init(scratch),
             .always_inline = symbols.SymbolTable(void).init(scratch),
@@ -95,7 +94,13 @@ pub const Env = struct {
             .known = self.known,
             .primitives = self.primitives,
             .tuples = self.tuples,
+            .library_modules = self.library_modules,
         };
+    }
+
+    /// Whether `module` is the library's, and so may name primitives.
+    pub fn isLibrary(self: *const Env, module: symbols.ModuleId) bool {
+        return @intFromEnum(module) < self.library_modules;
     }
 
     pub fn deinit(self: *Env) void {
@@ -171,15 +176,15 @@ pub const Env = struct {
         return id;
     }
 
-    /// Declares the instances of tuple type `id`: one of each derivable
-    /// class, requiring its class of every component.
-    ///
-    /// Preconditions:
-    /// - `Prim` has declared its classes' members.
+    /// Declares the instances of tuple type `id`: one of each class declared
+    /// so far whose deriver ranges over a whole type, requiring its class of
+    /// every component.
     pub fn declareTupleInstances(self: *Env, id: symbols.TypeId) Allocator.Error!void {
         const scratch = self.allocator();
         const arity = self.datatypes.get(id).parameters.len;
-        for (classes.derivable) |class| {
+        for (0..self.classes.classes.items.len) |index| {
+            const class: classes.ClassId = @enumFromInt(index);
+            if (self.classes.wholeTypeDeriver(class) == null) continue;
             const context = try scratch.alloc(classes.Requirement, arity);
             for (context, 0..) |*requirement, i| requirement.* = .{ .class = class, .variable = @intCast(i) };
             _ = try self.declareInstance(.{

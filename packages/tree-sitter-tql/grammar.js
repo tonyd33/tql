@@ -132,6 +132,7 @@ module.exports = grammar({
             seq(field("method", $.signature), ";"),
             field("default", $.definition),
             field("minimal", $.minimal),
+            field("deriver", $.class_deriver),
           ),
         ),
         "}",
@@ -139,6 +140,8 @@ module.exports = grammar({
       ),
 
     minimal: $ => seq("minimal", field("formula", $._minimal_formula), ";"),
+
+    class_deriver: $ => seq("deriving", field("primitive", $.primitive), ";"),
 
     _minimal_formula: $ => choice($.minimal_any, $._minimal_conjunction),
 

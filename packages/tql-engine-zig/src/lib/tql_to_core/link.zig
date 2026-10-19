@@ -336,6 +336,7 @@ pub const Desugarer = struct {
         try self.declareTypes(&scope, source, &group, sink);
         try class_linker.declareMembers(source, &group);
         try group.commit(&self.env.?);
+        try class_linker.declareDerivers(source);
         // Before deriving, which solves at tuple fields. `Prim` names the
         // pair before its classes have methods, so no earlier.
         for (self.env.?.tuples, tuples_before) |now, before| {

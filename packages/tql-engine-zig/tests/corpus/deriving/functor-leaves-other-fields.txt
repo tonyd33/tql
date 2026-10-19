@@ -1,0 +1,18 @@
+title: a derived `map` leaves fields without the last parameter untouched
+grammar: typescript
+asserts: values
+
+--- tql ---
+data Tagged a = Tagged Int [Int] a deriving (Functor);
+
+unwrap t = case t of {
+  Tagged n ns x -> [n, length ns, x];
+};
+
+main = Kleisli $ \_ -> unwrap $ map (* 10) $ Tagged 1 [2, 3] 4;
+
+--- source ---
+class A {}
+
+--- values ---
+[1,2,40]

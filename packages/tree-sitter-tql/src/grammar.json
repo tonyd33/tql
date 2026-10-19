@@ -625,6 +625,14 @@
                   "type": "SYMBOL",
                   "name": "minimal"
                 }
+              },
+              {
+                "type": "FIELD",
+                "name": "deriver",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "class_deriver"
+                }
               }
             ]
           }
@@ -652,6 +660,27 @@
           "content": {
             "type": "SYMBOL",
             "name": "_minimal_formula"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": ";"
+        }
+      ]
+    },
+    "class_deriver": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "deriving"
+        },
+        {
+          "type": "FIELD",
+          "name": "primitive",
+          "content": {
+            "type": "SYMBOL",
+            "name": "primitive"
           }
         },
         {

@@ -1,0 +1,15 @@
+title: a derived `Functor` needs the instance of the constructor a field reaches through
+grammar: typescript
+asserts: error
+
+--- tql ---
+data Box a = Box a;
+data H a = H (Box a) deriving (Functor);
+main = pure 1;
+
+--- error ---
+error[unsatisfied-constraint]: `Functor H` needs `Functor Box`
+ --> 2:14
+  |
+2 | data H a = H (Box a) deriving (Functor);
+  |              ^^^^^^^

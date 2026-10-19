@@ -1,0 +1,17 @@
+title: a class outside the library cannot name a deriver
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Same a where {
+  same :: a -> a -> Bool;
+  deriving %derive_eq;
+};
+main = pure 1;
+
+--- error ---
+error[unresolved-name]: `%derive_eq` is not defined outside the library
+ --> 3:3
+  |
+3 |   deriving %derive_eq;
+  |   ^^^^^^^^^^^^^^^^^^^^

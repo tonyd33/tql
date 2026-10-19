@@ -1,0 +1,21 @@
+title: a derived instance over the last parameter carries its context
+grammar: typescript
+asserts: error
+
+`Functor (Wrap f)` holds only under `Functor f`, so a signature without it
+does not give what `map` at `Wrap f` needs.
+
+--- tql ---
+data Wrap f a = Wrap (f a) deriving (Functor);
+
+again :: Wrap f Int -> Wrap f Int;
+again w = map (* 2) w;
+
+main = pure 1;
+
+--- error ---
+error[signature-mismatch]: `Functor f` is needed, but the signature of `again` does not give it.
+ --> 4:11
+  |
+4 | again w = map (* 2) w;
+  |           ^^^

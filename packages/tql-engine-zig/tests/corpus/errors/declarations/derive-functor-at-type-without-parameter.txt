@@ -1,0 +1,14 @@
+title: `Functor` cannot be derived for a type without a parameter
+grammar: typescript
+asserts: error
+
+--- tql ---
+data N = N Int deriving (Functor);
+main = pure 1;
+
+--- error ---
+error[invalid-deriving]: `Functor` ranges over `N`'s last parameter, which it does not have
+ --> 1:26
+  |
+1 | data N = N Int deriving (Functor);
+  |                          ^^^^^^^

@@ -1,4 +1,4 @@
-title: a user class named like a derivable class prints qualified
+title: a user class named like a derivable class names no deriver
 grammar: typescript
 asserts: error
 
@@ -10,7 +10,7 @@ data T = A | B deriving (Eq);
 main = pure 1;
 
 --- error ---
-error[invalid-deriving]: `Main.Eq` cannot be derived; only `Prim.Eq`, `Ord` and `ToJson` can
+error[invalid-deriving]: `Eq` cannot be derived; its class names no deriver
  --> 4:26
   |
 4 | data T = A | B deriving (Eq);

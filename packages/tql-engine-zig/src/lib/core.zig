@@ -521,6 +521,12 @@ pub const Builder = struct {
         return .{ .kind = .{ .case = node }, .span = span };
     }
 
+    /// `case scrutinee of { constructor binders -> body; }`.
+    pub fn unpack(self: Builder, scrutinee: Term, constructor: SymbolId, binders: []const SymbolId, body: Term, span: diagnostic.Span) !Term {
+        const alternatives = try self.dupeSlice(Case.Alternative, &.{.{ .constructor = constructor, .binders = binders, .body = body }});
+        return try self.case(scrutinee, alternatives, span);
+    }
+
     /// `case scrutinee of { _ -> body }`: evaluate `scrutinee`, then `body`.
     pub fn force(self: Builder, scrutinee: Term, body: Term, span: diagnostic.Span) !Term {
         return try self.caseOf(.{ .scrutinee = scrutinee, .alternatives = &.{}, .default = body }, span);

@@ -95,6 +95,7 @@ pub const Library = struct {
         var desugarer = try tql_to_core.Desugarer.init(gpa);
         errdefer desugarer.deinit();
 
+        desugarer.env.?.library_modules = modules.len;
         for (modules[1..], 1..) |m, i| {
             const id = try desugarer.declareModule(m.name);
             std.debug.assert(@intFromEnum(id) == i);

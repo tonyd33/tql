@@ -157,7 +157,8 @@ pub const Printer = struct {
                     try w.writeByte(' ');
                     try self.writeName(binder, w, scope);
                 }
-                for (c.alternatives) |*alternative| {
+                for (c.alternatives) |*slot| {
+                    const alternative = if (slot.*) |*a| a else continue;
                     try print_scope.newline(w, indent + 2);
                     try w.writeAll(self.interner.spelling(alternative.constructor));
                     try self.enter(.{ .alternative = alternative }, w, indent + 2, scope);
@@ -264,7 +265,8 @@ pub const Printer = struct {
     }
 
     fn alternativesCapture(self: Printer, c: *const stg.Expr.Case, target: Target) bool {
-        for (c.alternatives) |alternative| {
+        for (c.alternatives) |slot| {
+            const alternative = slot orelse continue;
             if (self.captures(alternative.body, target)) return true;
         }
         if (c.default) |default| return self.captures(default, target);

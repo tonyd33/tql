@@ -116,6 +116,7 @@ class Eq a where {
   x == y = not (x != y);
   x != y = not (x == y);
   minimal (==) | (!=);
+  deriving %derive_eq;
 };
 
 class Eq a => Ord a where {
@@ -133,6 +134,7 @@ class Eq a => Ord a where {
   x >= y = compare x y != LT;
   max x y = if x <= y then y else x;
   min x y = if x <= y then x else y;
+  deriving %derive_ord;
   minimal compare | (<=);
 };
 ```
@@ -205,6 +207,7 @@ non-`EQ`.
 ```tql
 class Functor f where {
   map :: (a -> b) -> f a -> f b;
+  deriving %derive_functor;
 };
 
 class Functor f => Applicative f where {
@@ -289,10 +292,12 @@ class Foldable t where {
   to_list :: t a -> [a];
   null xs = foldr (\_ _ -> False) True xs;
   to_list xs = foldr Cons Nil xs;
+  deriving %derive_foldable;
 };
 
 class (Functor t, Foldable t) => Traversable t where {
   traverse :: Applicative f => (a -> f b) -> t a -> f (t b);
+  deriving %derive_traversable;
 };
 ```
 
@@ -408,6 +413,7 @@ run_kleisli (p | q)  =  kleisli (run_kleisli p) (run_kleisli q)
 ```tql
 class ToJson a where {
   to_json :: a -> Json;
+  deriving %derive_to_json;
 };
 ```
 

@@ -238,8 +238,8 @@ pub const Lowerer = struct {
             },
 
             .primitive => |name| {
-                if (self.scope.module != .prim) {
-                    try self.sink.report(.unresolved_name, e.span, .{ diagnostic.code(name), " is not defined outside ", diagnostic.code("Prim") });
+                if (!self.env.isLibrary(self.scope.module)) {
+                    try self.sink.report(.unresolved_name, e.span, .{ diagnostic.code(name), " is not defined outside the library" });
                     return error.DesugarFailed;
                 }
                 const primitive = self.env.interner.lookup(null, name) orelse {
